@@ -176,6 +176,36 @@ Cuatro sitios: **Exámenes**, **Biblioteca**, **Estudiantes**, **Pendientes**.
 corregir (expresiones escritas y grabaciones) y las citas orales. Son dos formas
 de «lo que me espera», y con doce estudiantes caben en una pantalla.
 
+## 9 bis. Las opiniones de los estudiantes
+
+La portada necesita testimonios, y tienen que salir de los propios estudiantes.
+
+**Una opinión pertenece a un estudiante** y guarda: el texto, la fecha, cómo
+quiere que se le nombre, si hay permiso para publicarla, y su estado (nueva,
+publicada, archivada).
+
+**Cuándo se pide.** Una sola vez, y en un momento en el que el estudiante ya
+tiene algo que decir: **cuando recibe la corrección de su primer examen blanco
+completo**. Aparece en Mis resultados, se puede saltar sin dar explicaciones, y
+no se vuelve a pedir. Nunca al entrar, ni como ventana que tape nada.
+
+**Quién publica.** El profesor, desde la ficha del estudiante en **Estudiantes**.
+No hay sección nueva en el menú: una opinión pertenece a una persona, así que
+vive donde vive esa persona. La portada enseña las publicadas; si no hay
+ninguna, esa parte de la portada no se dibuja.
+
+**Permiso y firma, que son dos cosas distintas y los estudiantes son menores.**
+Publicar el nombre y las palabras de un menor en una web abierta normalmente
+necesita el permiso de su padre o su madre, no solo el del estudiante. Por eso la
+ficha guarda por separado:
+
+- **El permiso**, marcado explícitamente. Sin permiso, la opinión le sirve al
+  profesor pero **no puede salir a la portada**, y el sitio no se lo deja hacer.
+- **Cómo firma**: nombre completo, solo el nombre de pila, iniciales, o anónimo.
+
+Merece una prueba con su mutación: quitar la comprobación del permiso y que una
+opinión sin permiso llegue a la portada tiene que poner una prueba en rojo.
+
 ## 10. Qué se muda del repositorio viejo
 
 **Se lleva** (unas 3.000 líneas, que es lo caro de hacer):
