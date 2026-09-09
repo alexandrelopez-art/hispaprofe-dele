@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hp-50: #eaf7fe;
+  --color-hp-100: #c9ebfc;
+  --color-hp-200: #93d8f9;
+  --color-hp-300: #4fbff5;
+  --color-hp-400: #04a1f1;
+  --color-hp-500: #0b8ad1;
+  --color-hp-600: #0f6fa8;
+  --color-hp-700: #0f567f;
+
+  --color-sol-100: #fff8d6;
+  --color-sol-400: #f5ce3d;
+  --color-coral-100: #fdeaef;
+  --color-coral-500: #e0566e;
+  --color-coral-600: #c53a55;
+  --color-verde-100: #e4f5ef;
+  --color-verde-500: #18988a;
+  --color-verde-600: #147a70;
+  --color-error-100: #fde8e8;
+  --color-error-500: #d93a3a;
+  --color-error-600: #b42b2b;
+
+  --color-fondo: #f4f9fc;
+  --color-tinta: #143a4f;
+  --color-tinta-suave: #5a7a8c;
+
+  --shadow-suave: 0 4px 16px -4px rgba(4, 161, 241, 0.18);
+  --shadow-tarjeta: 0 10px 30px -12px rgba(4, 161, 241, 0.25);
+  --radius-tarjeta: 16px;
+}
+
+body {
+  background: var(--color-fondo);
+  color: var(--color-tinta);
+}
