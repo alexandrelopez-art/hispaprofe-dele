@@ -61,4 +61,14 @@ describe("la guarda de publicación", () => {
     const motivos = motivosParaNoPublicar([]);
     expect(motivos[0]).toMatch(/falta/i);
   });
+
+  it("no deja publicar si a una tarea le sobran ítems", () => {
+    const tareas = examenCompleto().map((t) =>
+      t.prueba === "CO" && t.numero === 1 ? { ...t, items: 8 } : t,
+    );
+    const motivos = motivosParaNoPublicar(tareas);
+    expect(motivos).toHaveLength(1);
+    expect(motivos[0]).toContain("7");
+    expect(motivos[0]).toContain("8");
+  });
 });
