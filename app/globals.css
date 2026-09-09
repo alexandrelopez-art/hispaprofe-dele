@@ -29,6 +29,7 @@
   --shadow-suave: 0 4px 16px -4px rgba(4, 161, 241, 0.18);
   --shadow-tarjeta: 0 10px 30px -12px rgba(4, 161, 241, 0.25);
   --radius-tarjeta: 16px;
+  --font-sans: var(--font-nunito), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body {
