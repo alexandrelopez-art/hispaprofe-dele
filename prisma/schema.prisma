@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Nivel {
+  A1
+  A2
+  B1
+  B2
+}
+
+/// Las cuatro pruebas del DELE.
+enum Prueba {
+  CE
+  CO
+  EE
+  EO
+}
+
+enum EstadoExamen {
+  EN_CONSTRUCCION
+  PUBLICADO
+  ARCHIVADO
+}
+
+/// Lo que puede ser una pieza dentro de una tarea.
+enum TipoPieza {
+  TEXTO
+  IMAGEN
+  AUDIO
+  VIDEO
+  ACTIVIDAD
+}
+
+enum TipoActividad {
+  OPCION
+  HUECOS
+  ORDENAR
+  RELACIONAR
+  REDACCION
+  GRABACION
+}
+
+model Examen {
+  id        String       @id @default(cuid())
+  titulo    String
+  nivel     Nivel
+  estado    EstadoExamen @default(EN_CONSTRUCCION)
+  tareas    Tarea[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([estado])
+}
+
+model Tarea {
+  id       String @id @default(cuid())
+  examen   Examen @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId String
+  prueba   Prueba
+  numero   Int
+  piezas   Pieza[]
+
+  /// Un examen no puede tener dos «tarea 2 de lectura».
+  @@unique([examenId, prueba, numero])
+  @@index([examenId])
+}
+
+/// El cambio de fondo respecto al sitio viejo: una tarea tiene TANTAS piezas
+/// como haga falta, en el orden que sea. No hay ninguna regla que limite a una
+/// actividad por tarea.
+model Pieza {
+  id     String    @id @default(cuid())
+  tarea  Tarea     @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  tareaId String
+  orden  Int
+  tipo   TipoPieza
+
+  /// Para TEXTO. En las demás va a null.
+  texto String?
+  /// Para IMAGEN, AUDIO y VIDEO: el identificador en el almacén de ficheros.
+  ficheroId String?
+  /// Pie de foto, título del audio o etiqueta del vídeo.
+  etiqueta String?
+
+  actividad Actividad?
+
+  @@unique([tareaId, orden])
+  @@index([tareaId])
+}
+
+model Actividad {
+  id      String        @id @default(cuid())
+  pieza   Pieza         @relation(fields: [piezaId], references: [id], onDelete: Cascade)
+  piezaId String        @unique
+  tipo    TipoActividad
+  /// Enunciados, opciones y textos. NUNCA las respuestas correctas.
+  datos   Json
+  clave   Clave?
+}
+
+/// Las respuestas correctas viven en su propia tabla, para que enseñar una
+/// actividad no pueda arrastrar la solución por descuido.
+model Clave {
+  id          String    @id @default(cuid())
+  actividad   Actividad @relation(fields: [actividadId], references: [id], onDelete: Cascade)
+  actividadId String    @unique
+  respuestas  Json
+}
