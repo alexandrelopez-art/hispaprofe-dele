@@ -43,5 +43,23 @@ export function motivosParaNoPublicar(tareas: TareaParaRevisar[]): string[] {
     }
   }
 
+  const veces = new Map<string, { prueba: Prueba; numero: number; veces: number }>();
+  for (const tarea of tareas) {
+    const clave = `${tarea.prueba}-${tarea.numero}`;
+    const entrada = veces.get(clave);
+    if (entrada) {
+      entrada.veces += 1;
+    } else {
+      veces.set(clave, { prueba: tarea.prueba, numero: tarea.numero, veces: 1 });
+    }
+  }
+  for (const { prueba, numero, veces: repeticiones } of veces.values()) {
+    if (repeticiones > 1) {
+      motivos.push(
+        `La tarea ${numero} de ${NOMBRE[prueba]} (${prueba}) está repetida: aparece ${repeticiones} veces.`,
+      );
+    }
+  }
+
   return motivos;
 }

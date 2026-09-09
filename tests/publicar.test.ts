@@ -71,4 +71,13 @@ describe("la guarda de publicación", () => {
     expect(motivos[0]).toContain("7");
     expect(motivos[0]).toContain("8");
   });
+
+  it("no deja publicar si una tarea se coló dos veces", () => {
+    const original = examenCompleto();
+    const tareas = [...original, { ...original[0] }];
+    const motivos = motivosParaNoPublicar(tareas);
+    expect(motivos).toHaveLength(1);
+    expect(motivos[0]).toContain(original[0].prueba);
+    expect(motivos[0]).toContain(String(original[0].numero));
+  });
 });
