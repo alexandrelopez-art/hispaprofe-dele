@@ -6,5 +6,6 @@ describe("el esqueleto", () => {
     const css = readFileSync("app/globals.css", "utf8");
     expect(css).toContain("--color-hp-400: #04a1f1;");
     expect(css).toContain("--color-tinta: #143a4f;");
+    expect(css).toContain("--font-sans: var(--font-nunito)");
   });
 });

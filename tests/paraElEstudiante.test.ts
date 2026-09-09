@@ -5,7 +5,7 @@ const conClave = {
   id: "act1",
   tipo: "OPCION" as const,
   datos: { preguntas: [{ id: "p1", enunciado: "¿Quién no trabaja todavía?" }] },
-  clave: { id: "c1", respuestas: { p1: "B" } },
+  clave: { id: "c1", respuestas: { p1: "RESPUESTA-CORRECTA-9f3c2a" } },
 };
 
 describe("lo que se le manda al estudiante", () => {
@@ -20,7 +20,7 @@ describe("lo que se le manda al estudiante", () => {
     const publica = actividadParaElEstudiante(conClave);
     expect("clave" in publica).toBe(false);
     expect(JSON.stringify(publica)).not.toContain("respuestas");
-    expect(JSON.stringify(publica)).not.toContain("\"B\"");
+    expect(JSON.stringify(publica)).not.toContain("RESPUESTA-CORRECTA-9f3c2a");
   });
 
   it("funciona igual cuando la actividad todavía no tiene clave", () => {

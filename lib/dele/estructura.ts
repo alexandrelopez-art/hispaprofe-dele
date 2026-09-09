@@ -8,7 +8,7 @@ export type ReglaTarea = { numero: number; items: number | null };
  * Viven aquí y no en el modelo: el modelo tiene que servir mañana a un
  * examen que el profesor arma a mano, sin reglas de estructura.
  */
-export const ESTRUCTURA: Record<Prueba, ReglaTarea[]> = {
+export const ESTRUCTURA: Readonly<Record<Prueba, ReadonlyArray<Readonly<ReglaTarea>>>> = {
   CE: [
     { numero: 1, items: 6 },
     { numero: 2, items: 6 },
@@ -33,6 +33,6 @@ export const ESTRUCTURA: Record<Prueba, ReglaTarea[]> = {
   ],
 };
 
-export function reglaDe(prueba: Prueba, numero: number): ReglaTarea | null {
-  return ESTRUCTURA[prueba].find((r) => r.numero === numero) ?? null;
+export function reglaDe(prueba: Prueba, numero: number): Readonly<ReglaTarea> | null {
+  return ESTRUCTURA[prueba]?.find((r) => r.numero === numero) ?? null;
 }

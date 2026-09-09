@@ -1,10 +1,11 @@
 {
   "name": "hispaprofe-dele",
   "version": "1.0.0",
+  "private": true,
   "description": "Preparación del DELE A2/B1 escolar. Repositorio nuevo, decidido el 9 de septiembre de 2026. El anterior sigue en `~/Projects/hispaprofe` y no se toca.",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "engines": {
+    "node": ">=24.15.0",
+    "npm": ">=11.12.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -14,10 +15,7 @@
     "test": "vitest run",
     "postinstall": "prisma generate"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
