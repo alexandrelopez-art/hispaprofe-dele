@@ -182,12 +182,18 @@ La portada necesita testimonios, y tienen que salir de los propios estudiantes.
 
 **Una opinión pertenece a un estudiante** y guarda: el texto, la fecha, cómo
 quiere que se le nombre, si hay permiso para publicarla, y su estado (nueva,
-publicada, archivada).
+publicada, archivada). Un estudiante puede tener varias.
 
-**Cuándo se pide.** Una sola vez, y en un momento en el que el estudiante ya
-tiene algo que decir: **cuando recibe la corrección de su primer examen blanco
-completo**. Aparece en Mis resultados, se puede saltar sin dar explicaciones, y
-no se vuelve a pedir. Nunca al entrar, ni como ventana que tape nada.
+**Siempre abierta.** El estudiante puede escribir su opinión desde el primer día,
+desde Mis resultados, y **tantas veces como quiera**: cada una es una entrada
+suya, y el profesor elige. No hace falta acertar con el momento, porque la
+clasificación la hace él.
+
+**Y un aviso al final, que lo dispara el profesor.** Un botón en su lado pide la
+opinión a los estudiantes que él elija, y a esos les aparece un aviso en su
+Inicio. Nada de reglas automáticas: con doce estudiantes y una convocatoria,
+cualquier regla sería más complicada que pulsar un botón. El aviso se puede
+ignorar y no tapa nada.
 
 **Quién publica.** El profesor, desde la ficha del estudiante en **Estudiantes**.
 No hay sección nueva en el menú: una opinión pertenece a una persona, así que
