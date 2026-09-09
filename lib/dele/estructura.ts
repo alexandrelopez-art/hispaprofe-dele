@@ -5,8 +5,8 @@ export type ReglaTarea = { numero: number; items: number | null };
 
 /**
  * Los números del DELE A2/B1 escolar, verificados contra los cuadernillos.
- * Viven aquí y no en el modelo: el modelo tiene que servir mañana a una
- * secuencia libre, que no cumple ninguna de estas reglas.
+ * Viven aquí y no en el modelo: el modelo tiene que servir mañana a un
+ * examen que el profesor arma a mano, sin reglas de estructura.
  */
 export const ESTRUCTURA: Record<Prueba, ReglaTarea[]> = {
   CE: [
