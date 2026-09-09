@@ -1,7 +1,8 @@
 node_modules/
 .next/
+.vercel
+*.tsbuildinfo
+lib/generated/
 .env
 .env.*
 !.env.example
-*.tsbuildinfo
-lib/generated/
