@@ -5,12 +5,24 @@ import { NOMBRE_DE_COOKIE } from "@/lib/puerta/rutas";
 import { personaDeLaCookie } from "@/lib/puerta/entrada";
 import { DIAS_DE_SESION } from "@/lib/puerta/reglas";
 
-// Ya no la usa nadie fuera de exigirPersona, en este mismo fichero. Se deja
-// sin exportar a propósito, para que ninguna pantalla futura pueda mirar la
-// sesión saltándose la envoltura.
+// No exportada a propósito, para que ninguna PANTALLA futura pueda mirar la
+// sesión saltándose exigirPersona/exigirProfesor (que redirigen). Las rutas
+// de datos (app/api/...) no pueden redirigir donde se espera JSON, así que
+// tienen su propia envoltura más abajo: personaDeLaPeticion.
 async function personaActual(ahora: Date): Promise<Persona | null> {
   const cookie = (await cookies()).get(NOMBRE_DE_COOKIE)?.value;
   return cookie ? personaDeLaCookie(cookie, ahora) : null;
+}
+
+/**
+ * La persona de la sesión, o null si no hay ninguna. Es la envoltura para
+ * app/api/...: nunca redirige ni da 404, para que quien llama pueda responder
+ * con el código HTTP que toque (401 sin sesión, 403 con sesión pero sin
+ * permiso). Reutiliza la misma comprobación de cookie que exigirPersona, sin
+ * duplicarla.
+ */
+export async function personaDeLaPeticion(): Promise<Persona | null> {
+  return personaActual(new Date());
 }
 
 /**
