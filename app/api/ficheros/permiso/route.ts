@@ -2,12 +2,14 @@ import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
-import { permisoDeSubida, puedeSubirMaterial, rutaDelFichero } from "@/lib/ficheros/vercel";
+import {
+  CARPETA_DE_MATERIAL,
+  permisoDeSubida,
+  puedeSubirMaterial,
+  rutaDelFichero,
+  tipoPermitido,
+} from "@/lib/ficheros/vercel";
 
-// El material del examen (páginas escaneadas y audios) va todo a la misma
-// carpeta por ahora; qué actividad usa cada fichero se resuelve en tareas
-// posteriores, con la tabla Pieza.
-const CARPETA = "material";
 const MAX_BYTES = 50 * 1024 * 1024;
 
 const cuerpo = z.object({
@@ -15,10 +17,6 @@ const cuerpo = z.object({
   tipoMime: z.string().min(1),
   bytes: z.number().int().positive(),
 });
-
-function esImagenOAudio(tipoMime: string): boolean {
-  return tipoMime.startsWith("image/") || tipoMime.startsWith("audio/");
-}
 
 /**
  * Pide permiso para subir un fichero. Esta es una ruta de DATOS, no una
@@ -44,14 +42,14 @@ export async function POST(request: NextRequest) {
   // Aquí bytes y tipoMime son lo que DICE el navegador: solo sirven para
   // decidir el permiso. Lo que se guarda en la base sale del almacén, en
   // /api/ficheros/confirmar.
-  if (!esImagenOAudio(tipoMime)) {
+  if (!tipoPermitido(tipoMime)) {
     return NextResponse.json({ error: "Solo se admiten imágenes o audio." }, { status: 400 });
   }
   if (bytes > MAX_BYTES) {
     return NextResponse.json({ error: "El fichero pesa más de 50 MB." }, { status: 400 });
   }
 
-  const ruta = rutaDelFichero(CARPETA, nombre, randomBytes(6).toString("hex"));
+  const ruta = rutaDelFichero(CARPETA_DE_MATERIAL, nombre, randomBytes(6).toString("hex"));
   const { url, validoHasta } = await permisoDeSubida(ruta, [tipoMime], bytes, new Date());
 
   return NextResponse.json({ url, ruta, validoHasta });
