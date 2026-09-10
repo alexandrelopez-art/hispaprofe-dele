@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect, notFound } from "next/navigation";
 import type { Persona } from "@/lib/generated/prisma";
 import { NOMBRE_DE_COOKIE } from "@/lib/puerta/rutas";
 import { personaDeLaCookie } from "@/lib/puerta/entrada";
@@ -7,6 +8,24 @@ import { DIAS_DE_SESION } from "@/lib/puerta/reglas";
 export async function personaActual(ahora: Date): Promise<Persona | null> {
   const cookie = (await cookies()).get(NOMBRE_DE_COOKIE)?.value;
   return cookie ? personaDeLaCookie(cookie, ahora) : null;
+}
+
+/**
+ * La persona que está mirando la pantalla, o fuera. El guardián solo mira que
+ * haya cookie; esta es la comprobación de verdad, y toda pantalla cerrada
+ * empieza por aquí.
+ */
+export async function exigirPersona(): Promise<Persona> {
+  const persona = await personaActual(new Date());
+  if (!persona) redirect("/entrar");
+  return persona;
+}
+
+/** Como exigirPersona, pero además exige que sea el profesor. */
+export async function exigirProfesor(): Promise<Persona> {
+  const persona = await exigirPersona();
+  if (persona.papel !== "PROFESOR") notFound();
+  return persona;
 }
 
 export async function ponerCookie(valor: string): Promise<void> {
