@@ -16,6 +16,7 @@ describe("las reglas de la entrada", () => {
 
   it("rechaza un enlace caducado", () => {
     expect(motivoParaRechazar({ expiraEn: minutos(-1), usadoEn: null }, AHORA)).toBe("caducado");
+    expect(motivoParaRechazar({ expiraEn: AHORA, usadoEn: null }, AHORA)).toBe("caducado");
   });
 
   it("rechaza un enlace ya usado, aunque siga vivo", () => {
@@ -28,6 +29,7 @@ describe("las reglas de la entrada", () => {
 
   it("una sesión caducada no vale", () => {
     expect(sesionCaducada({ expiraEn: minutos(-1) }, AHORA)).toBe(true);
+    expect(sesionCaducada({ expiraEn: AHORA }, AHORA)).toBe(true);
     expect(sesionCaducada({ expiraEn: minutos(1) }, AHORA)).toBe(false);
   });
 
