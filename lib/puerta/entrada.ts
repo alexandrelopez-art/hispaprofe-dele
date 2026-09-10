@@ -16,8 +16,11 @@ export function normalizarCorreo(correo: string): string {
 }
 
 /**
- * Pide un enlace de entrada. No devuelve nada a propósito: quien llama no puede
- * saber si el correo existe, y así la pantalla es idéntica en los dos casos.
+ * Pide un enlace de entrada. No devuelve nada a propósito: el CONTENIDO de la
+ * respuesta es idéntico si el correo existe o no, para que la pantalla no
+ * delate quién está apuntado. Ojo: no es idéntico en TIEMPO — el camino que
+ * sí existe manda un correo de verdad y tarda más, y eso se puede medir. Se
+ * deja así a propósito para esta entrega; no lo des por indistinguible.
  */
 export async function pedirEnlace(
   correo: string,
@@ -45,7 +48,11 @@ export async function pedirEnlace(
       createdAt: ahora,
     },
   });
-  await mandar(mensajeDeEntrada(persona.correo, `${base}/entrar/${secreto}`));
+  try {
+    await mandar(mensajeDeEntrada(persona.correo, `${base}/entrar/${secreto}`));
+  } catch (error) {
+    console.error("No se pudo mandar el correo de entrada", error);
+  }
 }
 
 export type ResultadoDeEntrada =
@@ -55,13 +62,27 @@ export type ResultadoDeEntrada =
 export async function usarEnlace(secreto: string, ahora: Date): Promise<ResultadoDeEntrada> {
   const enlace = await prisma.enlaceDeEntrada.findUnique({
     where: { secretoHuella: huellaDe(secreto) },
+    include: { persona: true },
   });
   if (!enlace) return { error: "desconocido" };
+  if (!enlace.persona.activa) return { error: "desconocido" };
 
   const motivo = motivoParaRechazar(enlace, ahora);
   if (motivo) return { error: motivo };
 
-  await prisma.enlaceDeEntrada.update({ where: { id: enlace.id }, data: { usadoEn: ahora } });
+  // Marcado condicional: si dos peticiones llegan a la vez con el mismo
+  // secreto, la segunda pierde la carrera y no marca nada (count === 0).
+  const marcado = await prisma.enlaceDeEntrada.updateMany({
+    where: { id: enlace.id, usadoEn: null },
+    data: { usadoEn: ahora },
+  });
+  if (marcado.count === 0) return { error: "usado" };
+
+  // Un enlace que ya no hace falta no debe seguir sirviendo hasta que caduque.
+  await prisma.enlaceDeEntrada.updateMany({
+    where: { personaId: enlace.personaId, usadoEn: null },
+    data: { usadoEn: ahora },
+  });
 
   const cookie = crearSecreto();
   await prisma.sesion.create({
