@@ -30,7 +30,8 @@ que es donde aparecen los enlaces firmados) y `google-auth-library`.
 - **Antes de leer un resultado de pruebas, comprobar que el número recogido no es
   cero.** Cero pruebas recogidas se lee como «ningún fallo» y no lo es.
 - **Ninguna función que dependa del tiempo puede llamar a `new Date()` por dentro.**
-  La hora entra siempre como argumento. Una prueba que dependa del reloj real se pone
+  La hora entra siempre como argumento. El único sitio donde nace el reloj es el
+  borde: los `route.ts`, las acciones de servidor y `lib/puerta/sesion-http.ts`. Una prueba que dependa del reloj real se pone
   roja de madrugada y nadie sabe por qué.
 - **Ningún secreto se guarda en claro:** ni el del enlace de entrada, ni el de la
   cookie de sesión.
@@ -489,7 +490,7 @@ Expected: FAIL, no existen los módulos.
 `lib/puerta/secretos.ts`:
 
 ```ts
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 /** El secreto viaja en el enlace; de él solo se guarda la huella, como una contraseña. */
 export function crearSecreto(): { secreto: string; huella: string } {
@@ -499,13 +500,6 @@ export function crearSecreto(): { secreto: string; huella: string } {
 
 export function huellaDe(secreto: string): string {
   return createHash("sha256").update(secreto).digest("hex");
-}
-
-/** Comparación en tiempo constante, para no filtrar el secreto por lo que tarda. */
-export function huellasIguales(a: string, b: string): boolean {
-  const uno = Buffer.from(a, "utf8");
-  const otro = Buffer.from(b, "utf8");
-  return uno.length === otro.length && timingSafeEqual(uno, otro);
 }
 ```
 
@@ -1003,6 +997,10 @@ describe("qué rutas exigen sesión", () => {
     expect(exigeSesion("/entrarme")).toBe(true);
     expect(exigeSesion("/entrar-por-detras")).toBe(true);
   });
+
+  it("las rutas de datos también están cerradas", () => {
+    expect(exigeSesion("/api/ficheros/permiso")).toBe(true);
+  });
 });
 ```
 
@@ -1066,9 +1064,12 @@ export function proxy(request: NextRequest) {
   if (!exigeSesion(ruta)) return NextResponse.next();
   if (request.cookies.has(NOMBRE_DE_COOKIE)) return NextResponse.next();
 
-  const destino = new URL("/entrar", request.url);
-  destino.searchParams.set("volver", ruta);
-  return NextResponse.redirect(destino, 307);
+  // Una llamada de la propia página no entiende de redirecciones: si le mandas la
+  // pantalla de entrar, el navegador se traga un HTML donde esperaba datos.
+  if (ruta.startsWith("/api/")) {
+    return NextResponse.json({ error: "Hay que entrar." }, { status: 401 });
+  }
+  return NextResponse.redirect(new URL("/entrar", request.url), 307);
 }
 
 export const config = {
@@ -1113,9 +1114,9 @@ const AVISOS: Record<string, string> = {
 export default async function Entrar({
   searchParams,
 }: {
-  searchParams: Promise<{ fallo?: string; volver?: string }>;
+  searchParams: Promise<{ fallo?: string }>;
 }) {
-  const { fallo, volver } = await searchParams;
+  const { fallo } = await searchParams;
   const aviso = fallo ? AVISOS[fallo] : null;
 
   return (
@@ -1126,7 +1127,6 @@ export default async function Entrar({
       </p>
       {aviso && <p className="rounded-2xl bg-hp-50 p-4 text-tinta">{aviso}</p>}
       <form action={pedirEntrada} className="flex flex-col gap-4">
-        <input type="hidden" name="volver" value={volver ?? ""} />
         <input
           type="email"
           name="correo"
@@ -1186,8 +1186,7 @@ export async function GET(
   }
 
   await ponerCookie(resultado.cookie);
-  const volver = request.nextUrl.searchParams.get("volver");
-  return NextResponse.redirect(new URL(volver ?? "/", request.url), 307);
+  return NextResponse.redirect(new URL("/", request.url), 307);
 }
 ```
 
@@ -1569,7 +1568,7 @@ llega solo al conectar el almacén, y que en local se baja con `vercel env pull`
 - [ ] **Step 4: Correrlas y ver que pasan**
 
 Run: `npm test && npx tsc --noEmit`
-Expected: PASS, 46 pruebas.
+Expected: PASS, 47 pruebas.
 
 Mutaciones que las matan: quitar el `.split(/[\\/]/).pop()` de `rutaDelFichero` mata la
 de los dos puntos; devolver `datos.bytesSegunElNavegador` en vez de `confirmado.bytes`
@@ -1740,7 +1739,7 @@ sesión, sube con `PUT` y guarda la fila `Fichero` con `almacen: "DRIVE"`.
 - [ ] **Step 4: Correrlas y ver que pasan**
 
 Run: `npm test && npx tsc --noEmit`
-Expected: PASS, 48 pruebas.
+Expected: PASS, 49 pruebas.
 
 Mutación que las mata: quitar `supportsAllDrives=true` de la dirección. **Comprobarlo.**
 
