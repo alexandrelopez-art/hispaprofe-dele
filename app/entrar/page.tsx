@@ -11,7 +11,7 @@ export default async function Entrar({
   searchParams: Promise<{ fallo?: string }>;
 }) {
   const { fallo } = await searchParams;
-  const aviso = fallo ? AVISOS[fallo] : null;
+  const aviso = fallo && Object.hasOwn(AVISOS, fallo) ? AVISOS[fallo] : null;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-6">

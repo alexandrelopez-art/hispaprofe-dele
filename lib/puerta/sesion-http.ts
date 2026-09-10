@@ -4,9 +4,9 @@ import { NOMBRE_DE_COOKIE } from "@/lib/puerta/rutas";
 import { personaDeLaCookie } from "@/lib/puerta/entrada";
 import { DIAS_DE_SESION } from "@/lib/puerta/reglas";
 
-export async function personaActual(): Promise<Persona | null> {
+export async function personaActual(ahora: Date): Promise<Persona | null> {
   const cookie = (await cookies()).get(NOMBRE_DE_COOKIE)?.value;
-  return cookie ? personaDeLaCookie(cookie, new Date()) : null;
+  return cookie ? personaDeLaCookie(cookie, ahora) : null;
 }
 
 export async function ponerCookie(valor: string): Promise<void> {

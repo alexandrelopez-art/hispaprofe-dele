@@ -9,5 +9,8 @@ export async function GET(request: NextRequest) {
   const cookie = almacen.get(NOMBRE_DE_COOKIE)?.value;
   if (cookie) await cerrarSesion(cookie);
   await borrarCookie();
-  return NextResponse.redirect(new URL("/entrar", request.url), 307);
+  const respuesta = NextResponse.redirect(new URL("/entrar", request.url), 307);
+  // La respuesta borra la cookie de sesión: ninguna caché intermedia debe guardarla.
+  respuesta.headers.set("Cache-Control", "no-store");
+  return respuesta;
 }
