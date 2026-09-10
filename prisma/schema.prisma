@@ -83,12 +83,14 @@ model Pieza {
 
   /// Para TEXTO. En las demás va a null.
   texto String?
-  /// Para IMAGEN, AUDIO y VIDEO: el identificador en el almacén de ficheros.
-  ficheroId String?
   /// Pie de foto, título del audio o etiqueta del vídeo.
   etiqueta String?
 
   actividad Actividad?
+
+  /// Para IMAGEN, AUDIO y VIDEO. En las demás va a null.
+  fichero   Fichero? @relation(fields: [ficheroId], references: [id], onDelete: Restrict)
+  ficheroId String?
 
   @@unique([tareaId, orden])
   @@index([tareaId])
@@ -111,4 +113,70 @@ model Clave {
   actividad   Actividad @relation(fields: [actividadId], references: [id], onDelete: Cascade)
   actividadId String    @unique
   respuestas  Json
+}
+
+enum Papel {
+  PROFESOR
+  ESTUDIANTE
+}
+
+enum Almacen {
+  VERCEL
+  DRIVE
+}
+
+/// La lista blanca: si un correo no está aquí, no entra nadie. Nadie se registra solo.
+model Persona {
+  id        String   @id @default(cuid())
+  correo    String   @unique
+  nombre    String
+  papel     Papel    @default(ESTUDIANTE)
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  enlaces  EnlaceDeEntrada[]
+  sesiones Sesion[]
+  ficheros Fichero[]
+}
+
+/// El enlace que llega al correo. Del secreto se guarda solo la huella.
+model EnlaceDeEntrada {
+  id            String    @id @default(cuid())
+  persona       Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personaId     String
+  secretoHuella String    @unique
+  expiraEn      DateTime
+  usadoEn       DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([personaId, createdAt])
+}
+
+model Sesion {
+  id           String   @id @default(cuid())
+  persona      Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personaId    String
+  cookieHuella String   @unique
+  expiraEn     DateTime
+  ultimaVezEn  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([personaId])
+}
+
+/// Dónde está un fichero, nunca el fichero. La base no guarda bytes.
+model Fichero {
+  id            String   @id @default(cuid())
+  almacen       Almacen
+  ruta          String
+  nombreOriginal String?
+  tipoMime      String
+  bytes         Int
+  subidoPor     Persona? @relation(fields: [subidoPorId], references: [id], onDelete: SetNull)
+  subidoPorId   String?
+  createdAt     DateTime @default(now())
+
+  piezas Pieza[]
+
+  @@unique([almacen, ruta])
 }
