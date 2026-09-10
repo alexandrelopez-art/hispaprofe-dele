@@ -31,6 +31,22 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie }));
 vi.mock("next/navigation", () => ({ redirect, notFound }));
 
+// toThrow(cadena) compara por subcadena, así que no basta para distinguir
+// mensajes donde uno pudiera ser prefijo de otro. Esta ayuda captura el
+// mensaje exacto para compararlo con toBe.
+async function mensajeDelRechazo(promesa: Promise<unknown>): Promise<string> {
+  let mensaje: string | null = null;
+  try {
+    await promesa;
+  } catch (error) {
+    mensaje = error instanceof Error ? error.message : String(error);
+  }
+  if (mensaje === null) {
+    throw new Error("se esperaba que la promesa rechazara, y no lo hizo");
+  }
+  return mensaje;
+}
+
 const PROFESOR: Persona = {
   id: "p1",
   correo: "pablo@hispaprofe.com",
@@ -61,7 +77,7 @@ describe("exigirPersona", () => {
   // /entrar (y el redirect nunca se llamaría).
   it("sin sesión, manda a /entrar", async () => {
     cookiesGet.mockReturnValue(undefined);
-    await expect(exigirPersona()).rejects.toThrow("REDIRECT:/entrar");
+    expect(await mensajeDelRechazo(exigirPersona())).toBe("REDIRECT:/entrar");
     expect(redirect).toHaveBeenCalledWith("/entrar");
     expect(personaDeLaCookie).not.toHaveBeenCalled();
   });
@@ -84,7 +100,7 @@ describe("exigirProfesor", () => {
   it("un estudiante ve la pantalla de no encontrado, no la del profesor", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    await expect(exigirProfesor()).rejects.toThrow("NOT_FOUND");
+    expect(await mensajeDelRechazo(exigirProfesor())).toBe("NOT_FOUND");
     expect(notFound).toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
   });

@@ -6,4 +6,9 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL(".", import.meta.url)) },
   },
+  // La primera prueba que importa un .tsx (la pantalla de personas) necesita
+  // el runtime automático de JSX; sin esto, esbuild transforma a
+  // React.createElement sin importar React y revienta en tiempo de
+  // ejecución con "React is not defined".
+  esbuild: { jsx: "automatic" },
 });

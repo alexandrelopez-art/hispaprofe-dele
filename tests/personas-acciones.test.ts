@@ -53,6 +53,23 @@ function formularioDeAlta(): FormData {
   return formulario;
 }
 
+// toThrow(cadena) compara por subcadena: "REDIRECT:/personas" también lo
+// cumple "REDIRECT:/personas?error=loquesea", así que no basta para
+// distinguir el éxito del error. Esta ayuda captura el mensaje exacto para
+// compararlo con toBe.
+async function mensajeDelRechazo(promesa: Promise<unknown>): Promise<string> {
+  let mensaje: string | null = null;
+  try {
+    await promesa;
+  } catch (error) {
+    mensaje = error instanceof Error ? error.message : String(error);
+  }
+  if (mensaje === null) {
+    throw new Error("se esperaba que la promesa rechazara, y no lo hizo");
+  }
+  return mensaje;
+}
+
 beforeEach(() => {
   // reset, no clear: clearAllMocks no borra los mockResolvedValue fijados en
   // una prueba anterior, y eso dejaba colar el resultado de un test en el
@@ -71,7 +88,7 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
 
-    await expect(crearPersona(formularioDeAlta())).rejects.toThrow("NOT_FOUND");
+    expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe("NOT_FOUND");
     expect(darDeAlta).not.toHaveBeenCalled();
   });
 
@@ -81,18 +98,22 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
   it("sin sesión, tampoco da de alta a nadie", async () => {
     cookiesGet.mockReturnValue(undefined);
 
-    await expect(crearPersona(formularioDeAlta())).rejects.toThrow("REDIRECT:/entrar");
+    expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe("REDIRECT:/entrar");
     expect(darDeAlta).not.toHaveBeenCalled();
   });
 
   // Mutación que mata esta prueba: no leer alguno de los tres campos del
-  // formulario, o no redirigir a /personas al terminar.
+  // formulario, o invertir el `if ("error" in resultado)` (el alta acabaría
+  // en /personas?error=undefined en vez de en /personas a secas — y con
+  // toThrow por subcadena esa mutación no se pillaba: "REDIRECT:/personas"
+  // es subcadena de "REDIRECT:/personas?error=undefined". Por eso la
+  // comparación de abajo es exacta, con toBe).
   it("el profesor sí puede, con los tres campos del formulario", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
     darDeAlta.mockResolvedValue({ persona: ESTUDIANTE });
 
-    await expect(crearPersona(formularioDeAlta())).rejects.toThrow("REDIRECT:/personas");
+    expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe("REDIRECT:/personas");
     expect(darDeAlta).toHaveBeenCalledWith(PROFESOR, {
       correo: "nuevo@ejemplo.com",
       nombre: "Nuevo",
@@ -107,7 +128,7 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
     personaDeLaCookie.mockResolvedValue(PROFESOR);
     darDeAlta.mockResolvedValue({ error: "Ese correo ya está dado de alta." });
 
-    await expect(crearPersona(formularioDeAlta())).rejects.toThrow(
+    expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe(
       `REDIRECT:/personas?error=${encodeURIComponent("Ese correo ya está dado de alta.")}`,
     );
   });
@@ -121,7 +142,7 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
     const formulario = formularioDeAlta();
     formulario.set("papel", "ADMIN");
 
-    await expect(crearPersona(formulario)).rejects.toThrow(
+    expect(await mensajeDelRechazo(crearPersona(formulario))).toBe(
       `REDIRECT:/personas?error=${encodeURIComponent("Ese papel no existe.")}`,
     );
     expect(darDeAlta).not.toHaveBeenCalled();

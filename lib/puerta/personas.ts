@@ -24,6 +24,12 @@ export async function darDeAlta(
   return { persona };
 }
 
-export function listarPersonas(): Promise<Persona[]> {
-  return prisma.persona.findMany({ orderBy: [{ papel: "asc" }, { nombre: "asc" }] });
+/** Lo único que la pantalla necesita enseñar. Ni activa ni createdAt salen de aquí. */
+export type PersonaListada = Pick<Persona, "id" | "nombre" | "correo" | "papel">;
+
+export function listarPersonas(): Promise<PersonaListada[]> {
+  return prisma.persona.findMany({
+    select: { id: true, nombre: true, correo: true, papel: true },
+    orderBy: [{ papel: "asc" }, { nombre: "asc" }],
+  });
 }

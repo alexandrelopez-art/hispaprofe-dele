@@ -1,8 +1,12 @@
+import type { Papel } from "@/lib/generated/prisma";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { listarPersonas } from "@/lib/puerta/personas";
 import { crearPersona } from "./acciones";
 
-const NOMBRE_DEL_PAPEL: Record<string, string> = {
+// Tipado con el enum: los dos papeles que existen están aquí, así que no
+// hace falta (ni tiene sentido) una reserva para un tercero que no puede
+// llegar.
+const NOMBRE_DEL_PAPEL: Record<Papel, string> = {
   PROFESOR: "Profesor",
   ESTUDIANTE: "Estudiante",
 };
@@ -29,7 +33,7 @@ export default async function Personas({
               <p className="font-bold text-tinta">{persona.nombre}</p>
               <p className="text-tinta-suave">{persona.correo}</p>
             </div>
-            <span className="text-tinta-suave">{NOMBRE_DEL_PAPEL[persona.papel] ?? persona.papel}</span>
+            <span className="text-tinta-suave">{NOMBRE_DEL_PAPEL[persona.papel]}</span>
           </li>
         ))}
       </ul>

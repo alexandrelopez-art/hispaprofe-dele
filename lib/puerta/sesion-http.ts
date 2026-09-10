@@ -5,7 +5,10 @@ import { NOMBRE_DE_COOKIE } from "@/lib/puerta/rutas";
 import { personaDeLaCookie } from "@/lib/puerta/entrada";
 import { DIAS_DE_SESION } from "@/lib/puerta/reglas";
 
-export async function personaActual(ahora: Date): Promise<Persona | null> {
+// Ya no la usa nadie fuera de exigirPersona, en este mismo fichero. Se deja
+// sin exportar a propósito, para que ninguna pantalla futura pueda mirar la
+// sesión saltándose la envoltura.
+async function personaActual(ahora: Date): Promise<Persona | null> {
   const cookie = (await cookies()).get(NOMBRE_DE_COOKIE)?.value;
   return cookie ? personaDeLaCookie(cookie, ahora) : null;
 }
