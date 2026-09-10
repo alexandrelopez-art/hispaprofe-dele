@@ -21,6 +21,7 @@
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@vercel/blob": "^2.8.0",
+    "google-auth-library": "^11.0.2",
     "next": "^16.2.6",
     "nodemailer": "^10.0.3",
     "pg": "^8.23.0",
