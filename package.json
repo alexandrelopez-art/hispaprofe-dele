@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:base": "bash scripts/postgres-de-pruebas.sh",
     "postinstall": "prisma generate"
   },
   "license": "ISC",
