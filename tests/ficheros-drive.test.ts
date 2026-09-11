@@ -24,8 +24,8 @@ vi.mock("google-auth-library", () => ({ JWT: JWTMock }));
 import {
   peticionDeSesion,
   abrirSesionDeSubida,
-  comprobarQueLlego,
-  filaParaGuardar,
+  comprobarQueLlegoADrive,
+  filaDeDriveParaGuardar,
 } from "@/lib/ficheros/drive";
 
 const CREDENCIALES = JSON.stringify({
@@ -180,7 +180,7 @@ describe("confirmar una grabación contra Drive", () => {
       respuestaDeDrive({ cuerpo: { mimeType: "video/webm", size: "4812345", parents: [CARPETA] } }),
     );
 
-    const confirmado = await comprobarQueLlego("id-del-fichero");
+    const confirmado = await comprobarQueLlegoADrive("id-del-fichero");
 
     expect(confirmado).toEqual({ bytes: 4812345, tipoMime: "video/webm" });
     const [url, opciones] = fetchMock.mock.calls[0];
@@ -193,7 +193,7 @@ describe("confirmar una grabación contra Drive", () => {
     getAccessToken.mockResolvedValue({ token: "t" });
     fetchMock.mockResolvedValue(respuestaDeDrive({ status: 404, cuerpo: {} }));
 
-    await expect(comprobarQueLlego("id-que-no-existe")).resolves.toBeNull();
+    await expect(comprobarQueLlegoADrive("id-que-no-existe")).resolves.toBeNull();
   });
 
   // Esta es LA prueba que importa: un fichero que existe de verdad, pero en
@@ -207,30 +207,30 @@ describe("confirmar una grabación contra Drive", () => {
       respuestaDeDrive({ cuerpo: { mimeType: "video/webm", size: "1", parents: ["OTRA-CARPETA-CUALQUIERA"] } }),
     );
 
-    await expect(comprobarQueLlego("id-de-otra-carpeta")).resolves.toBeNull();
+    await expect(comprobarQueLlegoADrive("id-de-otra-carpeta")).resolves.toBeNull();
   });
 
   it("si Drive falla por otra razón (no 404), el error sube y no se trata como 'no existe'", async () => {
     getAccessToken.mockResolvedValue({ token: "t" });
     fetchMock.mockResolvedValue(respuestaDeDrive({ status: 500, cuerpo: {} }));
 
-    await expect(comprobarQueLlego("id-cualquiera")).rejects.toThrow("500");
+    await expect(comprobarQueLlegoADrive("id-cualquiera")).rejects.toThrow("500");
   });
 });
 
 describe("qué fila escribir tras confirmar una grabación", () => {
   it("sin confirmación de Drive no se guarda ninguna fila", () => {
     expect(
-      filaParaGuardar({ ruta: "id-1", nombreOriginal: "mi vídeo.webm", subidoPorId: "e1" }, null),
+      filaDeDriveParaGuardar({ ruta: "id-1", nombreOriginal: "mi vídeo.webm", subidoPorId: "e1" }, null),
     ).toBeNull();
   });
 
-  // filaParaGuardar ni siquiera recibe bytes o tipo de quien llama: lo único
+  // filaDeDriveParaGuardar ni siquiera recibe bytes o tipo de quien llama: lo único
   // que puede escribir en la fila es lo que confirma Drive. Mutación que
   // mata esta prueba: usar algún campo de `datos` para bytes/tipoMime en vez
   // de `confirmado`, o mezclar los dos campos entre sí.
   it("la fila toma el tamaño y el tipo de lo que confirma Drive, y el nombre original de quien sube", () => {
-    const fila = filaParaGuardar(
+    const fila = filaDeDriveParaGuardar(
       { ruta: "id-1", nombreOriginal: "mi vídeo.webm", subidoPorId: "e1" },
       { bytes: 4812345, tipoMime: "video/webm" },
     );

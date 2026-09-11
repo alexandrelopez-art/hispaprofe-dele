@@ -88,9 +88,9 @@ export async function abrirSesionDeSubida(datos: {
 /**
  * Pregunta a Drive por el fichero que dice haber subido quien llama, y solo se
  * fía de lo que responde Drive — nunca de lo que diga el navegador. Misma
- * disciplina que `comprobarQueLlego` en lib/ficheros/vercel.ts: sin ella, un
- * estudiante podría escribir una fila `Fichero` reclamando como suya la
- * grabación de OTRO menor con solo conocer su identificador de Drive, y
+ * disciplina que `comprobarQueLlegoAVercel` en lib/ficheros/vercel.ts: sin
+ * ella, un estudiante podría escribir una fila `Fichero` reclamando como suya
+ * la grabación de OTRO menor con solo conocer su identificador de Drive, y
  * mentir en el tamaño o el tipo al guardar la fila.
  *
  * Devuelve `null` si el fichero no existe, o si existe pero no cuelga de la
@@ -98,8 +98,12 @@ export async function abrirSesionDeSubida(datos: {
  * cualquier otro sitio al que la cuenta robot tenga acceso): las dos cosas se
  * tratan igual, como "esto no está confirmado", para no distinguirle a quien
  * llama entre "no existe" y "no es tuyo".
+ *
+ * Se llama `comprobarQueLlegoADrive`, no `comprobarQueLlego`, para que
+ * confundirla con la homónima de lib/ficheros/vercel.ts (contrato distinto:
+ * allí la clave es una ruta, aquí un id de Drive) no compile en silencio.
  */
-export async function comprobarQueLlego(id: string): Promise<{ bytes: number; tipoMime: string } | null> {
+export async function comprobarQueLlegoADrive(id: string): Promise<{ bytes: number; tipoMime: string } | null> {
   const carpeta = process.env.DRIVE_CARPETA_GRABACIONES;
   if (!carpeta) throw new Error("Falta DRIVE_CARPETA_GRABACIONES, el id de la unidad compartida.");
 
@@ -129,8 +133,14 @@ export async function comprobarQueLlego(id: string): Promise<{ bytes: number; ti
  * campos. `nombreOriginal` sí viene de quien sube (es solo la etiqueta que ve
  * el profesor, no decide nada de seguridad); el nombre de verdad que queda en
  * Drive es el saneado que puso la ruta al pedir la sesión.
+ *
+ * Se llama `filaDeDriveParaGuardar`, no `filaParaGuardar`, para que
+ * confundirla con la homónima de lib/ficheros/vercel.ts (mismo aspecto, pero
+ * cada una solo tiene sentido con el `comprobarQueLlegoA...` de su propio
+ * almacén: mezclarlas confirmaría una subida contra el almacén equivocado)
+ * no compile en silencio.
  */
-export function filaParaGuardar(
+export function filaDeDriveParaGuardar(
   datos: { ruta: string; nombreOriginal: string; subidoPorId: string },
   confirmado: { bytes: number; tipoMime: string } | null,
 ) {

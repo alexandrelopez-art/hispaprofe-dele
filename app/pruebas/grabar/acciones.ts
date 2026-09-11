@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
-import { comprobarQueLlego, filaParaGuardar } from "@/lib/ficheros/drive";
+import { comprobarQueLlegoADrive, filaDeDriveParaGuardar } from "@/lib/ficheros/drive";
 
 const datosDeLaGrabacion = z.object({
   ruta: z.string().min(1),
@@ -17,8 +17,8 @@ const datosDeLaGrabacion = z.object({
  * `crearPersona` en app/personas/acciones.ts.
  *
  * `bytes` y `tipoMime` NO se reciben de quien llama: se preguntan a Drive
- * (`comprobarQueLlego`), igual que `/api/ficheros/confirmar` pregunta al
- * almacén de Vercel antes de guardar. Sin esa pregunta, cualquiera con
+ * (`comprobarQueLlegoADrive`), igual que `/api/ficheros/confirmar` pregunta
+ * al almacén de Vercel antes de guardar. Sin esa pregunta, cualquiera con
  * sesión podría escribir una fila reclamando como suya la grabación de OTRO
  * con solo conocer su identificador de Drive, y mentir en el tamaño.
  */
@@ -27,8 +27,8 @@ export async function guardarGrabacion(datos: { ruta: string; nombreOriginal: st
   if (!persona) throw new Error("Hay que entrar.");
 
   const validado = datosDeLaGrabacion.parse(datos);
-  const confirmado = await comprobarQueLlego(validado.ruta);
-  const fila = filaParaGuardar({ ...validado, subidoPorId: persona.id }, confirmado);
+  const confirmado = await comprobarQueLlegoADrive(validado.ruta);
+  const fila = filaDeDriveParaGuardar({ ...validado, subidoPorId: persona.id }, confirmado);
   if (!fila) {
     throw new Error(
       "Drive no confirma que esa grabación esté en la carpeta de las grabaciones. No se guardó.",

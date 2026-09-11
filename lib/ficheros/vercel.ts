@@ -87,15 +87,23 @@ export function puedeSubirMaterial(papel: Papel): boolean {
  * una subida cortada no puede dejar un fichero fantasma en la base. Los bytes y el
  * tipo salen SIEMPRE de `confirmado` (lo que dice el almacén), nunca de `datos`
  * (lo que manda el navegador): `datos` ni siquiera tiene esos campos.
+ * `nombreOriginal` sí viene de quien sube (es solo la etiqueta que ve el profesor
+ * al elegir páginas, no decide nada de seguridad); el nombre de verdad que queda
+ * en el almacén es el saneado que puso rutaDelFichero.
+ *
+ * Se llama `filaDeVercelParaGuardar`, no `filaParaGuardar`, para que confundirla
+ * con la homónima de lib/ficheros/drive.ts (contrato distinto: allí la clave es
+ * `id`, aquí es `ruta`) no compile en silencio.
  */
-export function filaParaGuardar(
-  datos: { ruta: string; subidoPorId: string },
+export function filaDeVercelParaGuardar(
+  datos: { ruta: string; nombreOriginal: string; subidoPorId: string },
   confirmado: { bytes: number; tipoMime: string } | null,
 ) {
   if (!confirmado) return null;
   return {
     almacen: "VERCEL" as const,
     ruta: datos.ruta,
+    nombreOriginal: datos.nombreOriginal,
     bytes: confirmado.bytes,
     tipoMime: confirmado.tipoMime,
     subidoPorId: datos.subidoPorId,
@@ -108,8 +116,12 @@ export function filaParaGuardar(
  * error distinto — falta la llave del almacén, un corte de red, lo que sea — se
  * registra y SUBE, para que la petición falle con un 500 visible en vez de decir
  * "no ha llegado" cuando en realidad no se pudo ni preguntar.
+ *
+ * Se llama `comprobarQueLlegoAVercel`, no `comprobarQueLlego`, por la misma
+ * razón que filaDeVercelParaGuardar: hay una homónima en lib/ficheros/drive.ts
+ * con contrato distinto (recibe un id de Drive, no una ruta de Vercel).
  */
-export async function comprobarQueLlego(
+export async function comprobarQueLlegoAVercel(
   ruta: string,
 ): Promise<{ bytes: number; tipoMime: string } | null> {
   try {

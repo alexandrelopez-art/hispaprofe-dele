@@ -40,7 +40,7 @@ export function FormularioDeSubida() {
       const confirmacion = await fetch("/api/ficheros/confirmar", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ruta }),
+        body: JSON.stringify({ ruta, nombreOriginal: fichero.name }),
       });
       if (!confirmacion.ok) {
         throw new Error(await mensajeDelError(confirmacion, "No se pudo confirmar la subida."));

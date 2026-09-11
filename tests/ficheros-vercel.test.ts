@@ -16,8 +16,8 @@ import {
   rutaDelFichero,
   tipoPermitido,
   puedeSubirMaterial,
-  filaParaGuardar,
-  comprobarQueLlego,
+  filaDeVercelParaGuardar,
+  comprobarQueLlegoAVercel,
   permisoDeSubida,
   enlaceDeLectura,
   MINUTOS_DE_SUBIDA,
@@ -90,19 +90,28 @@ describe("quién puede subir material del examen", () => {
 
 describe("lo que se guarda después de subir", () => {
   it("sin confirmación del almacén no se guarda ninguna fila", () => {
-    expect(filaParaGuardar({ ruta: "examenes/1/a-x.jpg", subidoPorId: "p1" }, null)).toBeNull();
+    expect(
+      filaDeVercelParaGuardar(
+        { ruta: "examenes/1/a-x.jpg", nombreOriginal: "página 1.jpg", subidoPorId: "p1" },
+        null,
+      ),
+    ).toBeNull();
   });
 
-  // filaParaGuardar ni siquiera recibe bytes o tipo de quien llama: lo único
-  // que puede escribir en la fila es lo que confirma el almacén.
-  it("la fila toma el tamaño y el tipo de lo que confirma el almacén, y de ningún otro sitio", () => {
-    const fila = filaParaGuardar(
-      { ruta: "examenes/1/a-x.jpg", subidoPorId: "p1" },
+  // filaDeVercelParaGuardar ni siquiera recibe bytes o tipo de quien llama: lo único
+  // que puede escribir en la fila (salvo nombreOriginal) es lo que confirma el
+  // almacén. Mutación que mata esta prueba: usar algún campo de `datos` para
+  // bytes/tipoMime en vez de `confirmado`, o mezclar los dos campos entre sí, o
+  // perder nombreOriginal por el camino.
+  it("la fila toma el tamaño y el tipo de lo que confirma el almacén, y el nombre original de quien sube", () => {
+    const fila = filaDeVercelParaGuardar(
+      { ruta: "examenes/1/a-x.jpg", nombreOriginal: "página 1.jpg", subidoPorId: "p1" },
       { bytes: 4_812_345, tipoMime: "image/jpeg" },
     );
     expect(fila).toEqual({
       almacen: "VERCEL",
       ruta: "examenes/1/a-x.jpg",
+      nombreOriginal: "página 1.jpg",
       bytes: 4_812_345,
       tipoMime: "image/jpeg",
       subidoPorId: "p1",
@@ -110,10 +119,10 @@ describe("lo que se guarda después de subir", () => {
   });
 });
 
-describe("comprobarQueLlego", () => {
+describe("comprobarQueLlegoAVercel", () => {
   it("si el almacén dice que no está, no hay fichero: null", async () => {
     head.mockRejectedValue(new BlobNotFoundError());
-    await expect(comprobarQueLlego("examenes/1/a-x.jpg")).resolves.toBeNull();
+    await expect(comprobarQueLlegoAVercel("examenes/1/a-x.jpg")).resolves.toBeNull();
   });
 
   // Mutación que mata esta prueba: hacer que cualquier error (no solo
@@ -122,7 +131,7 @@ describe("comprobarQueLlego", () => {
   // que reventar la petición, no decir en silencio que la subida falló.
   it("cualquier otro fallo del almacén no se traga: sube", async () => {
     head.mockRejectedValue(new Error("ECONNRESET"));
-    await expect(comprobarQueLlego("examenes/1/a-x.jpg")).rejects.toThrow("ECONNRESET");
+    await expect(comprobarQueLlegoAVercel("examenes/1/a-x.jpg")).rejects.toThrow("ECONNRESET");
   });
 });
 
