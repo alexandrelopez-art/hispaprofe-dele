@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import { pedirEnlace, usarEnlace, personaDeLaCookie, cerrarSesion } from "@/lib/puerta/entrada";
 import type { Mensaje } from "@/lib/correo/mensaje";
@@ -33,16 +33,36 @@ describe("pedir un enlace", () => {
     expect(resultado).toHaveProperty("cookie");
   });
 
-  it("con un correo que no existe no manda nada y no deja rastro", async () => {
+  it("con un correo que no existe no manda nada y no deja rastro (en la respuesta)", async () => {
     await pedirEnlace("nadie@ejemplo.com", AHORA, mandar, BASE);
     expect(buzon).toHaveLength(0);
     expect(await prisma.enlaceDeEntrada.count()).toBe(0);
+  });
+
+  // Los tres motivos de vuelta en silencio son indistinguibles desde fuera a
+  // propósito, pero tienen que dejar rastro en el registro del servidor:
+  // sin esto, cuando un estudiante diga «no me llega nada» no hay forma de
+  // saber cuál de los tres pasó. Mutación que mata cada una de estas tres
+  // pruebas: quitar su console.warn correspondiente.
+  it("con un correo que no existe, se registra en el servidor", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await pedirEnlace("nadie@ejemplo.com", AHORA, mandar, BASE);
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining("no dado de alta"));
+    aviso.mockRestore();
   });
 
   it("con una persona dada de baja no manda nada", async () => {
     await prisma.persona.update({ where: { correo: "ana@ejemplo.com" }, data: { activa: false } });
     await pedirEnlace("ana@ejemplo.com", AHORA, mandar, BASE);
     expect(buzon).toHaveLength(0);
+  });
+
+  it("con una persona dada de baja, se registra en el servidor", async () => {
+    await prisma.persona.update({ where: { correo: "ana@ejemplo.com" }, data: { activa: false } });
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await pedirEnlace("ana@ejemplo.com", AHORA, mandar, BASE);
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining("inactiva"));
+    aviso.mockRestore();
   });
 
   it("no distingue mayúsculas ni espacios al final", async () => {
@@ -54,6 +74,14 @@ describe("pedir un enlace", () => {
     for (let i = 0; i < 5; i++) await pedirEnlace("ana@ejemplo.com", minutos(-i), mandar, BASE);
     await pedirEnlace("ana@ejemplo.com", AHORA, mandar, BASE);
     expect(buzon).toHaveLength(5);
+  });
+
+  it("al frenar la sexta petición, se registra en el servidor", async () => {
+    for (let i = 0; i < 5; i++) await pedirEnlace("ana@ejemplo.com", minutos(-i), mandar, BASE);
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await pedirEnlace("ana@ejemplo.com", AHORA, mandar, BASE);
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining("límite de peticiones"));
+    aviso.mockRestore();
   });
 
   it("si el envío de correo falla, no revienta y no delata que el correo existe", async () => {

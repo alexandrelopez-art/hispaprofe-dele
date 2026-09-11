@@ -28,8 +28,22 @@ export async function pedirEnlace(
   mandar: Mandar,
   base: string,
 ): Promise<void> {
-  const persona = await prisma.persona.findUnique({ where: { correo: normalizarCorreo(correo) } });
-  if (!persona || !persona.activa) return;
+  const correoNormalizado = normalizarCorreo(correo);
+  const persona = await prisma.persona.findUnique({ where: { correo: correoNormalizado } });
+  // Los tres motivos por los que este camino vuelve en silencio (nunca por
+  // la respuesta, que es idéntica a propósito: ver el comentario de arriba)
+  // dejan rastro aquí, en el registro del servidor. Sin esto, cuando un
+  // estudiante diga «no me llega nada» no hay forma de saber si el correo no
+  // está dado de alta, si la persona está inactiva o si está frenado por el
+  // límite de peticiones.
+  if (!persona) {
+    console.warn(`pedirEnlace: correo no dado de alta (${correoNormalizado})`);
+    return;
+  }
+  if (!persona.activa) {
+    console.warn(`pedirEnlace: persona inactiva (${correoNormalizado})`);
+    return;
+  }
 
   const recientes = await prisma.enlaceDeEntrada.findMany({
     where: { personaId: persona.id },
@@ -37,7 +51,10 @@ export async function pedirEnlace(
     orderBy: { createdAt: "desc" },
     take: 20,
   });
-  if (hayQueFrenar(recientes.map((r) => r.createdAt), ahora)) return;
+  if (hayQueFrenar(recientes.map((r) => r.createdAt), ahora)) {
+    console.warn(`pedirEnlace: frenado por el límite de peticiones (${correoNormalizado})`);
+    return;
+  }
 
   const { secreto, huella } = crearSecreto();
   await prisma.enlaceDeEntrada.create({
