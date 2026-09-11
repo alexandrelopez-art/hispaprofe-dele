@@ -21,7 +21,12 @@ const { getAccessToken, JWTMock, fetchMock } = vi.hoisted(() => {
 });
 vi.mock("google-auth-library", () => ({ JWT: JWTMock }));
 
-import { peticionDeSesion, abrirSesionDeSubida } from "@/lib/ficheros/drive";
+import {
+  peticionDeSesion,
+  abrirSesionDeSubida,
+  comprobarQueLlego,
+  filaParaGuardar,
+} from "@/lib/ficheros/drive";
 
 const CREDENCIALES = JSON.stringify({
   client_email: "robot@hyl.iam.gserviceaccount.com",
@@ -33,7 +38,20 @@ function respuestaDeGoogle(datos: { ok: boolean; status?: number; location?: str
   return {
     ok: datos.ok,
     status: datos.status ?? (datos.ok ? 200 : 500),
-    headers: { get: (nombre: string) => (nombre === "location" ? (datos.location ?? null) : null) },
+    // Headers.get() de verdad no distingue mayúsculas de minúsculas en el
+    // nombre de la cabecera; el doble tampoco, para que una variación
+    // inocua en el código de producción (.get("Location") en vez de
+    // .get("location")) no ponga roja una prueba que está bien.
+    headers: { get: (nombre: string) => (nombre.toLowerCase() === "location" ? (datos.location ?? null) : null) },
+  };
+}
+
+function respuestaDeDrive(datos: { status?: number; cuerpo?: unknown }) {
+  const status = datos.status ?? 200;
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => datos.cuerpo,
   };
 }
 
@@ -126,9 +144,18 @@ describe("abrir la sesión de subida", () => {
     expect(instancia.scopes).toEqual(["https://www.googleapis.com/auth/drive.file"]);
   });
 
-  it("si Google no confirma (respuesta que no es ok), el error dice el estado que devolvió", async () => {
+  // La cabecera Location lleva un valor DE MENTIRA (no null): si la prueba
+  // montara la respuesta sin Location, la condición `!respuesta.ok ||
+  // !sesion` fallaría igual sin necesitar el `!respuesta.ok` — la mitad que
+  // mira el estado no la ejercitaría nadie. Comprobado de verdad: quitando
+  // `!respuesta.ok ||` de la condición con la respuesta de abajo (status
+  // 404 + Location de mentira), las demás pruebas del bloque seguían verdes
+  // y solo esta se ponía roja, tal como debe ser.
+  it("si Google no confirma (respuesta que no es ok), el error dice el estado que devolvió, aunque la respuesta traiga cabecera Location", async () => {
     getAccessToken.mockResolvedValue({ token: "t" });
-    fetchMock.mockResolvedValue(respuestaDeGoogle({ ok: false, status: 404, location: null }));
+    fetchMock.mockResolvedValue(
+      respuestaDeGoogle({ ok: false, status: 404, location: "https://sesion-de-mentira" }),
+    );
 
     await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm" })).rejects.toThrow("404");
   });
@@ -143,5 +170,77 @@ describe("abrir la sesión de subida", () => {
     await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm" })).rejects.toThrow(
       /Google no abrió la sesión/,
     );
+  });
+});
+
+describe("confirmar una grabación contra Drive", () => {
+  it("si el fichero existe y cuelga de la carpeta de las grabaciones, devuelve sus bytes y su tipo", async () => {
+    getAccessToken.mockResolvedValue({ token: "t" });
+    fetchMock.mockResolvedValue(
+      respuestaDeDrive({ cuerpo: { mimeType: "video/webm", size: "4812345", parents: [CARPETA] } }),
+    );
+
+    const confirmado = await comprobarQueLlego("id-del-fichero");
+
+    expect(confirmado).toEqual({ bytes: 4812345, tipoMime: "video/webm" });
+    const [url, opciones] = fetchMock.mock.calls[0];
+    expect(url).toContain("supportsAllDrives=true");
+    expect(url).toContain("id-del-fichero");
+    expect(opciones).toMatchObject({ headers: { Authorization: "Bearer t" } });
+  });
+
+  it("si Drive dice que no existe (404), no confirma", async () => {
+    getAccessToken.mockResolvedValue({ token: "t" });
+    fetchMock.mockResolvedValue(respuestaDeDrive({ status: 404, cuerpo: {} }));
+
+    await expect(comprobarQueLlego("id-que-no-existe")).resolves.toBeNull();
+  });
+
+  // Esta es LA prueba que importa: un fichero que existe de verdad, pero en
+  // otra carpeta a la que la cuenta robot también tenga acceso, tampoco
+  // confirma. Sin este chequeo, conocer el identificador de CUALQUIER
+  // fichero (por ejemplo, la grabación de otro estudiante, o algo ajeno a
+  // las grabaciones) bastaría para reclamarlo como propio en guardarGrabacion.
+  it("si el fichero existe pero no cuelga de la carpeta de las grabaciones, tampoco confirma", async () => {
+    getAccessToken.mockResolvedValue({ token: "t" });
+    fetchMock.mockResolvedValue(
+      respuestaDeDrive({ cuerpo: { mimeType: "video/webm", size: "1", parents: ["OTRA-CARPETA-CUALQUIERA"] } }),
+    );
+
+    await expect(comprobarQueLlego("id-de-otra-carpeta")).resolves.toBeNull();
+  });
+
+  it("si Drive falla por otra razón (no 404), el error sube y no se trata como 'no existe'", async () => {
+    getAccessToken.mockResolvedValue({ token: "t" });
+    fetchMock.mockResolvedValue(respuestaDeDrive({ status: 500, cuerpo: {} }));
+
+    await expect(comprobarQueLlego("id-cualquiera")).rejects.toThrow("500");
+  });
+});
+
+describe("qué fila escribir tras confirmar una grabación", () => {
+  it("sin confirmación de Drive no se guarda ninguna fila", () => {
+    expect(
+      filaParaGuardar({ ruta: "id-1", nombreOriginal: "mi vídeo.webm", subidoPorId: "e1" }, null),
+    ).toBeNull();
+  });
+
+  // filaParaGuardar ni siquiera recibe bytes o tipo de quien llama: lo único
+  // que puede escribir en la fila es lo que confirma Drive. Mutación que
+  // mata esta prueba: usar algún campo de `datos` para bytes/tipoMime en vez
+  // de `confirmado`, o mezclar los dos campos entre sí.
+  it("la fila toma el tamaño y el tipo de lo que confirma Drive, y el nombre original de quien sube", () => {
+    const fila = filaParaGuardar(
+      { ruta: "id-1", nombreOriginal: "mi vídeo.webm", subidoPorId: "e1" },
+      { bytes: 4812345, tipoMime: "video/webm" },
+    );
+    expect(fila).toEqual({
+      almacen: "DRIVE",
+      ruta: "id-1",
+      nombreOriginal: "mi vídeo.webm",
+      bytes: 4812345,
+      tipoMime: "video/webm",
+      subidoPorId: "e1",
+    });
   });
 });

@@ -6,14 +6,23 @@ import { JWT } from "google-auth-library";
 // app/pruebas/grabar/formulario.tsx: pide una URL y le hace PUT, sin saber
 // de dónde es esa URL). El supuesto sin comprobar (Step 0 del encargo, no se
 // puede hacer todavía porque faltan la cuenta robot y la unidad compartida)
-// es que Google admita esa subida entre orígenes. Si no lo admitiera, el
-// plan de reserva es que ESTA función deje de devolver la dirección de
-// Google y devuelva en su lugar la de un endpoint propio que reciba los
-// trozos (cada uno por debajo de los 4,5 MB) y los reenvíe a Drive con la
-// cuenta de servicio. Ni la ruta (app/api/grabaciones/permiso/route.ts) ni
-// la pantalla tendrían que cambiar: las dos ya se limitan a "pide una URL,
-// sube los bytes ahí".
+// es que Google admita esa subida entre orígenes.
+//
+// Si no lo admitiera, el plan de reserva es subir en trozos a través de
+// nuestro servidor. Eso SÍ cambiaría solo esta función y no la ruta
+// (app/api/grabaciones/permiso/route.ts): dejaría de devolver la dirección
+// de Google y devolvería la de un endpoint propio que recibiera cada trozo
+// (por debajo de los 4,5 MB) y lo reenviara a Drive con la cuenta de
+// servicio; la ruta seguiría limitándose a devolver la URL que le dé esta
+// función. Pero la PANTALLA (formulario.tsx) sí tendría que cambiar, y no
+// poco: hoy hace un único `fetch(url, { method: "PUT", body: fichero })`
+// con el fichero entero; subir en trozos exige que el propio navegador lo
+// trocee (leer el `File` en pedazos, mandar cada uno con su cabecera
+// Content-Range, reintentar el que falle) y eso hoy no existe. Que quien
+// planifique el taller no cuente con que ese troceo ya está escrito: es
+// código nuevo, no un cambio de una URL.
 const RAIZ = "https://www.googleapis.com/upload/drive/v3/files";
+const RAIZ_METADATOS = "https://www.googleapis.com/drive/v3/files";
 
 export function peticionDeSesion(datos: {
   nombre: string;
@@ -74,4 +83,64 @@ export async function abrirSesionDeSubida(datos: {
     );
   }
   return sesion;
+}
+
+/**
+ * Pregunta a Drive por el fichero que dice haber subido quien llama, y solo se
+ * fía de lo que responde Drive — nunca de lo que diga el navegador. Misma
+ * disciplina que `comprobarQueLlego` en lib/ficheros/vercel.ts: sin ella, un
+ * estudiante podría escribir una fila `Fichero` reclamando como suya la
+ * grabación de OTRO menor con solo conocer su identificador de Drive, y
+ * mentir en el tamaño o el tipo al guardar la fila.
+ *
+ * Devuelve `null` si el fichero no existe, o si existe pero no cuelga de la
+ * carpeta de las grabaciones (por ejemplo, el identificador de un fichero de
+ * cualquier otro sitio al que la cuenta robot tenga acceso): las dos cosas se
+ * tratan igual, como "esto no está confirmado", para no distinguirle a quien
+ * llama entre "no existe" y "no es tuyo".
+ */
+export async function comprobarQueLlego(id: string): Promise<{ bytes: number; tipoMime: string } | null> {
+  const carpeta = process.env.DRIVE_CARPETA_GRABACIONES;
+  if (!carpeta) throw new Error("Falta DRIVE_CARPETA_GRABACIONES, el id de la unidad compartida.");
+
+  const cliente = cuentaDeServicio();
+  const { token } = await cliente.getAccessToken();
+
+  const respuesta = await fetch(
+    `${RAIZ_METADATOS}/${encodeURIComponent(id)}?supportsAllDrives=true&fields=mimeType,size,parents`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (respuesta.status === 404) return null;
+  if (!respuesta.ok) {
+    throw new Error(`Google no confirma el fichero de la grabación (${respuesta.status}).`);
+  }
+
+  const datos = (await respuesta.json()) as { mimeType?: string; size?: string; parents?: string[] };
+  if (!datos.parents?.includes(carpeta)) return null;
+  if (!datos.mimeType || !datos.size) return null;
+
+  return { bytes: Number(datos.size), tipoMime: datos.mimeType };
+}
+
+/**
+ * Qué fila escribir después de una subida. Si Drive no confirma, no hay fila.
+ * Los bytes y el tipo salen SIEMPRE de `confirmado` (lo que dice Drive), nunca
+ * de `datos` (lo que manda el navegador): `datos` ni siquiera tiene esos
+ * campos. `nombreOriginal` sí viene de quien sube (es solo la etiqueta que ve
+ * el profesor, no decide nada de seguridad); el nombre de verdad que queda en
+ * Drive es el saneado que puso la ruta al pedir la sesión.
+ */
+export function filaParaGuardar(
+  datos: { ruta: string; nombreOriginal: string; subidoPorId: string },
+  confirmado: { bytes: number; tipoMime: string } | null,
+) {
+  if (!confirmado) return null;
+  return {
+    almacen: "DRIVE" as const,
+    ruta: datos.ruta,
+    nombreOriginal: datos.nombreOriginal,
+    bytes: confirmado.bytes,
+    tipoMime: confirmado.tipoMime,
+    subidoPorId: datos.subidoPorId,
+  };
 }
