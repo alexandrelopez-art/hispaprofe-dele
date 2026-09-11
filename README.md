@@ -92,6 +92,8 @@ A partir de ahí, esa persona da de alta a las demás desde `/personas`.
 ## Aviso sobre las migraciones
 
 La migración inicial (`prisma/migrations/20260909000000_cimientos`) se
-generó en seco, sin conexión a ninguna base de datos, y **nunca se ha
-aplicado contra una base de datos real**. Antes de confiar en ella hay que
-probarla contra un Postgres de verdad.
+generó en seco, sin conexión a ninguna base de datos. Desde entonces sí se
+aplica contra Postgres real: `scripts/postgres-de-pruebas.sh` la aplica —
+junto con todas las demás — cada vez que corre `npm run test:base`, contra
+un Postgres de usar-y-tirar, y también se ha aplicado al construir. Lo que
+sigue sin hacerse es aplicarla contra la base de datos de producción.

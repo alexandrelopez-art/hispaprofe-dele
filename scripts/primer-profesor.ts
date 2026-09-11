@@ -49,14 +49,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const persona = await prisma.persona.upsert({
-    where: { correo },
-    update: { nombre, papel: "PROFESOR", activa: true },
-    create: { correo, nombre, papel: "PROFESOR" },
-  });
+  try {
+    const persona = await prisma.persona.upsert({
+      where: { correo },
+      update: { nombre, papel: "PROFESOR", activa: true },
+      create: { correo, nombre, papel: "PROFESOR" },
+    });
 
-  console.log(`Profesor listo: ${persona.nombre} <${persona.correo}> (id ${persona.id}).`);
-  await prisma.$disconnect();
+    console.log(`Profesor listo: ${persona.nombre} <${persona.correo}> (id ${persona.id}).`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main().catch((error) => {

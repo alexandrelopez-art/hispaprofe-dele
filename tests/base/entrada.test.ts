@@ -44,10 +44,12 @@ describe("pedir un enlace", () => {
   // sin esto, cuando un estudiante diga «no me llega nada» no hay forma de
   // saber cuál de los tres pasó. Mutación que mata cada una de estas tres
   // pruebas: quitar su console.warn correspondiente.
-  it("con un correo que no existe, se registra en el servidor", async () => {
+  it("con un correo que no existe, se registra en el servidor sin la dirección completa", async () => {
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await pedirEnlace("nadie@ejemplo.com", AHORA, mandar, BASE);
     expect(aviso).toHaveBeenCalledWith(expect.stringContaining("no dado de alta"));
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining("ejemplo.com"));
+    expect(aviso).not.toHaveBeenCalledWith(expect.stringContaining("nadie@ejemplo.com"));
     aviso.mockRestore();
   });
 
@@ -57,11 +59,16 @@ describe("pedir un enlace", () => {
     expect(buzon).toHaveLength(0);
   });
 
-  it("con una persona dada de baja, se registra en el servidor", async () => {
-    await prisma.persona.update({ where: { correo: "ana@ejemplo.com" }, data: { activa: false } });
+  it("con una persona dada de baja, se registra en el servidor con su id, no su correo", async () => {
+    const ana = await prisma.persona.update({
+      where: { correo: "ana@ejemplo.com" },
+      data: { activa: false },
+    });
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await pedirEnlace("ana@ejemplo.com", AHORA, mandar, BASE);
     expect(aviso).toHaveBeenCalledWith(expect.stringContaining("inactiva"));
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining(ana.id));
+    expect(aviso).not.toHaveBeenCalledWith(expect.stringContaining("ana@ejemplo.com"));
     aviso.mockRestore();
   });
 
@@ -76,11 +83,14 @@ describe("pedir un enlace", () => {
     expect(buzon).toHaveLength(5);
   });
 
-  it("al frenar la sexta petición, se registra en el servidor", async () => {
+  it("al frenar la sexta petición, se registra en el servidor con su id, no su correo", async () => {
+    const ana = await prisma.persona.findUniqueOrThrow({ where: { correo: "ana@ejemplo.com" } });
     for (let i = 0; i < 5; i++) await pedirEnlace("ana@ejemplo.com", minutos(-i), mandar, BASE);
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await pedirEnlace("ana@ejemplo.com", AHORA, mandar, BASE);
     expect(aviso).toHaveBeenCalledWith(expect.stringContaining("límite de peticiones"));
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining(ana.id));
+    expect(aviso).not.toHaveBeenCalledWith(expect.stringContaining("ana@ejemplo.com"));
     aviso.mockRestore();
   });
 

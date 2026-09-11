@@ -35,13 +35,17 @@ export async function pedirEnlace(
   // dejan rastro aquí, en el registro del servidor. Sin esto, cuando un
   // estudiante diga «no me llega nada» no hay forma de saber si el correo no
   // está dado de alta, si la persona está inactiva o si está frenado por el
-  // límite de peticiones.
+  // límite de peticiones. Muchos de estos correos son de adolescentes, así
+  // que el registro nunca lleva la dirección completa: cuando la persona
+  // existe se usa su id (que ya tenemos a mano); cuando no existe no hay id
+  // que anotar, así que se anota como mucho el dominio.
   if (!persona) {
-    console.warn(`pedirEnlace: correo no dado de alta (${correoNormalizado})`);
+    const dominio = correoNormalizado.split("@")[1] ?? "sin dominio";
+    console.warn(`pedirEnlace: correo no dado de alta (dominio: ${dominio})`);
     return;
   }
   if (!persona.activa) {
-    console.warn(`pedirEnlace: persona inactiva (${correoNormalizado})`);
+    console.warn(`pedirEnlace: persona inactiva (id ${persona.id})`);
     return;
   }
 
@@ -52,7 +56,7 @@ export async function pedirEnlace(
     take: 20,
   });
   if (hayQueFrenar(recientes.map((r) => r.createdAt), ahora)) {
-    console.warn(`pedirEnlace: frenado por el límite de peticiones (${correoNormalizado})`);
+    console.warn(`pedirEnlace: frenado por el límite de peticiones (id ${persona.id})`);
     return;
   }
 
