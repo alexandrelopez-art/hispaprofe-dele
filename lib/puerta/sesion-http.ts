@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
+import type { NextResponse } from "next/server";
 import type { Persona } from "@/lib/generated/prisma";
 import { NOMBRE_DE_COOKIE } from "@/lib/puerta/rutas";
 import { personaDeLaCookie } from "@/lib/puerta/entrada";
@@ -43,16 +44,37 @@ export async function exigirProfesor(): Promise<Persona> {
   return persona;
 }
 
-export async function ponerCookie(valor: string): Promise<void> {
-  (await cookies()).set(NOMBRE_DE_COOKIE, valor, {
+// Las marcas de la cookie, en un único sitio para que ponerCookie y
+// borrarCookie nunca diverjan (una cookie borrada con otro `path`, por
+// ejemplo, no borra la puesta con este).
+function marcasDeLaCookie() {
+  return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "lax" as const,
     path: "/",
-    maxAge: DIAS_DE_SESION * 24 * 60 * 60,
-  });
+  };
 }
 
-export async function borrarCookie(): Promise<void> {
-  (await cookies()).delete(NOMBRE_DE_COOKIE);
+/**
+ * Pone la cookie de sesión SOBRE la respuesta que se va a devolver
+ * (`respuesta.cookies.set`), no sobre el almacén de `next/headers` aparte:
+ * esa forma antigua deja de aplicarse en cuanto la ruta construye su propio
+ * `NextResponse` (como hace app/entrar/[secreto]/route.ts al redirigir), y
+ * el resultado es una redirección de 307 que llega SIN cookie — el
+ * estudiante aterriza en la portada sin sesión y el enlace ya está gastado.
+ * Devuelve la misma respuesta, para poder encadenar.
+ */
+export function ponerCookie(respuesta: NextResponse, valor: string): NextResponse {
+  respuesta.cookies.set(NOMBRE_DE_COOKIE, valor, {
+    ...marcasDeLaCookie(),
+    maxAge: DIAS_DE_SESION * 24 * 60 * 60,
+  });
+  return respuesta;
+}
+
+/** Como ponerCookie, pero para borrarla: mismas marcas, vida cero. */
+export function borrarCookie(respuesta: NextResponse): NextResponse {
+  respuesta.cookies.set(NOMBRE_DE_COOKIE, "", { ...marcasDeLaCookie(), maxAge: 0 });
+  return respuesta;
 }

@@ -22,6 +22,11 @@ export async function GET(
     return sinCache(NextResponse.redirect(destino, 307));
   }
 
-  await ponerCookie(resultado.cookie);
-  return sinCache(NextResponse.redirect(new URL("/", request.url), 307));
+  // La cookie se pone SOBRE la respuesta que se devuelve, no sobre el
+  // almacén de next/headers aparte: ver el comentario de ponerCookie en
+  // lib/puerta/sesion-http.ts. Primero se construye la respuesta, luego se
+  // le pone la cookie encima.
+  const respuesta = sinCache(NextResponse.redirect(new URL("/", request.url), 307));
+  ponerCookie(respuesta, resultado.cookie);
+  return respuesta;
 }
