@@ -19,21 +19,53 @@ npm install
 
 ## Pruebas
 
+Hay dos formas de correr las pruebas, y no tocan la base las mismas cosas:
+
 ```
 npm test
 ```
 
-Corre la suite de Vitest. No hace falta base de datos: las pruebas no tocan
-Prisma ni Postgres.
+Corre `tests/**/*.test.ts` (salvo `tests/base/`) con Vitest. No hace falta
+base de datos: son pruebas de lógica pura y de rutas con Prisma, el almacén
+de Vercel, Drive y la sesión HTTP doblados (mocks) — comprueban qué le
+llega a cada dependencia, no una base real.
+
+```
+npm run test:base
+```
+
+Corre `scripts/postgres-de-pruebas.sh`, que levanta un Postgres de
+usar-y-tirar (necesita `postgresql@17`: `brew install postgresql@17`),
+le aplica las migraciones, corre `tests/base/**/*.test.ts` contra él de
+verdad, y al terminar lo para y borra. Estas SÍ tocan la base: la puerta de
+entrada (pedir y usar un enlace, la sesión, el frenado), las personas y los
+cimientos del modelo se prueban contra Postgres real, no contra dobles.
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env` y rellena:
+Copia `.env.example` a `.env` y rellena. `DATABASE_URL` y `DIRECT_URL`
+vienen de los cimientos; las otras siete las trajo esta entrega (la puerta
+de entrada y los dos almacenes de ficheros):
 
 - `DATABASE_URL`: la conexión con pool (pgbouncer). La usa el cliente de
   Prisma en tiempo de ejecución (`lib/db.ts`).
 - `DIRECT_URL`: la conexión directa, sin pool. La usa el CLI de migraciones
   de Prisma (`prisma.config.ts`).
+- `CORREO_USUARIO`, `CORREO_CONTRASENA`, `CORREO_REMITENTE`: la cuenta SMTP
+  de Gmail que manda los enlaces de entrada (`lib/correo/transporte.ts`).
+- `SITIO_URL`: la dirección del sitio para componer el enlace de entrada.
+  Obligatoria en producción — sin ella no se compone ningún enlace, porque
+  la cabecera `host` de la petición no es de fiar (`lib/puerta/sitio.ts`).
+- `BLOB_READ_WRITE_TOKEN`: el almacén privado de Vercel Blob, para el
+  material del examen (páginas escaneadas y audios). En Vercel llega solo;
+  en local se baja con `vercel env pull`.
+- `GOOGLE_CUENTA_DE_SERVICIO`, `DRIVE_CARPETA_GRABACIONES`: la cuenta robot
+  y la unidad compartida de Drive donde suben las grabaciones de los
+  estudiantes, aparte del almacén de arriba porque son de menores
+  (`lib/ficheros/drive.ts`).
+
+El detalle de cada una, incluidos los riesgos concretos de dejarla mal
+puesta, está comentado en `.env.example`.
 
 ## El primer profesor
 
