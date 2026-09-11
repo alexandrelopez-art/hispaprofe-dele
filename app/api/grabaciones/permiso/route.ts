@@ -7,9 +7,13 @@ import { nombreSaneado } from "@/lib/ficheros/nombres";
 
 const MAX_BYTES = 500 * 1024 * 1024;
 
+// tipoMime SÍ puede llegar vacío: es lo que manda el propio navegador cuando
+// no sabe decir el tipo de la grabación. No se rechaza junto con "falta el
+// campo" (z.string().min(1) caía en el 400 genérico de abajo, que no
+// explica nada); se comprueba aparte, con un mensaje propio.
 const cuerpo = z.object({
   nombre: z.string().min(1).max(255),
-  tipoMime: z.string().min(1),
+  tipoMime: z.string(),
   bytes: z.number().int().positive(),
 });
 
@@ -46,6 +50,12 @@ export async function POST(request: NextRequest) {
   // bytes y tipoMime aquí son lo que DICE el navegador: solo sirven para
   // decidir si se abre la sesión. Lo que se guarda de verdad en la base sale
   // de lo que confirma Drive, en guardarGrabacion.
+  if (tipoMime === "") {
+    return NextResponse.json(
+      { error: "El navegador no ha sabido decir qué tipo de grabación es. Prueba a grabar de nuevo." },
+      { status: 400 },
+    );
+  }
   if (!tipoPermitido(tipoMime)) {
     return NextResponse.json({ error: "Solo se admiten grabaciones de audio o vídeo." }, { status: 400 });
   }

@@ -109,6 +109,24 @@ describe("POST /api/ficheros/permiso", () => {
     expect(permisoDeSubida).not.toHaveBeenCalled();
   });
 
+  // Sin esto, un tipoMime vacío (lo que manda el navegador cuando no sabe
+  // decir el tipo de un fichero) caía en el 400 genérico de "datos
+  // inválidos", que no explica nada. Mutación que mata esta prueba: quitar
+  // el chequeo de tipoMime === "" (el mensaje pasaría a ser el de
+  // tipoPermitido, "Solo se admiten imágenes o audio.").
+  it("con tipoMime vacío, un mensaje propio que explica el porqué", async () => {
+    personaDeLaPeticion.mockResolvedValue(PROFESOR);
+
+    const respuesta = await permiso(
+      peticion("http://x/api/ficheros/permiso", { ...CUERPO_PERMISO, tipoMime: "" }),
+    );
+    const cuerpo = (await respuesta.json()) as { error: string };
+
+    expect(respuesta.status).toBe(400);
+    expect(cuerpo.error).toContain("no ha sabido decir qué tipo");
+    expect(permisoDeSubida).not.toHaveBeenCalled();
+  });
+
   it("el profesor pide permiso y recibe la url, la ruta y la caducidad", async () => {
     personaDeLaPeticion.mockResolvedValue(PROFESOR);
     const validoHasta = new Date("2026-01-01T00:15:00Z");

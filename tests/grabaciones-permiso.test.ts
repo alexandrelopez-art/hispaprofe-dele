@@ -90,6 +90,22 @@ describe("pedir sesión de subida de una grabación", () => {
     expect(abrirSesionDeSubida).not.toHaveBeenCalled();
   });
 
+  // Sin esto, un tipoMime vacío (lo que manda el navegador cuando no sabe
+  // decir el tipo de la grabación) caía en el 400 genérico de "datos
+  // inválidos", que no explica nada. Mutación que mata esta prueba: quitar
+  // el chequeo de tipoMime === "" (el mensaje pasaría a ser el de
+  // tipoPermitido, "Solo se admiten grabaciones de audio o vídeo.").
+  it("con tipoMime vacío, un mensaje propio que explica el porqué", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+
+    const respuesta = await POST(peticion({ ...CUERPO_VALIDO, tipoMime: "" }));
+    const cuerpoDeRespuesta = (await respuesta.json()) as { error: string };
+
+    expect(respuesta.status).toBe(400);
+    expect(cuerpoDeRespuesta.error).toContain("no ha sabido decir qué tipo");
+    expect(abrirSesionDeSubida).not.toHaveBeenCalled();
+  });
+
   // Mutación que mata esta prueba: cambiar `||` por `&&` en tipoPermitido
   // (ninguno de los dos pasaría), o quitar el chequeo entero.
   it.each(["image/png", "application/pdf", "text/plain"])(

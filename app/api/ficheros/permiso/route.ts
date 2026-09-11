@@ -12,9 +12,14 @@ import {
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
+// tipoMime SÍ puede llegar vacío: es lo que manda el propio navegador cuando
+// no sabe decir el tipo de un fichero (una extensión que no reconoce, por
+// ejemplo). No se rechaza aquí junto con "falta el campo" — con
+// z.string().min(1) caía en el 400 genérico de abajo, que no explica nada;
+// se comprueba aparte, con un mensaje propio.
 const cuerpo = z.object({
   nombre: z.string().min(1).max(255),
-  tipoMime: z.string().min(1),
+  tipoMime: z.string(),
   bytes: z.number().int().positive(),
 });
 
@@ -42,6 +47,12 @@ export async function POST(request: NextRequest) {
   // Aquí bytes y tipoMime son lo que DICE el navegador: solo sirven para
   // decidir el permiso. Lo que se guarda en la base sale del almacén, en
   // /api/ficheros/confirmar.
+  if (tipoMime === "") {
+    return NextResponse.json(
+      { error: "El navegador no ha sabido decir qué tipo de fichero es. Prueba con otro fichero." },
+      { status: 400 },
+    );
+  }
   if (!tipoPermitido(tipoMime)) {
     return NextResponse.json({ error: "Solo se admiten imágenes o audio." }, { status: 400 });
   }
