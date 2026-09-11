@@ -65,9 +65,18 @@ export async function POST(request: NextRequest) {
   try {
     url = await abrirSesionDeSubida({ nombre: nombreParaDrive, tipoMime });
   } catch (error) {
+    // El mensaje de la excepción NUNCA se manda al navegador: dentro de
+    // abrirSesionDeSubida se interpreta el JSON de la cuenta robot
+    // (GOOGLE_CUENTA_DE_SERVICIO), y si ese JSON viene mal pegado, el
+    // mensaje del error de análisis puede incluir un trozo del texto de
+    // entrada — es decir, de la credencial. Eso no puede llegar a cualquiera
+    // con sesión, ni siquiera a un estudiante. El detalle queda solo en el
+    // registro del servidor.
     console.error("No se pudo abrir la sesión de subida en Drive", error);
-    const mensaje = error instanceof Error ? error.message : "No se pudo abrir la sesión de subida.";
-    return NextResponse.json({ error: mensaje }, { status: 502 });
+    return NextResponse.json(
+      { error: "No se pudo abrir la sesión de subida. Avisa al profesor." },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json({ url });

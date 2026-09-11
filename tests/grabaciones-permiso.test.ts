@@ -178,7 +178,7 @@ describe("pedir sesión de subida de una grabación", () => {
   // Mutación que mata esta prueba: quitar el try/catch alrededor de
   // abrirSesionDeSubida (la excepción subiría y Next respondería un 500 sin
   // cuerpo, en vez de un JSON en español con el motivo).
-  it("si Drive no abre la sesión, 502 con el mensaje del error, no un 500 en blanco", async () => {
+  it("si Drive no abre la sesión, 502 con un mensaje fijo, no un 500 en blanco", async () => {
     personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
     abrirSesionDeSubida.mockRejectedValue(new Error("Google no abrió la sesión de subida (404)."));
 
@@ -186,6 +186,26 @@ describe("pedir sesión de subida de una grabación", () => {
     const cuerpoDeRespuesta = (await respuesta.json()) as { error: string };
 
     expect(respuesta.status).toBe(502);
-    expect(cuerpoDeRespuesta.error).toBe("Google no abrió la sesión de subida (404).");
+    expect(cuerpoDeRespuesta.error).toBe("No se pudo abrir la sesión de subida. Avisa al profesor.");
+  });
+
+  // El mensaje de la excepción NUNCA llega al navegador, sea cual sea: si
+  // GOOGLE_CUENTA_DE_SERVICIO viene con un JSON mal pegado, el mensaje del
+  // error de JSON.parse puede llevar un trozo del texto de entrada (la
+  // credencial). Mutación que mata esta prueba: devolver
+  // `error.message` (o cualquier parte de él) en el cuerpo en vez del
+  // mensaje fijo.
+  it("el mensaje de la excepción no se filtra a la respuesta, ni un trozo", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    abrirSesionDeSubida.mockRejectedValue(
+      new Error('Unexpected token in JSON: "private_key":"MIIEvQIBADANBgk..." at position 47'),
+    );
+
+    const respuesta = await POST(peticion(CUERPO_VALIDO));
+    const cuerpoDeRespuesta = (await respuesta.json()) as { error: string };
+
+    expect(cuerpoDeRespuesta.error).not.toContain("private_key");
+    expect(cuerpoDeRespuesta.error).not.toContain("JSON");
+    expect(cuerpoDeRespuesta.error).toBe("No se pudo abrir la sesión de subida. Avisa al profesor.");
   });
 });
