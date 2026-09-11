@@ -3,11 +3,11 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
+import { comprobarQueLlego, filaParaGuardar } from "@/lib/ficheros/drive";
 
 const datosDeLaGrabacion = z.object({
   ruta: z.string().min(1),
-  tipoMime: z.string().min(1),
-  bytes: z.number().int().positive(),
+  nombreOriginal: z.string().min(1).max(255),
 });
 
 /**
@@ -16,31 +16,25 @@ const datosDeLaGrabacion = z.object({
  * pantalla: por eso vuelve a comprobar la sesión aquí, igual que
  * `crearPersona` en app/personas/acciones.ts.
  *
- * A diferencia del almacén de Vercel (donde /api/ficheros/confirmar
- * pregunta al propio almacén por los bytes y el tipo reales antes de
- * guardar), aquí `bytes` y `tipoMime` vienen de lo que dice el navegador que
- * acaba de terminar la subida: esta es la pantalla de pruebas que se tira
- * cuando llegue el taller, y ese taller es quien tiene que decidir cómo se
- * confirma una grabación contra Drive (una llamada a `files.get` con
- * `supportsAllDrives=true`, previsiblemente).
+ * `bytes` y `tipoMime` NO se reciben de quien llama: se preguntan a Drive
+ * (`comprobarQueLlego`), igual que `/api/ficheros/confirmar` pregunta al
+ * almacén de Vercel antes de guardar. Sin esa pregunta, cualquiera con
+ * sesión podría escribir una fila reclamando como suya la grabación de OTRO
+ * con solo conocer su identificador de Drive, y mentir en el tamaño.
  */
-export async function guardarGrabacion(datos: {
-  ruta: string;
-  tipoMime: string;
-  bytes: number;
-}): Promise<string> {
+export async function guardarGrabacion(datos: { ruta: string; nombreOriginal: string }): Promise<string> {
   const persona = await personaDeLaPeticion();
   if (!persona) throw new Error("Hay que entrar.");
 
   const validado = datosDeLaGrabacion.parse(datos);
-  const fichero = await prisma.fichero.create({
-    data: {
-      almacen: "DRIVE",
-      ruta: validado.ruta,
-      tipoMime: validado.tipoMime,
-      bytes: validado.bytes,
-      subidoPorId: persona.id,
-    },
-  });
+  const confirmado = await comprobarQueLlego(validado.ruta);
+  const fila = filaParaGuardar({ ...validado, subidoPorId: persona.id }, confirmado);
+  if (!fila) {
+    throw new Error(
+      "Drive no confirma que esa grabación esté en la carpeta de las grabaciones. No se guardó.",
+    );
+  }
+
+  const fichero = await prisma.fichero.create({ data: fila });
   return fichero.id;
 }

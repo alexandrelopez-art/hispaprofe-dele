@@ -27,16 +27,18 @@ export function FormularioDeGrabacion() {
   async function subir(fichero: File) {
     setEstado({ paso: "subiendo" });
     try {
-      // Este fetch a /api/grabaciones/permiso es lo único que decide DÓNDE
-      // acaba subiendo el fichero: hoy esa ruta devuelve una sesión de
-      // Drive, pero si el día de mañana cambia por una de nuestro propio
-      // servidor (ver el comentario de lib/ficheros/drive.ts), este PUT de
-      // aquí abajo no cambia una línea, porque no sabe ni le importa de
-      // quién es la URL.
+      // El fetch a /api/grabaciones/permiso es lo único que decide DÓNDE
+      // acaba subiendo el fichero (ver el comentario de
+      // lib/ficheros/drive.ts): hoy esa ruta devuelve una sesión de Drive y
+      // el PUT de aquí abajo manda el fichero entero de una vez. Si el día
+      // de mañana la sesión apunta a un endpoint propio que trocea, ESTE PUT
+      // sí tiene que cambiar: convertirse en un bucle que suba trozos por
+      // debajo de 4,5 MB con su cabecera Content-Range. Hoy ese troceo no
+      // existe.
       const permiso = await fetch("/api/grabaciones/permiso", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nombre: fichero.name, tipoMime: fichero.type }),
+        body: JSON.stringify({ nombre: fichero.name, tipoMime: fichero.type, bytes: fichero.size }),
       });
       if (!permiso.ok) throw new Error(await mensajeDelError(permiso, "No se pudo pedir la sesión de subida."));
       const { url } = (await permiso.json()) as { url: string };
@@ -45,11 +47,11 @@ export function FormularioDeGrabacion() {
       if (!subida.ok) throw new Error("Drive rechazó la subida.");
       const confirmado = (await subida.json()) as { id: string };
 
-      const id = await guardarGrabacion({
-        ruta: confirmado.id,
-        tipoMime: fichero.type,
-        bytes: fichero.size,
-      });
+      // bytes y tipoMime no se mandan aquí: guardarGrabacion se los
+      // pregunta a Drive. nombreOriginal sí es tal cual lo escribió quien
+      // sube (no decide nada de seguridad, es solo la etiqueta que verá el
+      // profesor).
+      const id = await guardarGrabacion({ ruta: confirmado.id, nombreOriginal: fichero.name });
       setEstado({ paso: "hecho", id });
     } catch (error) {
       setEstado({

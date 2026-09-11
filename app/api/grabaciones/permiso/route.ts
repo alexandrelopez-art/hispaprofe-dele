@@ -1,11 +1,16 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
 import { abrirSesionDeSubida } from "@/lib/ficheros/drive";
+import { nombreSaneado } from "@/lib/ficheros/nombres";
+
+const MAX_BYTES = 500 * 1024 * 1024;
 
 const cuerpo = z.object({
   nombre: z.string().min(1).max(255),
   tipoMime: z.string().min(1),
+  bytes: z.number().int().positive(),
 });
 
 /** Solo audio o vídeo: es una grabación del estudiante, nada de páginas ni de audios del examen. */
@@ -18,11 +23,12 @@ function tipoPermitido(tipoMime: string): boolean {
  * una ruta de DATOS, no una pantalla: si no hay sesión responde 401; nunca
  * redirige, porque quien llama espera JSON.
  *
- * Aquí quien sube es el ESTUDIANTE que graba, no el profesor: cualquier
- * persona con sesión puede pedir una dirección. Lo único que se devuelve es
- * esa dirección (`url`): el estudiante nunca recibe el identificador de la
- * carpeta ni ninguna credencial, ni siquiera dentro de la propia dirección
- * de sesión (esa forma la decide Google, no nosotros).
+ * Aquí sube quien graba, sea estudiante o profesor (el profesor también
+ * graba ejemplos): cualquier persona con sesión puede pedir una dirección,
+ * sin restricción de papel. Lo único que se devuelve es esa dirección
+ * (`url`): quien sube nunca recibe el identificador de la carpeta ni ninguna
+ * credencial, ni siquiera dentro de la propia dirección de sesión (esa forma
+ * la decide Google, no nosotros).
  */
 export async function POST(request: NextRequest) {
   const persona = await personaDeLaPeticion();
@@ -35,12 +41,34 @@ export async function POST(request: NextRequest) {
   if (!datos.success) {
     return NextResponse.json({ error: "Datos de la petición incompletos o inválidos." }, { status: 400 });
   }
-  const { nombre, tipoMime } = datos.data;
+  const { nombre, tipoMime, bytes } = datos.data;
 
+  // bytes y tipoMime aquí son lo que DICE el navegador: solo sirven para
+  // decidir si se abre la sesión. Lo que se guarda de verdad en la base sale
+  // de lo que confirma Drive, en guardarGrabacion.
   if (!tipoPermitido(tipoMime)) {
     return NextResponse.json({ error: "Solo se admiten grabaciones de audio o vídeo." }, { status: 400 });
   }
+  if (bytes > MAX_BYTES) {
+    return NextResponse.json({ error: "La grabación pesa más de 500 MB." }, { status: 400 });
+  }
 
-  const url = await abrirSesionDeSubida({ nombre, tipoMime });
+  // El nombre que pone quien sube llega hasta el campo `name` del fichero en
+  // Drive, que ve el profesor al mirar la carpeta: sin sanear, un estudiante
+  // podría llamar a su vídeo como el de otro (o colar algo raro). Se limpia
+  // y se le pega un sufijo aleatorio, igual que rutaDelFichero en el almacén
+  // de Vercel; el nombre tal como lo escribió quien sube se guarda aparte,
+  // en nombreOriginal, cuando se confirma la fila (guardarGrabacion).
+  const nombreParaDrive = nombreSaneado(nombre, randomBytes(6).toString("hex"));
+
+  let url: string;
+  try {
+    url = await abrirSesionDeSubida({ nombre: nombreParaDrive, tipoMime });
+  } catch (error) {
+    console.error("No se pudo abrir la sesión de subida en Drive", error);
+    const mensaje = error instanceof Error ? error.message : "No se pudo abrir la sesión de subida.";
+    return NextResponse.json({ error: mensaje }, { status: 502 });
+  }
+
   return NextResponse.json({ url });
 }
