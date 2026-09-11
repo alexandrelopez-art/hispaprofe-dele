@@ -1,5 +1,6 @@
 import { BlobNotFoundError, head, issueSignedToken, presignUrl } from "@vercel/blob";
 import type { Papel } from "@/lib/generated/prisma";
+import { nombreSaneado } from "./nombres";
 
 export const MINUTOS_DE_SUBIDA = 15;
 export const MINUTOS_DE_LECTURA = 5;
@@ -12,29 +13,9 @@ const MINUTO = 60_000;
 // /api/ficheros/permiso y /api/ficheros/confirmar usen siempre la misma.
 export const CARPETA_DE_MATERIAL = "material";
 
-const LARGO_MAXIMO_DE_LA_EXTENSION = 8;
-
 /** Un nombre de fichero limpio, dentro de su carpeta y sin forma de salirse de ella. */
 export function rutaDelFichero(carpeta: string, nombre: string, aleatorio: string): string {
-  const punto = nombre.lastIndexOf(".");
-  // La extensión también viene del navegador: sin sanear, una barra o un
-  // signo raro colados aquí meten un tramo de carpeta extra en la ruta
-  // firmada, y esa ruta deja de coincidir con la que se guarda en la base.
-  const extensionCruda = punto > 0 ? nombre.slice(punto + 1) : "";
-  const extension =
-    extensionCruda
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "")
-      .slice(0, LARGO_MAXIMO_DE_LA_EXTENSION) || "bin";
-  const base = (punto > 0 ? nombre.slice(0, punto) : nombre)
-    .split(/[\\/]/)
-    .pop()!
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${carpeta}/${base}-${aleatorio}.${extension}`;
+  return `${carpeta}/${nombreSaneado(nombre, aleatorio)}`;
 }
 
 /** Solo páginas escaneadas y audios de examen: nada de vídeo, y nada de SVG (puede llevar un guion, código, dentro). */
