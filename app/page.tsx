@@ -20,7 +20,11 @@ export default async function Portada() {
             {persona.papel === "PROFESOR" && <Link href="/personas">Personas</Link>}
             <Link href="/pruebas/grabar">Prueba: grabar</Link>
             <Link href="/pruebas/subir">Prueba: subir</Link>
-            <Link href="/salir">Salir</Link>
+            <form action="/salir" method="post">
+              <button type="submit" className="underline">
+                Salir
+              </button>
+            </form>
           </nav>
         </div>
       ) : (

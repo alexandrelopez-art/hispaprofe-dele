@@ -8,3 +8,4 @@ lib/generated/
 .env.*
 !.env.example
 next-env.d.ts
+.env*
