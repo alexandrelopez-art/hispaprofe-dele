@@ -65,7 +65,11 @@ describe("la portada", () => {
     const marcado = await html();
 
     expect(marcado).toContain("Hola, Ana");
-    expect(marcado).toContain('href="/salir"');
+    // Salir es un formulario POST, no un enlace: con un enlace, la precarga
+    // de Next lo visitaba sola y cerraba la sesión recién abierta. Mutación
+    // que mata esta prueba: volver a poner <Link href="/salir">.
+    expect(marcado).toContain('action="/salir" method="post"');
+    expect(marcado).not.toContain('href="/salir"');
     expect(marcado).toContain('href="/pruebas/grabar"');
     expect(marcado).toContain('href="/pruebas/subir"');
   });
