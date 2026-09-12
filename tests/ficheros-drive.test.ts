@@ -82,10 +82,34 @@ describe("la petición de subida a Drive", () => {
 });
 
 describe("abrir la sesión de subida", () => {
+  // LA PRUEBA QUE FALTABA, escrita después de que fallara en producción.
+  // Google solo pone cabeceras de origen cruzado en las respuestas de la
+  // sesión si le dices el origen AL ABRIRLA. Sin esta cabecera el navegador
+  // sube el fichero entero, Google lo guarda, y el navegador no puede leer la
+  // respuesta: sale «Failed to fetch» y la grabación queda en Drive sin fila
+  // en la base. Mutación que mata esta prueba: quitar `Origin` de la petición.
+  it("le dice a Google desde qué sitio va a subir el navegador", async () => {
+    getAccessToken.mockResolvedValue({ token: "token-de-prueba" });
+    fetchMock.mockResolvedValue(
+      respuestaDeGoogle({ ok: true, location: "https://www.googleapis.com/upload/.../sesion-xyz" }),
+    );
+
+    await abrirSesionDeSubida({
+      nombre: "grabacion.webm",
+      tipoMime: "video/webm",
+      origen: "https://hispaprofe-dele.vercel.app",
+    });
+
+    const [, opciones] = fetchMock.mock.calls[0];
+    expect((opciones as { headers: Record<string, string> }).headers.Origin).toBe(
+      "https://hispaprofe-dele.vercel.app",
+    );
+  });
+
   it("sin GOOGLE_CUENTA_DE_SERVICIO, avisa y no llega a llamar a Google", async () => {
     delete process.env.GOOGLE_CUENTA_DE_SERVICIO;
 
-    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm" })).rejects.toThrow(
+    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm", origen: "https://hispaprofe.com" })).rejects.toThrow(
       "GOOGLE_CUENTA_DE_SERVICIO",
     );
     expect(fetchMock).not.toHaveBeenCalled();
@@ -94,7 +118,7 @@ describe("abrir la sesión de subida", () => {
   it("sin DRIVE_CARPETA_GRABACIONES, avisa y no llega a llamar a Google", async () => {
     delete process.env.DRIVE_CARPETA_GRABACIONES;
 
-    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm" })).rejects.toThrow(
+    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm", origen: "https://hispaprofe.com" })).rejects.toThrow(
       "DRIVE_CARPETA_GRABACIONES",
     );
     expect(fetchMock).not.toHaveBeenCalled();
@@ -111,7 +135,7 @@ describe("abrir la sesión de subida", () => {
       respuestaDeGoogle({ ok: true, location: "https://www.googleapis.com/upload/.../sesion-xyz" }),
     );
 
-    const sesion = await abrirSesionDeSubida({ nombre: "grabacion.webm", tipoMime: "video/webm" });
+    const sesion = await abrirSesionDeSubida({ nombre: "grabacion.webm", tipoMime: "video/webm", origen: "https://hispaprofe.com" });
 
     expect(sesion).toBe("https://www.googleapis.com/upload/.../sesion-xyz");
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -132,7 +156,7 @@ describe("abrir la sesión de subida", () => {
     getAccessToken.mockResolvedValue({ token: "t" });
     fetchMock.mockResolvedValue(respuestaDeGoogle({ ok: true, location: "https://sesion" }));
 
-    await abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "audio/webm" });
+    await abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "audio/webm", origen: "https://hispaprofe.com" });
 
     const credenciales = JSON.parse(CREDENCIALES);
     expect(getAccessToken).toHaveBeenCalledTimes(1);
@@ -157,7 +181,7 @@ describe("abrir la sesión de subida", () => {
       respuestaDeGoogle({ ok: false, status: 404, location: "https://sesion-de-mentira" }),
     );
 
-    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm" })).rejects.toThrow("404");
+    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm", origen: "https://hispaprofe.com" })).rejects.toThrow("404");
   });
 
   // Sin esto, un `respuesta.ok` a secas (sin mirar la cabecera Location) dejaría
@@ -167,7 +191,7 @@ describe("abrir la sesión de subida", () => {
     getAccessToken.mockResolvedValue({ token: "t" });
     fetchMock.mockResolvedValue(respuestaDeGoogle({ ok: true, location: null }));
 
-    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm" })).rejects.toThrow(
+    await expect(abrirSesionDeSubida({ nombre: "a.webm", tipoMime: "video/webm", origen: "https://hispaprofe.com" })).rejects.toThrow(
       /Google no abrió la sesión/,
     );
   });

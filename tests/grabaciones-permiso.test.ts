@@ -171,6 +171,9 @@ describe("pedir sesión de subida de una grabación", () => {
     expect(abrirSesionDeSubida).toHaveBeenCalledWith({
       nombre: expect.stringMatching(/^grabacion-de-ana-1-[0-9a-f]{12}\.webm$/),
       tipoMime: "video/webm",
+      // El origen viaja hasta Drive: sin él, Google no deja que el navegador
+      // lea la respuesta de la subida. Ver el comentario de abrirSesionDeSubida.
+      origen: expect.stringContaining("http"),
     });
   });
 

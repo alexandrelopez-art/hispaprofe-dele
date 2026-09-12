@@ -62,6 +62,7 @@ function cuentaDeServicio(): JWT {
 export async function abrirSesionDeSubida(datos: {
   nombre: string;
   tipoMime: string;
+  origen: string;
 }): Promise<string> {
   const carpeta = process.env.DRIVE_CARPETA_GRABACIONES;
   if (!carpeta) throw new Error("Falta DRIVE_CARPETA_GRABACIONES, el id de la unidad compartida.");
@@ -70,9 +71,19 @@ export async function abrirSesionDeSubida(datos: {
   const cliente = cuentaDeServicio();
   const { token } = await cliente.getAccessToken();
 
+  // `Origin` no es decoración: Google solo pone cabeceras de origen cruzado en
+  // las respuestas de la sesión si se lo dices AL ABRIRLA. Sin esto, el
+  // navegador del estudiante sube el fichero entero, Google lo guarda, y el
+  // navegador no puede leer la respuesta: se ve como «Failed to fetch» y la
+  // grabación queda en Drive sin fila en la base. Pasó en producción el 12
+  // sept 2026, con el fichero ya subido.
   const respuesta = await fetch(url, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Origin: datos.origen,
+    },
     body: cuerpo,
   });
   const sesion = respuesta.headers.get("location");

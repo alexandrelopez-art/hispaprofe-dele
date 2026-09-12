@@ -4,6 +4,7 @@ import { z } from "zod";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
 import { abrirSesionDeSubida } from "@/lib/ficheros/drive";
 import { nombreSaneado } from "@/lib/ficheros/nombres";
+import { direccionDelSitio } from "@/lib/puerta/sitio";
 
 const MAX_BYTES = 500 * 1024 * 1024;
 
@@ -73,7 +74,11 @@ export async function POST(request: NextRequest) {
 
   let url: string;
   try {
-    url = await abrirSesionDeSubida({ nombre: nombreParaDrive, tipoMime });
+    url = await abrirSesionDeSubida({
+      nombre: nombreParaDrive,
+      tipoMime,
+      origen: direccionDelSitio(request.headers),
+    });
   } catch (error) {
     // El mensaje de la excepción NUNCA se manda al navegador: dentro de
     // abrirSesionDeSubida se interpreta el JSON de la cuenta robot
