@@ -7,6 +7,7 @@ import {
   crearExamen,
   examenParaElTaller,
   guardarTarea,
+  listarExamenes,
   tareaParaElTaller,
 } from "@/lib/taller/examenes";
 
@@ -66,6 +67,18 @@ describe("crear un examen", () => {
   });
 });
 
+describe("listar exámenes", () => {
+  // Mutación que la mata: `orderBy: { createdAt: "asc" }` en vez de "desc".
+  it("trae el más nuevo primero, con solo las columnas de la lista", async () => {
+    const primero = await crearExamen({ titulo: "El primero", nivel: "A2_B1_ESCOLAR" });
+    const segundo = await crearExamen({ titulo: "El segundo", nivel: "A2_B1_ESCOLAR" });
+    if ("error" in primero || "error" in segundo) throw new Error();
+    const lista = await listarExamenes();
+    expect(lista.map((e) => e.id)).toEqual([segundo.id, primero.id]);
+    for (const fila of lista) expect(Object.keys(fila).sort()).toEqual(["estado", "id", "nivel", "titulo"]);
+  });
+});
+
 describe("guardar una tarea", () => {
   // Mutación que la mata: no crear la Clave al crear la Actividad (dejar `clave: undefined` siempre).
   it("guarda consigna, texto y actividad, y la clave del cuadernillo aparte", async () => {
@@ -91,6 +104,24 @@ describe("guardar una tarea", () => {
     const id = await examenConCuadernillo();
     await guardarTarea(id, "CE", 3, ce3Lleno());
     await guardarTarea(id, "CE", 3, ce3Lleno());
+    expect(await prisma.pieza.count({ where: { tarea: { examenId: id } } })).toBe(3);
+    expect(await prisma.clave.count()).toBe(1);
+  });
+
+  // Mutación que la mata: quitar el `SELECT ... FOR UPDATE` que bloquea la
+  // fila de la Tarea al principio de la transacción. Comprobado en esta
+  // máquina: quitando el candado, la prueba cae en rojo 3 de 3 veces con
+  // «Unique constraint failed on the constraint: `Pieza_tareaId_orden_key`»
+  // (el borrado del segundo guardado no encuentra piezas que borrar porque el
+  // primero ya las sustituyó, y sus creaciones chocan). Con el candado puesto,
+  // verde.
+  it("dos guardados a la vez de la misma tarea no fallan y dejan una sola copia", async () => {
+    const id = await examenConCuadernillo();
+    for (let i = 0; i < 10; i++) {
+      const [r1, r2] = await Promise.all([guardarTarea(id, "CE", 3, ce3Lleno()), guardarTarea(id, "CE", 3, ce3Lleno())]);
+      expect(r1).toHaveProperty("estado");
+      expect(r2).toHaveProperty("estado");
+    }
     expect(await prisma.pieza.count({ where: { tarea: { examenId: id } } })).toBe(3);
     expect(await prisma.clave.count()).toBe(1);
   });

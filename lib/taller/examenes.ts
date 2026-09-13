@@ -187,6 +187,10 @@ export async function guardarTarea(
   const clave = claveDelFormulario(formulario, respuestas);
 
   await prisma.$transaction(async (tx) => {
+    // Bloquea la fila de la Tarea para que dos guardados a la vez se
+    // serialicen: si no, el borrado del segundo no encuentra nada que borrar
+    // y sus creaciones chocan con las del primero (@@unique([tareaId, orden])).
+    await tx.$queryRaw`SELECT id FROM "Tarea" WHERE id = ${tarea.id} FOR UPDATE`;
     await tx.pieza.deleteMany({ where: { tareaId: tarea.id } });
     for (const p of piezasDelFormulario(formulario)) {
       await tx.pieza.create({
