@@ -1,0 +1,135 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { exigirProfesor } from "@/lib/puerta/sesion-http";
+import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS, etiquetasDeNivel, nombreCortoDeTarea } from "@/lib/dele/estructura";
+import { examenParaElTaller } from "@/lib/taller/examenes";
+import { listarCuadernillos } from "@/lib/taller/cuadernillos";
+import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";
+import { InsigniaDeEstado } from "@/components/taller/estado-de-la-tarea";
+import { SubirCuadernillo } from "@/components/taller/subir-cuadernillo";
+import { SubirPaginas } from "@/components/taller/subir-paginas";
+import { elegirCuadernilloAccion } from "../acciones";
+
+const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
+
+export default async function PantallaDelExamen({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  await exigirProfesor();
+  const [{ id }, { error }] = await Promise.all([params, searchParams]);
+  const examen = await examenParaElTaller(id);
+  if (!examen) notFound();
+  const cuadernillos = await listarCuadernillos();
+  const todas = etiquetasDeNivel(examen.nivel);
+  const sinEtiqueta = examen.paginas.filter((p) => p.etiquetas.length === 0).length;
+  const elegido = examen.cuadernillo;
+  const resumenDelNumero = elegido?.resumen.find((r) => r.examen === String(examen.numeroEnCuadernillo));
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 p-6">
+      <nav><Link href="/examenes" className="text-hp-600 underline">← Exámenes</Link></nav>
+      <header>
+        <h1 className="text-2xl font-bold">{examen.titulo}</h1>
+        <p className="text-tinta-suave">{NOMBRE_DE_NIVEL[examen.nivel]}</p>
+      </header>
+      {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
+
+      <section className={CAJA}>
+        <h2 className="text-xl font-bold">Tareas</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          {PRUEBAS.map((prueba) => (
+            <div key={prueba} className="flex min-w-0 flex-col gap-2">
+              <h3 className="font-bold capitalize">{NOMBRE_DE_PRUEBA[prueba]}</h3>
+              {examen.tareas.filter((t) => t.prueba === prueba).map((t) => (
+                <Link
+                  key={t.numero}
+                  href={`/examenes/${examen.id}/${t.prueba}/${t.numero}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-tinta-suave/20 p-3"
+                >
+                  <span className="font-bold">{nombreCortoDeTarea(t.prueba, t.numero)}</span>
+                  <span className="flex items-center gap-2">
+                    {t.estado.estado === "A_MEDIAS" && <span className="text-sm text-tinta-suave">{t.estado.motivos.length} por resolver</span>}
+                    <InsigniaDeEstado estado={t.estado.estado} />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="text-xl font-bold">Cuadernillo de soluciones</h2>
+        <form action={elegirCuadernilloAccion.bind(null, examen.id)} className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-bold text-tinta-suave">Cuadernillo</span>
+            <select name="cuadernilloId" defaultValue={elegido?.id ?? ""} className="rounded-xl border border-tinta-suave/30 bg-white p-3">
+              <option value="">Ninguno</option>
+              {cuadernillos.map((c) => <option key={c.id} value={c.id}>{c.titulo}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-bold text-tinta-suave">Qué examen del libro es</span>
+            <select name="numero" defaultValue={examen.numeroEnCuadernillo ?? ""} className="rounded-xl border border-tinta-suave/30 bg-white p-3">
+              <option value="">Sin elegir</option>
+              {(elegido?.resumen ?? []).map((r) => <option key={r.examen} value={r.examen}>Examen {r.examen}</option>)}
+            </select>
+          </label>
+          <button type="submit" className="rounded-xl bg-hp-400 px-4 py-3 font-bold text-white">Guardar</button>
+        </form>
+
+        {elegido && (
+          <div className="overflow-x-auto">
+            <table className="text-sm">
+              <caption className="pb-2 text-left font-bold">Lo que el taller ha entendido de «{elegido.titulo}»</caption>
+              <thead>
+                <tr className="text-left">
+                  <th className="pr-4">Examen</th>
+                  <th className="pr-4">Lectura (6, 6, 6, 7)</th>
+                  <th className="pr-4">Auditiva (7, 6, 6, 6)</th>
+                  <th>¿Cuadra?</th>
+                </tr>
+              </thead>
+              <tbody>
+                {elegido.resumen.map((r) => (
+                  <tr key={r.examen} className={r === resumenDelNumero ? "bg-hp-50 font-bold" : ""}>
+                    <td className="pr-4">{r.examen}</td>
+                    {r.pruebas.map((p) => (
+                      <td key={p.prueba} className="pr-4">
+                        {p.filas.map((f) => f.encontradas).join(", ")}
+                        {p.fuera.length > 0 ? ` · sobran ${p.fuera.join(", ")}` : ""}
+                      </td>
+                    ))}
+                    <td className={r.bien ? "text-verde-600" : "text-error-600"}>{r.bien ? "Sí" : "No"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <details>
+          <summary className="cursor-pointer font-bold">Subir un cuadernillo nuevo</summary>
+          <div className="pt-3"><SubirCuadernillo examenId={examen.id} /></div>
+        </details>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="text-xl font-bold">Páginas</h2>
+        {examen.paginas.length > 0 && sinEtiqueta > 0 && (
+          <p className="rounded-2xl bg-sol-100 p-4">{sinEtiqueta === 1 ? "Hay 1 hoja sin etiquetar." : `Hay ${sinEtiqueta} hojas sin etiquetar.`}</p>
+        )}
+        {examen.paginas.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {examen.paginas.map((p) => <EtiquetasDePagina key={p.id} examenId={examen.id} pagina={p} todas={todas} />)}
+          </div>
+        )}
+        <SubirPaginas examenId={examen.id} hayPaginas={examen.paginas.length > 0} />
+      </section>
+    </main>
+  );
+}

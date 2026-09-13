@@ -18,6 +18,7 @@ export default async function Portada() {
           </p>
           <nav className="flex flex-col gap-1">
             {persona.papel === "PROFESOR" && <Link href="/personas">Personas</Link>}
+            {persona.papel === "PROFESOR" && <Link href="/examenes">Exámenes</Link>}
             <Link href="/pruebas/grabar">Prueba: grabar</Link>
             <Link href="/pruebas/subir">Prueba: subir</Link>
             <form action="/salir" method="post">

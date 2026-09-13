@@ -97,4 +97,15 @@ describe("la portada", () => {
 
     expect(marcado).toContain('href="/personas"');
   });
+
+  // Mutación que la mata: enseñar «Exámenes» sin mirar el papel.
+  it("solo el profesor ve el enlace al taller", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    expect(await html()).not.toContain('href="/examenes"');
+
+    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    personaDeLaCookie.mockResolvedValue(PROFESOR);
+    expect(await html()).toContain('href="/examenes"');
+  });
 });
