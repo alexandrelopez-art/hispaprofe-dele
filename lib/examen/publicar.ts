@@ -1,14 +1,9 @@
-import type { Prueba } from "@/lib/generated/prisma";
-import { ESTRUCTURA, reglaDe } from "@/lib/dele/estructura";
+import type { Nivel, Prueba } from "@/lib/generated/prisma";
+import { ESTRUCTURAS, NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS } from "@/lib/dele/estructura";
 
 export type TareaParaRevisar = { prueba: Prueba; numero: number; items: number };
 
-const NOMBRE: Record<Prueba, string> = {
-  CE: "comprensión de lectura",
-  CO: "comprensión auditiva",
-  EE: "expresión escrita",
-  EO: "expresión oral",
-};
+const NOMBRE = NOMBRE_DE_PRUEBA;
 
 /**
  * Por qué este examen no se puede publicar todavía. Lista vacía = se puede.
@@ -16,12 +11,15 @@ const NOMBRE: Record<Prueba, string> = {
  * Es la red que caza los errores de la IA al transcribir: una tarea a la que le
  * falta un ítem, o que se coló dos veces, no llega nunca al estudiante.
  */
-export function motivosParaNoPublicar(tareas: TareaParaRevisar[]): string[] {
+export function motivosParaNoPublicar(nivel: Nivel, tareas: TareaParaRevisar[]): string[] {
+  const estructura = ESTRUCTURAS[nivel];
+  if (!estructura) {
+    return [`Este nivel (${NOMBRE_DE_NIVEL[nivel]}) todavía no tiene sus números: no se puede publicar.`];
+  }
   const motivos: string[] = [];
-  const pruebas = Object.keys(ESTRUCTURA) as Prueba[];
 
-  for (const prueba of pruebas) {
-    for (const regla of ESTRUCTURA[prueba]) {
+  for (const prueba of PRUEBAS) {
+    for (const regla of estructura[prueba]) {
       const tarea = tareas.find((t) => t.prueba === prueba && t.numero === regla.numero);
       if (!tarea) {
         motivos.push(`Falta la tarea ${regla.numero} de ${NOMBRE[prueba]} (${prueba}).`);
@@ -36,7 +34,7 @@ export function motivosParaNoPublicar(tareas: TareaParaRevisar[]): string[] {
   }
 
   for (const tarea of tareas) {
-    if (reglaDe(tarea.prueba, tarea.numero) === null) {
+    if (!estructura[tarea.prueba].some((r) => r.numero === tarea.numero)) {
       motivos.push(
         `La tarea ${tarea.numero} de ${NOMBRE[tarea.prueba]} no existe en este examen.`,
       );

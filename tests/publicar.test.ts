@@ -23,14 +23,14 @@ function examenCompleto(): TareaParaRevisar[] {
 
 describe("la guarda de publicación", () => {
   it("deja publicar un examen completo y con los números buenos", () => {
-    expect(motivosParaNoPublicar(examenCompleto())).toEqual([]);
+    expect(motivosParaNoPublicar("A2_B1_ESCOLAR", examenCompleto())).toEqual([]);
   });
 
   it("no deja publicar si falta una tarea", () => {
     const tareas = examenCompleto().filter(
       (t) => !(t.prueba === "CO" && t.numero === 3),
     );
-    const motivos = motivosParaNoPublicar(tareas);
+    const motivos = motivosParaNoPublicar("A2_B1_ESCOLAR", tareas);
     expect(motivos).toHaveLength(1);
     expect(motivos[0]).toContain("CO");
     expect(motivos[0]).toContain("3");
@@ -40,25 +40,25 @@ describe("la guarda de publicación", () => {
     const tareas = examenCompleto().map((t) =>
       t.prueba === "CE" && t.numero === 4 ? { ...t, items: 6 } : t,
     );
-    const motivos = motivosParaNoPublicar(tareas);
+    const motivos = motivosParaNoPublicar("A2_B1_ESCOLAR", tareas);
     expect(motivos).toHaveLength(1);
     expect(motivos[0]).toContain("7");
     expect(motivos[0]).toContain("6");
   });
 
   it("no deja publicar un examen vacío, y da un motivo por cada tarea que falta", () => {
-    expect(motivosParaNoPublicar([])).toHaveLength(14);
+    expect(motivosParaNoPublicar("A2_B1_ESCOLAR", [])).toHaveLength(14);
   });
 
   it("no deja publicar si sobra una tarea que el examen no tiene", () => {
     const tareas = [...examenCompleto(), { prueba: "CE" as const, numero: 5, items: 6 }];
-    const motivos = motivosParaNoPublicar(tareas);
+    const motivos = motivosParaNoPublicar("A2_B1_ESCOLAR", tareas);
     expect(motivos).toHaveLength(1);
     expect(motivos[0]).toContain("no existe");
   });
 
   it("da los motivos en español, para que los lea el profesor", () => {
-    const motivos = motivosParaNoPublicar([]);
+    const motivos = motivosParaNoPublicar("A2_B1_ESCOLAR", []);
     expect(motivos[0]).toMatch(/falta/i);
   });
 
@@ -66,7 +66,7 @@ describe("la guarda de publicación", () => {
     const tareas = examenCompleto().map((t) =>
       t.prueba === "CO" && t.numero === 1 ? { ...t, items: 8 } : t,
     );
-    const motivos = motivosParaNoPublicar(tareas);
+    const motivos = motivosParaNoPublicar("A2_B1_ESCOLAR", tareas);
     expect(motivos).toHaveLength(1);
     expect(motivos[0]).toContain("7");
     expect(motivos[0]).toContain("8");
@@ -75,9 +75,16 @@ describe("la guarda de publicación", () => {
   it("no deja publicar si una tarea se coló dos veces", () => {
     const original = examenCompleto();
     const tareas = [...original, { ...original[0] }];
-    const motivos = motivosParaNoPublicar(tareas);
+    const motivos = motivosParaNoPublicar("A2_B1_ESCOLAR", tareas);
     expect(motivos).toHaveLength(1);
     expect(motivos[0]).toContain(original[0].prueba);
     expect(motivos[0]).toContain(String(original[0].numero));
+  });
+
+  // Mutación que la mata: no mirar si el nivel tiene reglas (un examen de B2
+  // se publicaría con las reglas de nadie, o reventaría).
+  it("un nivel sin números no se publica", () => {
+    const motivos = motivosParaNoPublicar("B2", examenCompleto());
+    expect(motivos).toEqual(["Este nivel (B2) todavía no tiene sus números: no se puede publicar."]);
   });
 });
