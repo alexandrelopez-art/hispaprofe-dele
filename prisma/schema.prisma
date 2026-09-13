@@ -8,6 +8,8 @@ datasource db {
 }
 
 enum Nivel {
+  /// El DELE A2/B1 para escolares: un examen único con sus propios números.
+  A2_B1_ESCOLAR
   A1
   A2
   B1
@@ -44,6 +46,8 @@ enum TipoActividad {
   RELACIONAR
   REDACCION
   GRABACION
+  /// Oral en directo con el profesor (tareas 2 y 4): no hay nada que grabar.
+  CONVERSACION
 }
 
 model Examen {
@@ -52,10 +56,45 @@ model Examen {
   nivel     Nivel
   estado    EstadoExamen @default(EN_CONSTRUCCION)
   tareas    Tarea[]
+  paginas   PaginaDeExamen[]
+
+  /// De dónde salen las respuestas correctas, y qué examen del libro es.
+  cuadernillo         Cuadernillo? @relation(fields: [cuadernilloId], references: [id], onDelete: Restrict)
+  cuadernilloId       String?
+  numeroEnCuadernillo Int?
+
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
   @@index([estado])
+}
+
+/// El cuadernillo de soluciones de un libro. Uno por libro, lo usan sus seis
+/// exámenes. El PDF no se guarda: solo su texto y la tabla de soluciones.
+model Cuadernillo {
+  id         String   @id @default(cuid())
+  titulo     String
+  texto      String
+  /// { "1": { "CE": { "13": "B" }, "CO": { ... } } }
+  soluciones Json
+  createdAt  DateTime @default(now())
+
+  examenes Examen[]
+}
+
+/// Una hoja del PDF de un examen, con las tareas que contiene.
+model PaginaDeExamen {
+  id        String   @id @default(cuid())
+  examen    Examen   @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId  String
+  fichero   Fichero  @relation(fields: [ficheroId], references: [id], onDelete: Restrict)
+  ficheroId String
+  orden     Int
+  /// "CE-1" … "EO-4". Una hoja puede llevar el final de una tarea y el principio de otra.
+  etiquetas String[] @default([])
+
+  @@unique([examenId, orden])
+  @@index([examenId])
 }
 
 model Tarea {
@@ -177,6 +216,7 @@ model Fichero {
   createdAt     DateTime @default(now())
 
   piezas Pieza[]
+  paginas PaginaDeExamen[]
 
   @@unique([almacen, ruta])
 }
