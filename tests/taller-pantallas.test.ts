@@ -32,6 +32,7 @@ vi.mock("@/app/examenes/acciones", () => ({
   crearExamenAccion: vi.fn(),
   elegirCuadernilloAccion: vi.fn(),
   registrarPaginasAccion: vi.fn(),
+  sustituirPaginasAccion: vi.fn(),
   borrarPaginasAccion: vi.fn(),
   etiquetarPaginaAccion: vi.fn(),
   guardarCuadernilloAccion: vi.fn(),
@@ -212,5 +213,53 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     );
     expect(marcado).toContain('src="/api/ficheros/f1"');
     expect(marcado).toContain('src="/api/ficheros/f2"');
+  });
+
+  // El `key` que se le puso a <ElegirCuadernillo> en app/examenes/[id]/page.tsx
+  // (finding 3 de la revisión) arregla un fallo que solo se ve cuando React
+  // vuelve a renderizar la MISMA instancia montada del componente (tras
+  // guardar un cuadernillo y refrescar la pantalla, sin desmontarla): el
+  // `useState` interno de ElegirCuadernillo se queda con el valor con el que
+  // se montó la primera vez. `renderToStaticMarkup` no reconstruye una
+  // instancia ya montada — cada llamada es un montaje nuevo — así que esta
+  // prueba NO puede observar ese re-montaje ni lo que el `key` arregla:
+  // quitar el `key` de la página no la pondría en rojo. Lo que sí puede
+  // probarse aquí, honestamente, es que la pantalla lee el cuadernillo y el
+  // número elegidos de `examen` (no de otro sitio) y se los pasa tal cual al
+  // selector, para cada examen por separado.
+  // Mutación que la mata: fijar `elegidoId` o `numero` a un valor constante
+  // (por ejemplo `elegidoId={null}` o `numero={1}`) en vez de leerlos de
+  // `examen.cuadernillo` / `examen.numeroEnCuadernillo`.
+  it("la pantalla pasa el cuadernillo y el número guardados de CADA examen al selector, no uno fijo", async () => {
+    const base = { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" as const, tareas: [], paginas: [] };
+    dobles.listarCuadernillos.mockResolvedValue([
+      { id: "c1", titulo: "Libro Uno", examenes: ["1"] },
+      { id: "c2", titulo: "Libro Dos", examenes: ["2"] },
+    ]);
+
+    dobles.examenParaElTaller.mockResolvedValue({
+      ...base,
+      id: "x1",
+      numeroEnCuadernillo: 1,
+      cuadernillo: { id: "c1", titulo: "Libro Uno", resumen: [] },
+    });
+    const primero = renderToStaticMarkup(
+      await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }),
+    );
+
+    dobles.examenParaElTaller.mockResolvedValue({
+      ...base,
+      id: "x2",
+      numeroEnCuadernillo: 2,
+      cuadernillo: { id: "c2", titulo: "Libro Dos", resumen: [] },
+    });
+    const segundo = renderToStaticMarkup(
+      await PantallaDelExamen({ params: Promise.resolve({ id: "x2" }), searchParams: sinError() }),
+    );
+
+    expect(primero).toContain('value="c1" selected');
+    expect(primero).not.toContain('value="c2" selected');
+    expect(segundo).toContain('value="c2" selected');
+    expect(segundo).not.toContain('value="c1" selected');
   });
 });

@@ -14,6 +14,7 @@ const dobles = vi.hoisted(() => ({
   crearExamen: vi.fn(),
   guardarTarea: vi.fn(),
   registrarPaginas: vi.fn(),
+  sustituirPaginas: vi.fn(),
   etiquetarPagina: vi.fn(),
   borrarPaginas: vi.fn(),
   guardarCuadernillo: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("next/cache", () => ({ revalidatePath: dobles.revalidatePath }));
 vi.mock("@/lib/taller/examenes", () => ({ crearExamen: dobles.crearExamen, guardarTarea: dobles.guardarTarea }));
 vi.mock("@/lib/taller/paginas", () => ({
   registrarPaginas: dobles.registrarPaginas,
+  sustituirPaginas: dobles.sustituirPaginas,
   etiquetarPagina: dobles.etiquetarPagina,
   borrarPaginas: dobles.borrarPaginas,
 }));
@@ -43,6 +45,7 @@ import {
   guardarCuadernilloAccion,
   guardarTareaAccion,
   registrarPaginasAccion,
+  sustituirPaginasAccion,
 } from "@/app/examenes/acciones";
 
 const PROFESOR: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
@@ -69,6 +72,7 @@ async function mensajeDelRechazo(promesa: Promise<unknown>): Promise<string> {
 const ACCIONES = [
   { nombre: "crearExamenAccion", llamar: () => crearExamenAccion(formulario({ titulo: "X", nivel: "A2_B1_ESCOLAR" })), tocan: [dobles.crearExamen] },
   { nombre: "registrarPaginasAccion", llamar: () => registrarPaginasAccion("x1", ["f1"]), tocan: [dobles.registrarPaginas] },
+  { nombre: "sustituirPaginasAccion", llamar: () => sustituirPaginasAccion("x1", ["f1"]), tocan: [dobles.sustituirPaginas] },
   { nombre: "borrarPaginasAccion", llamar: () => borrarPaginasAccion("x1"), tocan: [dobles.borrarPaginas] },
   { nombre: "etiquetarPaginaAccion", llamar: () => etiquetarPaginaAccion("x1", "p1", ["CE-1"]), tocan: [dobles.etiquetarPagina] },
   { nombre: "guardarCuadernilloAccion", llamar: () => guardarCuadernilloAccion("x1", "Libro", []), tocan: [dobles.guardarCuadernillo, dobles.elegirCuadernillo] },
@@ -193,5 +197,16 @@ describe("lo que hace cada acción con el profesor", () => {
     await registrarPaginasAccion("x1", ["f2", "f1"]);
     expect(dobles.etiquetarPagina).toHaveBeenCalledWith("x1", "p1", ["CE-2", "CE-3"]);
     expect(dobles.registrarPaginas).toHaveBeenCalledWith("x1", ["f2", "f1"]);
+  });
+
+  // Mutación que la mata: pasar `ficheroIds.slice().reverse()` a
+  // `sustituirPaginas` en `sustituirPaginasAccion`, o devolver `{}` fijo en
+  // vez de lo que devuelva la capa de base (el error se perdería).
+  it("sustituir páginas pasa sus datos tal cual y devuelve lo que diga la base", async () => {
+    dobles.sustituirPaginas.mockResolvedValue({ error: "Otra pestaña está subiendo páginas a este examen. Recarga la pantalla." });
+    expect(await sustituirPaginasAccion("x1", ["f2", "f1"])).toEqual({
+      error: "Otra pestaña está subiendo páginas a este examen. Recarga la pantalla.",
+    });
+    expect(dobles.sustituirPaginas).toHaveBeenCalledWith("x1", ["f2", "f1"]);
   });
 });

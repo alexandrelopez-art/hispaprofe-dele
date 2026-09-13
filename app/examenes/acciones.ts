@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { esPrueba } from "@/lib/dele/estructura";
 import { crearExamen, guardarTarea } from "@/lib/taller/examenes";
-import { borrarPaginas, etiquetarPagina, registrarPaginas } from "@/lib/taller/paginas";
+import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 import { elegirCuadernillo, guardarCuadernillo } from "@/lib/taller/cuadernillos";
 import type { EstadoDeTarea } from "@/lib/taller/estado";
 
@@ -35,6 +35,13 @@ export async function borrarPaginasAccion(examenId: string): Promise<void> {
   await exigirProfesor();
   await borrarPaginas(examenId);
   revalidatePath(pantallaDelExamen(examenId));
+}
+
+export async function sustituirPaginasAccion(examenId: string, ficheroIds: string[]): Promise<{ error?: string }> {
+  await exigirProfesor();
+  const r = await sustituirPaginas(examenId, ficheroIds);
+  revalidatePath(pantallaDelExamen(examenId));
+  return r;
 }
 
 export async function etiquetarPaginaAccion(examenId: string, paginaId: string, etiquetas: string[]): Promise<{ error?: string }> {

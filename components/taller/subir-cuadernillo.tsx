@@ -41,7 +41,17 @@ export function SubirCuadernillo({ examenId }: { examenId: string }) {
       </label>
       <label className="flex flex-col gap-1">
         <span className="font-bold">PDF del cuadernillo (con texto, no escaneado)</span>
-        <input type="file" accept="application/pdf" disabled={ocupado} onChange={(e) => void alElegir(e.target.files?.[0])} className="rounded-2xl border border-tinta-suave/30 bg-white p-3" />
+        <input
+          type="file"
+          accept="application/pdf"
+          disabled={ocupado}
+          onChange={(e) => {
+            const fichero = e.target.files?.[0];
+            e.target.value = "";
+            void alElegir(fichero);
+          }}
+          className="rounded-2xl border border-tinta-suave/30 bg-white p-3"
+        />
       </label>
       {aviso && <p role="status" className="rounded-2xl bg-hp-50 p-4">{aviso}</p>}
     </div>

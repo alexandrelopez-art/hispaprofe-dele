@@ -64,7 +64,13 @@ export default async function PantallaDelExamen({
 
       <section className={CAJA}>
         <h2 className="text-xl font-bold">Cuadernillo de soluciones</h2>
-        <ElegirCuadernillo examenId={examen.id} cuadernillos={cuadernillos} elegidoId={elegido?.id ?? null} numero={examen.numeroEnCuadernillo} />
+        <ElegirCuadernillo
+          key={`${examen.cuadernillo?.id ?? ""}-${examen.numeroEnCuadernillo ?? ""}`}
+          examenId={examen.id}
+          cuadernillos={cuadernillos}
+          elegidoId={elegido?.id ?? null}
+          numero={examen.numeroEnCuadernillo}
+        />
 
         {elegido && (
           <div className="overflow-x-auto">

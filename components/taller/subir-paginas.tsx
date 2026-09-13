@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { borrarPaginasAccion, registrarPaginasAccion } from "@/app/examenes/acciones";
+import { sustituirPaginasAccion } from "@/app/examenes/acciones";
 import { subirAlAlmacen } from "@/lib/ficheros/subir-desde-navegador";
 import { paginasDePdf } from "@/lib/taller/pdf-en-navegador";
 import { idsEnOrden, type EstadoDePagina } from "@/lib/taller/lista-de-subida";
@@ -14,6 +14,8 @@ const NOMBRE_DEL_ESTADO: Record<EstadoDePagina["estado"], string> = {
   FALLIDA: "Falló",
 };
 
+const AVISO_DE_FALLO_AL_REGISTRAR = "No se ha podido registrar las páginas. Pulsa «Registrar de nuevo».";
+
 export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPaginas: boolean }) {
   const router = useRouter();
   const ficheros = useRef<File[]>([]);
@@ -22,6 +24,10 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
   const [aviso, setAviso] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  // Verdadero cuando el último intento de sustituirPaginasAccion falló (con
+  // error o lanzando): mientras lo sea y ya haya páginas subidas, se ofrece
+  // «Registrar de nuevo» en vez de dejar el examen sin páginas y sin salida.
+  const [registroFallido, setRegistroFallido] = useState(false);
   const pintar = () => setPaginas([...lista.current]);
 
   async function subirUna(i: number) {
@@ -42,23 +48,33 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
       setAviso("Hay páginas sin subir: pulsa «Reintentar» en las marcadas.");
       return;
     }
-    if (hayPaginas) await borrarPaginasAccion(examenId);
-    const r = await registrarPaginasAccion(examenId, ids);
-    if (r.error) {
-      setAviso(r.error);
-      return;
+    try {
+      const r = await sustituirPaginasAccion(examenId, ids);
+      if (r.error) {
+        // La lista se deja tal cual: todo sigue "SUBIDA" y sus ficheros
+        // siguen en el almacén, así que "Registrar de nuevo" puede repetir
+        // el envío sin volver a subir nada.
+        setAviso(r.error);
+        setRegistroFallido(true);
+        return;
+      }
+      lista.current = [];
+      ficheros.current = [];
+      pintar();
+      setAviso(null);
+      setRegistroFallido(false);
+      router.refresh();
+    } catch {
+      setAviso(AVISO_DE_FALLO_AL_REGISTRAR);
+      setRegistroFallido(true);
     }
-    lista.current = [];
-    ficheros.current = [];
-    pintar();
-    setAviso(null);
-    router.refresh();
   }
 
   async function alElegir(fichero: File | undefined) {
     if (!fichero) return;
     setOcupado(true);
     setAviso("Partiendo el PDF en páginas…");
+    setRegistroFallido(false);
     try {
       ficheros.current = await paginasDePdf(fichero);
       lista.current = ficheros.current.map((f) => ({ nombre: f.name, estado: "PENDIENTE", ficheroId: null, error: null }));
@@ -77,12 +93,31 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
   async function reintentar(i: number) {
     if (ocupado) return;
     setOcupado(true);
-    await subirUna(i);
-    await registrarSiEstanTodas();
-    setOcupado(false);
+    try {
+      await subirUna(i);
+      await registrarSiEstanTodas();
+    } catch {
+      setAviso("No se ha podido reintentar la subida. Vuelve a intentarlo.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function registrarDeNuevo() {
+    if (ocupado) return;
+    setOcupado(true);
+    try {
+      await registrarSiEstanTodas();
+    } catch {
+      setAviso(AVISO_DE_FALLO_AL_REGISTRAR);
+      setRegistroFallido(true);
+    } finally {
+      setOcupado(false);
+    }
   }
 
   const puedeElegir = !hayPaginas || confirmando;
+  const puedeRegistrarDeNuevo = registroFallido && idsEnOrden(paginas) !== null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -103,12 +138,21 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
             type="file"
             accept="application/pdf"
             disabled={ocupado}
-            onChange={(e) => void alElegir(e.target.files?.[0])}
+            onChange={(e) => {
+              const fichero = e.target.files?.[0];
+              e.target.value = "";
+              void alElegir(fichero);
+            }}
             className="rounded-2xl border border-tinta-suave/30 bg-white p-4"
           />
         </label>
       )}
       {aviso && <p role="status" className="rounded-2xl bg-hp-50 p-4">{aviso}</p>}
+      {puedeRegistrarDeNuevo && (
+        <button type="button" disabled={ocupado} onClick={() => void registrarDeNuevo()} className="self-start rounded-2xl border border-tinta-suave/30 px-4 py-2">
+          Registrar de nuevo
+        </button>
+      )}
       {paginas.length > 0 && (
         <ol className="flex flex-col gap-1">
           {paginas.map((p, i) => (

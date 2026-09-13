@@ -9,7 +9,7 @@ vi.mock("@/lib/ficheros/vercel", async (original) => ({
 
 import { prisma } from "@/lib/db";
 import { crearExamen } from "@/lib/taller/examenes";
-import { borrarPaginas, etiquetarPagina, registrarPaginas } from "@/lib/taller/paginas";
+import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 
 beforeEach(async () => {
   borrarDeVercel.mockReset();
@@ -94,6 +94,95 @@ describe("registrar páginas", () => {
       expect(perdedores).toEqual([{ error: "Este examen ya tiene páginas. Bórralas antes de subir otras." }]);
       expect(await prisma.paginaDeExamen.count({ where: { examenId: id } })).toBe(1);
     }
+  });
+});
+
+describe("sustituir páginas", () => {
+  // Mutación que la mata: quitar `await tx.paginaDeExamen.deleteMany(...)` de
+  // la transacción (dejando las dos tandas de orden a la vez). Con las
+  // páginas antiguas en orden 1 y 2 todavía puestas, el `createMany` de las
+  // nuevas chocaría contra @@unique([examenId, orden]) y esto devolvería el
+  // error de "otra pestaña" en vez de `{}`.
+  it("sustituye las páginas de un examen que ya tenía dos, etiquetadas, y limpia sus ficheros y el almacén", async () => {
+    const id = await unExamen();
+    const viejo1 = await unFichero();
+    const viejo2 = await unFichero();
+    await registrarPaginas(id, [viejo1.id, viejo2.id]);
+    const primera = await prisma.paginaDeExamen.findFirstOrThrow({ where: { examenId: id, orden: 1 } });
+    await etiquetarPagina(id, primera.id, ["CE-1"]);
+
+    const nuevo1 = await unFichero();
+    const nuevo2 = await unFichero();
+    const nuevo3 = await unFichero();
+    expect(await sustituirPaginas(id, [nuevo3.id, nuevo1.id, nuevo2.id])).toEqual({});
+
+    const paginas = await prisma.paginaDeExamen.findMany({ where: { examenId: id }, orderBy: { orden: "asc" } });
+    expect(paginas.map((p) => p.ficheroId)).toEqual([nuevo3.id, nuevo1.id, nuevo2.id]);
+    expect(paginas.every((p) => p.etiquetas.length === 0)).toBe(true);
+
+    expect(await prisma.fichero.findUnique({ where: { id: viejo1.id } })).toBeNull();
+    expect(await prisma.fichero.findUnique({ where: { id: viejo2.id } })).toBeNull();
+    expect(await prisma.fichero.findUnique({ where: { id: nuevo1.id } })).not.toBeNull();
+    expect(await prisma.fichero.findUnique({ where: { id: nuevo2.id } })).not.toBeNull();
+    expect(await prisma.fichero.findUnique({ where: { id: nuevo3.id } })).not.toBeNull();
+    expect(borrarDeVercel).toHaveBeenCalledTimes(2);
+    expect(borrarDeVercel).toHaveBeenCalledWith(viejo1.ruta);
+    expect(borrarDeVercel).toHaveBeenCalledWith(viejo2.ruta);
+  });
+
+  // Mutación que la mata: quitar la comprobación de ficheros válidos (el
+  // `if (ficheroIds.some((id) => !validos.has(id))) return { error: ... }`)
+  // antes de entrar a la transacción.
+  it("si la lista de páginas nuevas no vale, las páginas y etiquetas antiguas quedan intactas", async () => {
+    const id = await unExamen();
+    const viejo = await unFichero();
+    await registrarPaginas(id, [viejo.id]);
+    const pagina = await prisma.paginaDeExamen.findFirstOrThrow({ where: { examenId: id } });
+    await etiquetarPagina(id, pagina.id, ["CE-1"]);
+
+    const malo = await unFichero({ tipoMime: "audio/mpeg" });
+    expect(await sustituirPaginas(id, [malo.id])).toEqual({
+      error: "Alguna página no es una imagen subida al almacén de material.",
+    });
+
+    const paginas = await prisma.paginaDeExamen.findMany({ where: { examenId: id } });
+    expect(paginas).toHaveLength(1);
+    expect(paginas[0].ficheroId).toBe(viejo.id);
+    expect(paginas[0].etiquetas).toEqual(["CE-1"]);
+    expect(borrarDeVercel).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el try/catch alrededor de `await
+  // borrarDeVercel(...)` dentro de `limpiarSiHuerfanos`, dejando que su
+  // fallo se propague y tire abajo (con una excepción) un registro que la
+  // transacción ya confirmó.
+  it("si borrar del almacén falla después de sustituir, las páginas nuevas quedan registradas igual", async () => {
+    const errorConsola = vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = await unExamen();
+    const viejo = await unFichero();
+    await registrarPaginas(id, [viejo.id]);
+    borrarDeVercel.mockRejectedValueOnce(new Error("almacén caído"));
+
+    const nuevo = await unFichero();
+    expect(await sustituirPaginas(id, [nuevo.id])).toEqual({});
+
+    const paginas = await prisma.paginaDeExamen.findMany({ where: { examenId: id } });
+    expect(paginas.map((p) => p.ficheroId)).toEqual([nuevo.id]);
+    expect(await prisma.fichero.findUnique({ where: { id: viejo.id } })).toBeNull();
+    expect(borrarDeVercel).toHaveBeenCalledWith(viejo.ruta);
+    errorConsola.mockRestore();
+  });
+
+  // Mutación que la mata: invertir el orden al construir las filas nuevas
+  // dentro de la transacción (`ficheroIds.slice().reverse().map(...)`) — las
+  // páginas quedarían en el orden opuesto al del PDF.
+  it("un examen sin páginas también se puede cargar con sustituirPaginas", async () => {
+    const id = await unExamen();
+    const a = await unFichero();
+    const b = await unFichero();
+    expect(await sustituirPaginas(id, [a.id, b.id])).toEqual({});
+    const paginas = await prisma.paginaDeExamen.findMany({ where: { examenId: id }, orderBy: { orden: "asc" } });
+    expect(paginas.map((p) => p.ficheroId)).toEqual([a.id, b.id]);
   });
 });
 
