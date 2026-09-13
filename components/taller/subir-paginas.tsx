@@ -42,6 +42,7 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
       setAviso("Hay páginas sin subir: pulsa «Reintentar» en las marcadas.");
       return;
     }
+    if (hayPaginas) await borrarPaginasAccion(examenId);
     const r = await registrarPaginasAccion(examenId, ids);
     if (r.error) {
       setAviso(r.error);
@@ -59,7 +60,6 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
     setOcupado(true);
     setAviso("Partiendo el PDF en páginas…");
     try {
-      if (hayPaginas) await borrarPaginasAccion(examenId);
       ficheros.current = await paginasDePdf(fichero);
       lista.current = ficheros.current.map((f) => ({ nombre: f.name, estado: "PENDIENTE", ficheroId: null, error: null }));
       pintar();
@@ -75,6 +75,7 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
   }
 
   async function reintentar(i: number) {
+    if (ocupado) return;
     setOcupado(true);
     await subirUna(i);
     await registrarSiEstanTodas();
@@ -92,7 +93,7 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
       )}
       {hayPaginas && confirmando && (
         <p className="rounded-2xl bg-sol-100 p-4">
-          Al subir otro PDF se borran las páginas de ahora <strong>y sus etiquetas</strong>. Las tareas guardadas no se tocan.
+          Cuando el PDF nuevo termine de subir se sustituyen las páginas de ahora <strong>y sus etiquetas</strong>. Las tareas guardadas no se tocan.
         </p>
       )}
       {puedeElegir && (

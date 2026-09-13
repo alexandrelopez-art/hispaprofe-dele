@@ -10,7 +10,7 @@ type Pagina = { id: string; ficheroId: string; orden: number; etiquetas: string[
 export function EtiquetasDePagina({ examenId, pagina, todas }: { examenId: string; pagina: Pagina; todas: string[] }) {
   const [marcadas, setMarcadas] = useState(pagina.etiquetas);
   const [error, setError] = useState<string | null>(null);
-  const [, empezar] = useTransition();
+  const [pendiente, empezar] = useTransition();
 
   function pulsar(etiqueta: string) {
     const antes = marcadas;
@@ -40,6 +40,7 @@ export function EtiquetasDePagina({ examenId, pagina, todas }: { examenId: strin
                 key={etiqueta}
                 type="button"
                 aria-pressed={puesta}
+                disabled={pendiente}
                 onClick={() => pulsar(etiqueta)}
                 className={`rounded-full px-2 py-1 text-sm ${puesta ? "bg-hp-400 font-bold text-white" : "border border-tinta-suave/30"}`}
               >
