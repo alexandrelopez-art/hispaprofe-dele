@@ -172,6 +172,18 @@ describe("lo que hace cada acción con el profesor", () => {
     expect(dobles.elegirCuadernillo).toHaveBeenCalledWith("x1", null, null);
   });
 
+  // Elegir "Ninguno" (sin cuadernillo) quita también el número, aunque el
+  // formulario traiga uno puesto: quitar el cuadernillo quita el número
+  // (ya probado en la capa de base de datos). Sin esta prueba, el `? numero
+  // : null` de más abajo podía cambiarse por `numero` a secas sin que nada
+  // lo notara.
+  // Mutación que la mata: cambiar `cuadernilloId ? numero : null` por `numero`.
+  it("elegir \"Ninguno\" con un número puesto quita cuadernillo y número", async () => {
+    dobles.elegirCuadernillo.mockResolvedValue({});
+    expect(await mensajeDelRechazo(elegirCuadernilloAccion("x1", formulario({ cuadernilloId: "", numero: "3" })))).toBe("REDIRECT:/examenes/x1");
+    expect(dobles.elegirCuadernillo).toHaveBeenCalledWith("x1", null, null);
+  });
+
   // Mutación que la mata: pasar `ficheroIds.slice().reverse()` a
   // `registrarPaginas` en `registrarPaginasAccion`.
   it("etiquetar y registrar pasan sus datos tal cual", async () => {
