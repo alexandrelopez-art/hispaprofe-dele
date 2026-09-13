@@ -56,9 +56,10 @@ publicar, asignar y cualquier pantalla del estudiante.
 ## 3. Cambios en el modelo
 
 **`Nivel`** gana `A2_B1_ESCOLAR`. `ESTRUCTURA` (`lib/dele/estructura.ts`) pasa a ir por
-nivel: `Record<Nivel, reglas | null>`. Hoy solo el escolar tiene reglas. Un examen de
-un nivel sin reglas se crea y se carga, pero `motivosParaNoPublicar` devuelve «Este
-nivel todavía no tiene sus números» y no se publica. Las reglas del escolar ganan,
+nivel: `Record<Nivel, reglas | null>`. Hoy solo el escolar tiene reglas. **El taller
+solo ofrece crear exámenes de niveles con reglas**, porque sin reglas no hay forma de
+tarea que rellenar; y `motivosParaNoPublicar` devuelve «Este nivel todavía no tiene sus
+números» para cualquier examen de un nivel sin ellas. Las reglas del escolar ganan,
 por tarea, su **forma** (sección 4) y su **primer número** (CE 1, 7, 13, 19; CO 1, 8,
 14, 20).
 
@@ -133,13 +134,18 @@ al volver a guardar cada tarea, y mientras tanto el estado lo compara y lo avisa
 
 ## 6. El cuadernillo
 
-- Se sube por el servidor (el del libro pesa 240 KB; **más de 4 MB se rechaza** con
-  mensaje, por el límite de Vercel).
-- El servidor saca el texto con `pdfjs-dist` en su versión `legacy` y **usa la
-  posición horizontal de cada trozo para separar las dos columnas** de la tabla de
-  soluciones: en ese PDF cada página lleva dos exámenes lado a lado.
-- Busca cada bloque «SOLUCIONES» y dentro «EXAMEN N», «PRUEBA DE COMPRENSIÓN DE
-  LECTURA / AUDITIVA», «TAREA N» y pares `13-B`.
+- **El PDF no sale del navegador.** El navegador saca con `pdfjs-dist` (la misma
+  librería que parte las páginas) los trozos de texto con su página y su posición, y
+  manda al servidor solo eso. Así pdf.js no corre nunca en Vercel. El envío va por una
+  acción de servidor, que corta a 1 MB, así que el tope es de **10.000 trozos**; el del
+  libro son unos 2.300 (unos 160 KB).
+- El servidor **usa la posición horizontal de cada trozo para separar las dos
+  columnas** de la tabla de soluciones: en ese PDF cada página lleva dos exámenes lado
+  a lado.
+- Solo lee páginas que contienen «SOLUCIONES». Dentro de cada columna, de arriba abajo:
+  «EXAMEN N», «… LECTURA» / «… AUDITIVA» y pares `13-B`. La tarea de cada par la da su
+  número, no el rótulo «TAREA N». **Comprobado el 13 sept contra el cuadernillo real:
+  seis exámenes, 25 + 25 respuestas cada uno.**
 - **Al terminar enseña lo que ha entendido**: una tabla por examen con cuántas
   respuestas tiene cada tarea, y lo marca en rojo si no cuadra con las reglas del
   nivel (6/6/6/7 y 7/6/6/6, numeración seguida). Se guarda igualmente: el profesor
@@ -209,7 +215,8 @@ Siempre en español y diciendo qué hacer:
 ## 11. Qué se rescata del repositorio viejo
 
 - `paginasDePdf` y la reducción de imágenes (`components/taller/paginas.tsx`).
-- `textoDePdf` (`lib/taller/cuadernillo.ts`), ampliado con la posición horizontal.
+- La lectura de texto de `textoDePdf` (`lib/taller/cuadernillo.ts`), llevada al
+  navegador y ampliada para devolver cada trozo con su página y su posición.
 - La idea de `components/taller/dudas.ts` y del campo con aviso de los editores.
 
 Lo demás del taller viejo (onda, corte con ffmpeg, reproductor encadenado, llamada a la
