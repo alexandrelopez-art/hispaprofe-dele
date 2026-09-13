@@ -9,3 +9,4 @@ lib/generated/
 !.env.example
 next-env.d.ts
 .env*
+/public/pdf.worker.min.mjs

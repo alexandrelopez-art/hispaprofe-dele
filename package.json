@@ -14,7 +14,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:base": "bash scripts/postgres-de-pruebas.sh",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs"
   },
   "license": "ISC",
   "dependencies": {
