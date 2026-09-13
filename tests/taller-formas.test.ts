@@ -47,6 +47,7 @@ describe("las formas del formulario", () => {
     },
   );
 
+  // Mutación que la mata: cambiar z.strictObject por z.object en formularioBase o sus discriminantes.
   it("un campo desconocido en la raíz también rebota", () => {
     const r = regla("EE", 1);
     expect(pasa(r, { ...formularioVacio(r), extra: 1 })).toBe(false);
@@ -70,6 +71,7 @@ describe("las formas del formulario", () => {
     expect(pasa(r, f)).toBe(false);
   });
 
+  // Mutación que la mata: cambiar numeros.map o abc.map en formularioVacio para RELACIONAR, o alterar letrasHasta(10).
   it("Lectura 1 tiene seis elementos del 1 al 6 y diez destinos de la A a la J", () => {
     const f = formularioVacio(regla("CE", 1));
     if (f.forma !== "RELACIONAR") throw new Error();
@@ -90,6 +92,7 @@ describe("las formas del formulario", () => {
     expect(pasa(r, f)).toBe(false);
   });
 
+  // Mutación que la mata: eliminar `grupo: grupoDe(regla, i)` de formularioVacio para OPCIONES, o cambiar la fórmula en grupoDe.
   it("Auditiva 4 reparte las seis preguntas en tres noticias de dos", () => {
     const f = formularioVacio(regla("CO", 4));
     if (f.forma !== "OPCIONES") throw new Error();
@@ -101,6 +104,7 @@ describe("las formas del formulario", () => {
     expect(pasa(regla("CE", 3), formularioVacio(regla("CE", 1)))).toBe(false);
   });
 
+  // Mutación que la mata: quitar `.nullable()` del esquema de ejemplo en LISTA_COMUN y OPCIONES, o no comprobar `hay !== regla.ejemplo` en fallosDeForma.
   it("una tarea sin ejemplo no admite ejemplo, y una con ejemplo lo exige", () => {
     const ce2 = regla("CE", 2);
     const f = formularioVacio(ce2);
@@ -115,6 +119,7 @@ describe("las formas del formulario", () => {
     expect(pasa(co3, g)).toBe(false);
   });
 
+  // Mutación que la mata: cambiar `Boolean(regla.opcionesConImagen)` a siempre true o siempre false en formularioVacio para ORAL_SOLO, o no comprobar conImagen en fallosDeForma.
   it("Oral 1 lleva foto en sus dos opciones; Oral 3 no", () => {
     const eo1 = formularioVacio(regla("EO", 1));
     const eo3 = formularioVacio(regla("EO", 3));
@@ -123,6 +128,7 @@ describe("las formas del formulario", () => {
     expect(eo3.actividad.opciones.map((o) => o.conImagen)).toEqual([false, false]);
   });
 
+  // Mutación que la mata: eliminar la comprobación `f.textos.length !== regla.textos` de fallosDeForma.
   it("Lectura 2 pide tres textos y Lectura 3 uno", () => {
     expect(formularioVacio(regla("CE", 2)).textos).toHaveLength(3);
     expect(formularioVacio(regla("CE", 3)).textos).toHaveLength(1);
@@ -132,6 +138,7 @@ describe("las formas del formulario", () => {
     expect(pasa(r, f)).toBe(false);
   });
 
+  // Mutación que la mata: cambiar `ORAL_DIRECTO: "CONVERSACION"` a `ORAL_DIRECTO: "GRABACION"` en TIPO_DE_ACTIVIDAD.
   it("las orales en directo se guardan como conversación, no como grabación", () => {
     expect(TIPO_DE_ACTIVIDAD.ORAL_DIRECTO).toBe("CONVERSACION");
     expect(TIPO_DE_ACTIVIDAD.ORAL_SOLO).toBe("GRABACION");
