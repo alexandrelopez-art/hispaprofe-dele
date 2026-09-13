@@ -61,6 +61,7 @@ describe("registrar páginas", () => {
     expect(await prisma.paginaDeExamen.count()).toBe(0);
   });
 
+  // Mutación que la mata: quitar la comprobación `examen._count.paginas > 0`.
   it("un examen que ya tiene páginas no admite otras encima", async () => {
     const id = await unExamen();
     await registrarPaginas(id, [(await unFichero()).id]);
@@ -69,6 +70,7 @@ describe("registrar páginas", () => {
     });
   });
 
+  // Mutación que la mata: quitar la comprobación `new Set(ficheroIds).size !== ficheroIds.length`.
   it("una página repetida o una lista vacía", async () => {
     const id = await unExamen();
     const f = await unFichero();
@@ -78,6 +80,7 @@ describe("registrar páginas", () => {
 });
 
 describe("etiquetar una página", () => {
+  // Mutación que la mata: guardar `etiquetas` tal cual llega en vez de `validas.filter(...)`.
   it("guarda las etiquetas en el orden del examen y sin repetir", async () => {
     const id = await unExamen();
     await registrarPaginas(id, [(await unFichero()).id]);
