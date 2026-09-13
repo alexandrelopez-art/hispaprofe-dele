@@ -4,11 +4,11 @@ import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS, etiquetasDeNivel, nombreCortoDeTarea } from "@/lib/dele/estructura";
 import { examenParaElTaller } from "@/lib/taller/examenes";
 import { listarCuadernillos } from "@/lib/taller/cuadernillos";
+import { ElegirCuadernillo } from "@/components/taller/elegir-cuadernillo";
 import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";
 import { InsigniaDeEstado } from "@/components/taller/estado-de-la-tarea";
 import { SubirCuadernillo } from "@/components/taller/subir-cuadernillo";
 import { SubirPaginas } from "@/components/taller/subir-paginas";
-import { elegirCuadernilloAccion } from "../acciones";
 
 const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
 
@@ -64,23 +64,7 @@ export default async function PantallaDelExamen({
 
       <section className={CAJA}>
         <h2 className="text-xl font-bold">Cuadernillo de soluciones</h2>
-        <form action={elegirCuadernilloAccion.bind(null, examen.id)} className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-bold text-tinta-suave">Cuadernillo</span>
-            <select name="cuadernilloId" defaultValue={elegido?.id ?? ""} className="rounded-xl border border-tinta-suave/30 bg-white p-3">
-              <option value="">Ninguno</option>
-              {cuadernillos.map((c) => <option key={c.id} value={c.id}>{c.titulo}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-bold text-tinta-suave">Qué examen del libro es</span>
-            <select name="numero" defaultValue={examen.numeroEnCuadernillo ?? ""} className="rounded-xl border border-tinta-suave/30 bg-white p-3">
-              <option value="">Sin elegir</option>
-              {(elegido?.resumen ?? []).map((r) => <option key={r.examen} value={r.examen}>Examen {r.examen}</option>)}
-            </select>
-          </label>
-          <button type="submit" className="rounded-xl bg-hp-400 px-4 py-3 font-bold text-white">Guardar</button>
-        </form>
+        <ElegirCuadernillo examenId={examen.id} cuadernillos={cuadernillos} elegidoId={elegido?.id ?? null} numero={examen.numeroEnCuadernillo} />
 
         {elegido && (
           <div className="overflow-x-auto">

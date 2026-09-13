@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
+import { reglaDe } from "@/lib/dele/estructura";
+import { formularioVacio } from "@/lib/taller/formas";
 
 // Cada pantalla se importa tal cual (no un resumen de su lógica), para que
 // borrar su `await exigirProfesor()` ponga esto en rojo.
@@ -101,5 +104,113 @@ describe("lo que no existe da el no encontrado", () => {
   it("el profesor ve la lista", async () => {
     dobles.listarExamenes.mockResolvedValue([]);
     await expect(Examenes({ searchParams: sinError() })).resolves.toBeDefined();
+  });
+});
+
+describe("lo que el profesor ve de verdad (camino feliz)", () => {
+  beforeEach(() => como(PROFESOR));
+
+  // Mutación que la mata: en app/examenes/page.tsx, dejar de interpolar
+  // `e.id` en el href (usar una ruta fija como `/examenes/x`).
+  it("la lista enseña cada examen con su enlace, nivel y estado", async () => {
+    dobles.listarExamenes.mockResolvedValue([
+      { id: "e1", titulo: "Examen Uno", nivel: "A2_B1_ESCOLAR", estado: "EN_CONSTRUCCION" },
+      { id: "e2", titulo: "Examen Dos", nivel: "A2_B1_ESCOLAR", estado: "EN_CONSTRUCCION" },
+    ]);
+    const marcado = renderToStaticMarkup(await Examenes({ searchParams: sinError() }));
+    expect(marcado).toContain("Examen Uno");
+    expect(marcado).toContain("Examen Dos");
+    expect(marcado).toContain('href="/examenes/e1"');
+    expect(marcado).toContain('href="/examenes/e2"');
+    expect(marcado).toContain("A2/B1 escolar · En construcción");
+  });
+
+  // Mutación que la mata: quitar el párrafo «Hay N hoja(s) sin etiquetar.»
+  // (el `{examen.paginas.length > 0 && sinEtiqueta > 0 && (...)}`).
+  it("la pantalla del examen enseña el aviso de páginas sin etiquetar, cuántas tareas faltan y qué examen del cuadernillo cuadra", async () => {
+    dobles.examenParaElTaller.mockResolvedValue({
+      id: "x1",
+      titulo: "Examen 1",
+      nivel: "A2_B1_ESCOLAR",
+      numeroEnCuadernillo: 1,
+      cuadernillo: {
+        id: "c1",
+        titulo: "Libro de preparación",
+        resumen: [
+          { examen: "1", pruebas: [], bien: true },
+          { examen: "2", pruebas: [], bien: false },
+        ],
+      },
+      paginas: [
+        { id: "p1", ficheroId: "f1", orden: 1, etiquetas: ["CE-1"] },
+        { id: "p2", ficheroId: "f2", orden: 2, etiquetas: [] },
+      ],
+      tareas: [
+        { prueba: "CE", numero: 1, estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna.", "Falta el texto 1."], imagenesPendientes: 0 } },
+      ],
+    });
+    // El cuadernillo trae un tercer examen (el "3") que el resumen guardado
+    // no tiene: si el select del número saliera del resumen (el bug que se
+    // arregla aquí) en vez de la lista de cuadernillos, "Examen 3" no
+    // aparecería nunca.
+    dobles.listarCuadernillos.mockResolvedValue([{ id: "c1", titulo: "Libro de preparación", examenes: ["1", "2", "3"] }]);
+
+    const marcado = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+
+    expect(marcado).toContain("Hay 1 hoja sin etiquetar.");
+    expect(marcado).toContain("2 por resolver");
+    expect(marcado).toContain(">Sí<");
+    expect(marcado).toContain(">No<");
+    expect(marcado).toContain(">Examen 3<");
+  });
+
+  // Mutación que la mata: invertir la condición (`tarea.paginas.length > 0`)
+  // del párrafo, dejando el aviso «Ninguna hoja lleva esta tarea» para
+  // cuando SÍ hay páginas.
+  it("la pantalla de una tarea sin páginas etiquetadas avisa de que no hay ninguna", async () => {
+    const regla = reglaDe("A2_B1_ESCOLAR", "EE", 1)!;
+    dobles.tareaParaElTaller.mockResolvedValue({
+      examen: { id: "x1", titulo: "Examen 1" },
+      prueba: "EE",
+      numero: 1,
+      regla,
+      formulario: formularioVacio(regla),
+      guardada: false,
+      estado: { estado: "VACIA", motivos: ["Sin guardar todavía."], imagenesPendientes: 0 },
+      respuestas: null,
+      paginas: [],
+      temasDeLaHermana: null,
+    });
+    const marcado = renderToStaticMarkup(
+      await PantallaDeTarea({ params: Promise.resolve({ id: "x1", prueba: "EE", numero: "1" }) }),
+    );
+    expect(marcado).toContain("Ninguna hoja lleva esta tarea");
+  });
+
+  // Mutación que la mata: quitar el `.map` y pintar una sola imagen
+  // (`tarea.paginas.slice(0, 1).map(...)`), perdiendo las páginas que no son
+  // la primera.
+  it("la pantalla de una tarea con dos páginas etiquetadas enseña las dos imágenes", async () => {
+    const regla = reglaDe("A2_B1_ESCOLAR", "EE", 1)!;
+    dobles.tareaParaElTaller.mockResolvedValue({
+      examen: { id: "x1", titulo: "Examen 1" },
+      prueba: "EE",
+      numero: 1,
+      regla,
+      formulario: formularioVacio(regla),
+      guardada: true,
+      estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna."], imagenesPendientes: 0 },
+      respuestas: null,
+      paginas: [
+        { ficheroId: "f1", orden: 3 },
+        { ficheroId: "f2", orden: 4 },
+      ],
+      temasDeLaHermana: null,
+    });
+    const marcado = renderToStaticMarkup(
+      await PantallaDeTarea({ params: Promise.resolve({ id: "x1", prueba: "EE", numero: "1" }) }),
+    );
+    expect(marcado).toContain('src="/api/ficheros/f1"');
+    expect(marcado).toContain('src="/api/ficheros/f2"');
   });
 });
