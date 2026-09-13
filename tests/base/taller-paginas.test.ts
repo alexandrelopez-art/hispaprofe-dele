@@ -77,6 +77,24 @@ describe("registrar páginas", () => {
     expect(await registrarPaginas(id, [f.id, f.id])).toEqual({ error: "Una página viene repetida." });
     expect(await registrarPaginas(id, [])).toEqual({ error: "No hay páginas que registrar." });
   });
+
+  // Mutación que la mata: quitar el try/catch de P2002 alrededor de `createMany`. Se repite
+  // 10 veces sobre exámenes nuevos porque la carrera depende del entrelazado real de
+  // dos conexiones a Postgres, no es determinista con una sola pasada.
+  it("dos registros a la vez para el mismo examen: uno gana, el otro rebota limpio", async () => {
+    for (let i = 0; i < 10; i++) {
+      const id = await unExamen();
+      const a = await unFichero();
+      const b = await unFichero();
+      const resultados = await Promise.all([registrarPaginas(id, [a.id]), registrarPaginas(id, [b.id])]);
+
+      const ganadores = resultados.filter((r) => Object.keys(r).length === 0);
+      const perdedores = resultados.filter((r) => "error" in r);
+      expect(ganadores).toHaveLength(1);
+      expect(perdedores).toEqual([{ error: "Este examen ya tiene páginas. Bórralas antes de subir otras." }]);
+      expect(await prisma.paginaDeExamen.count({ where: { examenId: id } })).toBe(1);
+    }
+  });
 });
 
 describe("etiquetar una página", () => {
@@ -125,5 +143,37 @@ describe("borrar las páginas", () => {
     expect(await prisma.fichero.findUnique({ where: { id: compartido.id } })).not.toBeNull();
     expect(borrarDeVercel).toHaveBeenCalledTimes(1);
     expect(borrarDeVercel).toHaveBeenCalledWith(propio.ruta);
+  });
+
+  // Mutación que la mata: quitar el try/catch alrededor de `await borrarDeVercel(...)` en el bucle.
+  it("si el almacén falla al borrar un fichero, sigue con los demás", async () => {
+    const errorConsola = vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = await unExamen();
+    const uno = await unFichero();
+    const dos = await unFichero();
+    await registrarPaginas(id, [uno.id, dos.id]);
+    borrarDeVercel.mockRejectedValueOnce(new Error("almacén caído"));
+
+    await expect(borrarPaginas(id)).resolves.toBeUndefined();
+
+    expect(await prisma.fichero.findUnique({ where: { id: uno.id } })).toBeNull();
+    expect(await prisma.fichero.findUnique({ where: { id: dos.id } })).toBeNull();
+    expect(borrarDeVercel).toHaveBeenCalledTimes(2);
+    errorConsola.mockRestore();
+  });
+
+  // Mutación que la mata: quitar `(await prisma.pieza.count({ where: { ficheroId: fichero.id } }))` del cálculo de `enUso`.
+  it("un fichero que también usa una pieza no se borra ni se toca en el almacén", async () => {
+    const id = await unExamen();
+    const compartido = await unFichero();
+    await registrarPaginas(id, [compartido.id]);
+    const tarea = await prisma.tarea.findFirstOrThrow({ where: { examenId: id } });
+    await prisma.pieza.create({ data: { tareaId: tarea.id, orden: 1, tipo: "IMAGEN", ficheroId: compartido.id } });
+
+    await borrarPaginas(id);
+
+    expect(await prisma.paginaDeExamen.count({ where: { examenId: id } })).toBe(0);
+    expect(await prisma.fichero.findUnique({ where: { id: compartido.id } })).not.toBeNull();
+    expect(borrarDeVercel).not.toHaveBeenCalled();
   });
 });

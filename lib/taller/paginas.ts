@@ -1,8 +1,13 @@
+import { Prisma } from "@/lib/generated/prisma";
 import { prisma } from "@/lib/db";
 import { CARPETA_DE_MATERIAL, borrarDeVercel } from "@/lib/ficheros/vercel";
 import { etiquetasDeNivel } from "@/lib/dele/estructura";
 
 const MAXIMO_DE_PAGINAS = 200;
+
+function esClaveDuplicada(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
 
 /**
  * Registra de una vez todas las páginas de un examen, en el orden del PDF.
@@ -28,9 +33,17 @@ export async function registrarPaginas(examenId: string, ficheroIds: string[]): 
     return { error: "Alguna página no es una imagen subida al almacén de material." };
   }
 
-  await prisma.paginaDeExamen.createMany({
-    data: ficheroIds.map((ficheroId, i) => ({ examenId, ficheroId, orden: i + 1 })),
-  });
+  try {
+    await prisma.paginaDeExamen.createMany({
+      data: ficheroIds.map((ficheroId, i) => ({ examenId, ficheroId, orden: i + 1 })),
+    });
+  } catch (error) {
+    // Dos subidas a la vez pueden pasar las dos la comprobación de arriba (ninguna ha
+    // escrito todavía) y chocar aquí contra @@unique([examenId, orden]): la que pierde
+    // la carrera recibe el mismo error que si hubiera llegado tarde.
+    if (esClaveDuplicada(error)) return { error: "Este examen ya tiene páginas. Bórralas antes de subir otras." };
+    throw error;
+  }
   return {};
 }
 
@@ -60,6 +73,13 @@ export async function borrarPaginas(examenId: string): Promise<void> {
       (await prisma.pieza.count({ where: { ficheroId: fichero.id } }));
     if (enUso > 0) continue;
     await prisma.fichero.delete({ where: { id: fichero.id } });
-    await borrarDeVercel(fichero.ruta);
+    try {
+      await borrarDeVercel(fichero.ruta);
+    } catch (error) {
+      // La fila ya no está: un fallo del almacén aquí solo deja un blob huérfano, que
+      // no rompe nada. No se puede dejar que corte el borrado de los ficheros que
+      // vengan detrás en el mismo examen.
+      console.error(`No se pudo borrar del almacén el fichero ${fichero.ruta}`, error);
+    }
   }
 }
