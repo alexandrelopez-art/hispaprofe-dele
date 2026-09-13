@@ -5,6 +5,7 @@ import {
   claveDelFormulario,
   estadoDeTarea,
   imagenesPendientes,
+  letrasPosibles,
   motivosDeTarea,
 } from "@/lib/taller/estado";
 
@@ -66,6 +67,31 @@ describe("lo que falta", () => {
     expect(motivosDeTarea(regla("CE", 3), f, CE3, null)).toEqual(["Falta el enunciado de la 15."]);
   });
 
+  // Mutación que la mata: en LISTA_COMUN, quitar el bucle `for (const c of a.comunes) falta(...)` en textosQueFaltan.
+  it("un texto común vacío en lista común es un motivo", () => {
+    const f = lleno("CE", 2);
+    if (f.forma !== "LISTA_COMUN") throw new Error();
+    f.actividad.comunes[1].texto = "";
+    const respuestas = { "7": "A", "8": "B", "9": "C", "10": "A", "11": "B", "12": "C" };
+    expect(motivosDeTarea(regla("CE", 2), f, respuestas, null)).toEqual(["Falta el texto de la opción B."]);
+  });
+
+  // Mutación que la mata: en REDACCION_DOS, quitar `falta(o.contexto, ...)` en el forEach de textosQueFaltan.
+  it("un contexto vacío en redacción dos es un motivo", () => {
+    const f = lleno("EE", 2);
+    if (f.forma !== "REDACCION_DOS") throw new Error();
+    f.actividad.opciones[1].contexto = "";
+    expect(motivosDeTarea(regla("EE", 2), f, null, null)).toEqual(["Falta el contexto de la opción 2."]);
+  });
+
+  // Mutación que la mata: en ORAL_DIRECTO, quitar `falta(o.situacion, ...)` en el forEach de textosQueFaltan.
+  it("una situación vacía en oral directo es un motivo", () => {
+    const f = lleno("EO", 2);
+    if (f.forma !== "ORAL_DIRECTO") throw new Error();
+    f.actividad.opciones[0].situacion = "";
+    expect(motivosDeTarea(regla("EO", 2), f, null, null)).toEqual(["Falta la situación de la opción 1."]);
+  });
+
   // Mutación que la mata: exigir texto a las opciones con imagen.
   it("una opción con imagen no necesita texto, y cuenta como imagen pendiente", () => {
     const f = lleno("CO", 1);
@@ -119,11 +145,28 @@ describe("las respuestas del cuadernillo", () => {
     ]);
   });
 
-  // Mutación que la mata: no quitar la letra del ejemplo de las posibles.
+  // Mutación que la mata: quitar el case LISTA_COMUN en letrasPosibles (cae al default y devuelve []).
+  it("en lista común, una letra que la pregunta no tiene", () => {
+    const respuestas = { "7": "A", "8": "B", "9": "D", "10": "C", "11": "A", "12": "B" };
+    expect(motivosDeTarea(regla("CE", 2), lleno("CE", 2), respuestas, null)).toEqual([
+      "La respuesta de la 9 es «D», y esa pregunta solo tiene A, B y C.",
+    ]);
+  });
+
+  // Mutación que la mata: quitar el `if (f.forma === "RELACIONAR" && letra === f.actividad.ejemplo.letra) { …; continue; }` en motivosDeTarea.
   it("en relacionar, la letra del ejemplo no puede ser respuesta", () => {
     expect(motivosDeTarea(regla("CE", 1), lleno("CE", 1), { ...CE1, "3": "D" }, null)).toEqual([
       "La respuesta de la 3 es «D», que es la del ejemplo.",
     ]);
+  });
+
+  // Mutación que la mata: quitar el `.filter((l) => l !== f.actividad.ejemplo.letra)` en letrasPosibles (caso RELACIONAR).
+  it("letrasPosibles en relacionar excluye la letra del ejemplo", () => {
+    const f = lleno("CE", 1);
+    if (f.forma !== "RELACIONAR") throw new Error();
+    const posibles = letrasPosibles(f, 1);
+    expect(posibles).toHaveLength(9);
+    expect(posibles).not.toContain("D");
   });
 
   // Mutación que la mata: no buscar letras repetidas en relacionar.
