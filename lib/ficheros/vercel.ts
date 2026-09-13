@@ -1,4 +1,4 @@
-import { BlobNotFoundError, head, issueSignedToken, presignUrl } from "@vercel/blob";
+import { BlobNotFoundError, del, head, issueSignedToken, presignUrl } from "@vercel/blob";
 import type { Papel } from "@/lib/generated/prisma";
 import { nombreSaneado } from "./nombres";
 
@@ -80,6 +80,11 @@ export async function enlaceDeLectura(ruta: string, ahora: Date): Promise<string
 
 export function puedeSubirMaterial(papel: Papel): boolean {
   return papel === "PROFESOR";
+}
+
+/** Borra un fichero del almacén. Solo lo llama quien ya ha borrado su fila y ha visto que nadie más lo usa. */
+export async function borrarDeVercel(ruta: string): Promise<void> {
+  await del(ruta);
 }
 
 /**
