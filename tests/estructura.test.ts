@@ -13,10 +13,12 @@ import {
 const ESCOLAR = ESTRUCTURAS.A2_B1_ESCOLAR!;
 
 describe("la estructura del A2/B1 escolar", () => {
+  // Mutación que la mata: cambiar CE[3].items de 7 a 6.
   it("la comprensión de lectura son 4 tareas de 6, 6, 6 y 7 ítems", () => {
     expect(ESCOLAR.CE.map((r) => r.items)).toEqual([6, 6, 6, 7]);
   });
 
+  // Mutación que la mata: cambiar CO[0].items de 7 a 6.
   it("la comprensión auditiva son 4 tareas de 7, 6, 6 y 6 ítems", () => {
     expect(ESCOLAR.CO.map((r) => r.items)).toEqual([7, 6, 6, 6]);
   });
@@ -35,6 +37,7 @@ describe("la estructura del A2/B1 escolar", () => {
     }
   });
 
+  // Mutación que la mata: cambiar EE[0].items de null a 1 o EE[0].letras de 0 a 1.
   it("escrita y oral son de respuesta abierta, sin números ni letras", () => {
     for (const regla of [...ESCOLAR.EE, ...ESCOLAR.EO]) {
       expect(regla.items).toBeNull();
@@ -46,6 +49,7 @@ describe("la estructura del A2/B1 escolar", () => {
   });
 
   // Comprobado contra las páginas: diez destinos A-J y un ejemplo resuelto.
+  // Mutación que la mata: cambiar CE1.forma de "RELACIONAR" a "OPCIONES".
   it("Lectura 1 y Auditiva 2 relacionan con diez letras y traen ejemplo", () => {
     for (const regla of [reglaDe("A2_B1_ESCOLAR", "CE", 1)!, reglaDe("A2_B1_ESCOLAR", "CO", 2)!]) {
       expect(regla.forma).toBe("RELACIONAR");
@@ -56,11 +60,13 @@ describe("la estructura del A2/B1 escolar", () => {
     expect(reglaDe("A2_B1_ESCOLAR", "CO", 2)!.elementosConTexto).toBe(false);
   });
 
+  // Mutación que la mata: cambiar CO3.ejemplo de true a false.
   it("llevan ejemplo exactamente CE1, CO1, CO2 y CO3", () => {
     const conEjemplo = PRUEBAS.flatMap((p) => ESCOLAR[p].filter((r) => r.ejemplo).map((r) => `${p}-${r.numero}`));
     expect(conEjemplo).toEqual(["CE-1", "CO-1", "CO-2", "CO-3"]);
   });
 
+  // Mutación que la mata: cambiar EO2.hermana de 1 a 2.
   it("las orales en directo van con su oral en solitario", () => {
     const eo = (n: number) => reglaDe("A2_B1_ESCOLAR", "EO", n)!;
     expect(eo(2)).toMatchObject({ forma: "ORAL_DIRECTO", hermana: 1 });
@@ -69,6 +75,7 @@ describe("la estructura del A2/B1 escolar", () => {
     expect(eo(3)).toMatchObject({ forma: "ORAL_SOLO", opcionesConImagen: false });
   });
 
+  // Mutación que la mata: cambiar CO1.itemsConImagen de 4 a 3.
   it("Auditiva 1 tiene imágenes en las cuatro primeras y Auditiva 4 tres noticias", () => {
     expect(reglaDe("A2_B1_ESCOLAR", "CO", 1)!.itemsConImagen).toBe(4);
     expect(reglaDe("A2_B1_ESCOLAR", "CO", 4)!.grupos).toBe(3);
@@ -82,6 +89,7 @@ describe("los niveles", () => {
     expect(reglaDe("B1", "CE", 1)).toBeNull();
   });
 
+  // Mutación que la mata: añadir { numero: 5, items: 6, ... } a ESCOLAR.CE.
   it("reglaDe devuelve null para una tarea que no existe", () => {
     expect(reglaDe("A2_B1_ESCOLAR", "CE", 5)).toBeNull();
     expect(reglaDe("A2_B1_ESCOLAR", "CE", 0)).toBeNull();
@@ -89,11 +97,13 @@ describe("los niveles", () => {
 });
 
 describe("nombres y etiquetas", () => {
+  // Mutación que la mata: cambiar String.fromCharCode(65 + i) a String.fromCharCode(66 + i).
   it("letrasHasta da las letras en orden", () => {
     expect(letrasHasta(3)).toEqual(["A", "B", "C"]);
     expect(letrasHasta(10).at(-1)).toBe("J");
   });
 
+  // Mutación que la mata: quitar CE de PRUEBAS o cambiar el orden de PRUEBAS.
   it("las etiquetas del escolar son las catorce, en orden de prueba", () => {
     expect(etiquetasDeNivel("A2_B1_ESCOLAR")).toEqual([
       "CE-1", "CE-2", "CE-3", "CE-4", "CO-1", "CO-2", "CO-3", "CO-4",
@@ -102,11 +112,13 @@ describe("nombres y etiquetas", () => {
     expect(etiquetasDeNivel("B2")).toEqual([]);
   });
 
+  // Mutación que la mata: cambiar NOMBRE_CORTO["CE"] de "Lectura" a "Comprensión".
   it("una etiqueta se lee sin jerga", () => {
     expect(nombreDeEtiqueta("CE-3")).toBe("Lectura 3");
     expect(nombreDeEtiqueta("EO-2")).toBe("Oral 2");
   });
 
+  // Mutación que la mata: quitar "CO" de PRUEBAS o cambiar la implementación de esPrueba().
   it("esPrueba solo acepta las cuatro", () => {
     expect(esPrueba("CO")).toBe(true);
     expect(esPrueba("XX")).toBe(false);
