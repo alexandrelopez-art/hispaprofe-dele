@@ -77,6 +77,10 @@ describe("el modelo del taller", () => {
     expect(actividad.tipo).toBe("CONVERSACION");
   });
 
+  // Mutación que la mata: cambiar @default([]) de etiquetas por otro valor,
+  // p.ej. @default(["revisar"]) (quitar el @default a secas no la mata: sin
+  // él, Prisma sigue escribiendo [] al crear, sea por el DEFAULT de la
+  // columna en la migración o por el propio motor de listas de Prisma).
   it("las etiquetas de una página nacen vacías", async () => {
     const examen = await unExamen();
     const fichero = await unFichero();
