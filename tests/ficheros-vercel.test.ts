@@ -149,6 +149,10 @@ describe("permisoDeSubida pide el token que dice que pide", () => {
   // MINUTOS_DE_LECTURA (o cualquier otro número) en permisoDeSubida. El
   // validUntil que se le pide al almacén tiene que ser EXACTAMENTE la hora
   // dada más los quince minutos de subida, ni un minuto más ni menos.
+  // Segunda mutación que la mata: quitar `addRandomSuffix: false`. Sin eso el
+  // almacén guarda el fichero con una cola al azar tras el nombre, y
+  // /api/ficheros/confirmar pregunta por la ruta sin cola y da 422 siempre
+  // (pasó en producción el 13 sept con las 14 páginas del examen 1).
   it("pide escritura con la caducidad de los quince minutos y los límites dados", async () => {
     const ahora = new Date("2026-01-01T00:00:00.000Z");
     const resultado = await permisoDeSubida("examenes/1/a-x.jpg", ["image/jpeg"], 5_000_000, ahora);
@@ -162,7 +166,7 @@ describe("permisoDeSubida pide el token que dice que pide", () => {
     });
     expect(presignUrl).toHaveBeenCalledWith(
       { delegationToken: "delegacion", clientSigningToken: "firma", validUntil: 0 },
-      { operation: "put", pathname: "examenes/1/a-x.jpg", access: "private" },
+      { operation: "put", pathname: "examenes/1/a-x.jpg", access: "private", addRandomSuffix: false },
     );
     expect(resultado).toEqual({
       url: "https://blob.vercel-storage.com/subida",

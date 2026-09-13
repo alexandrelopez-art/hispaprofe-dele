@@ -58,6 +58,10 @@ export async function permisoDeSubida(
     operation: "put",
     pathname: ruta,
     access: "private",
+    // Sin esto la subida firmada le pega al nombre una cola al azar, y el
+    // fichero queda en otra ruta: /api/ficheros/confirmar no lo encuentra.
+    // La ruta ya lleva su propio aleatorio (rutaDelFichero), no hace falta otro.
+    addRandomSuffix: false,
   });
   return { url: presignedUrl, validoHasta };
 }
