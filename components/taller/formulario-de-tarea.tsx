@@ -37,11 +37,15 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
   function guardar() {
     setError(null);
     empezar(async () => {
-      const r = await guardarTareaAccion(examenId, prueba, numero, f);
-      if ("error" in r) setError(r.error);
-      else {
-        setEstado(r.estado);
-        setSinGuardar(false);
+      try {
+        const r = await guardarTareaAccion(examenId, prueba, numero, f);
+        if ("error" in r) setError(r.error);
+        else {
+          setEstado(r.estado);
+          setSinGuardar(false);
+        }
+      } catch {
+        setError("No se ha podido guardar. Revisa la conexión y vuelve a pulsar Guardar.");
       }
     });
   }
