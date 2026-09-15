@@ -57,6 +57,7 @@ model Examen {
   estado    EstadoExamen @default(EN_CONSTRUCCION)
   tareas    Tarea[]
   paginas   PaginaDeExamen[]
+  llamadasDeIA LlamadaDeIA[]
 
   /// De dónde salen las respuestas correctas, y qué examen del libro es.
   cuadernillo         Cuadernillo? @relation(fields: [cuadernilloId], references: [id], onDelete: Restrict)
@@ -219,4 +220,31 @@ model Fichero {
   paginas PaginaDeExamen[]
 
   @@unique([almacen, ruta])
+}
+
+enum ResultadoDeLlamada {
+  OK
+  ERROR
+}
+
+/// Cada vez que el taller llamó a la API de Anthropic, también si falló: se paga igual.
+model LlamadaDeIA {
+  id                    String             @id @default(cuid())
+  examen                Examen             @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId              String
+  prueba                Prueba
+  numero                Int
+  /// El modelo que respondió de verdad: con el respaldo puede no ser el pedido.
+  modelo                String
+  tokensEntrada         Int
+  tokensCacheLeidos     Int
+  tokensCacheEscritos   Int
+  tokensSalida          Int
+  costeMilesimasDeDolar Int
+  milisegundos          Int
+  resultado             ResultadoDeLlamada
+  error                 String?
+  createdAt             DateTime           @default(now())
+
+  @@index([examenId])
 }
