@@ -17,7 +17,7 @@ function Opciones({ opciones, ruta, cambiar }: { opciones: Opcion[]; ruta: (stri
             Opción {o.letra}: imagen: se sube en la Entrega 3
           </p>
         ) : (
-          <Campo key={o.letra} etiqueta={`Opción ${o.letra}`} valor={o.texto} alCambiar={(v) => cambiar([...ruta, i, "texto"], v)} />
+          <Campo key={o.letra} etiqueta={`Opción ${o.letra}`} valor={o.texto} alCambiar={(v) => cambiar([...ruta, i, "texto"], v)} ruta={[...ruta, i, "texto"]} />
         ),
       )}
     </div>
@@ -40,20 +40,20 @@ export function FormaRelacionar({ f, regla, cambiar, respuestas }: { f: Formular
     <>
       <section className={CAJA}>
         <h3 className="font-bold">Ejemplo (0)</h3>
-        {conTexto && <Campo etiqueta="Texto del ejemplo" valor={a.ejemplo.texto} alCambiar={(v) => cambiar(["actividad", "ejemplo", "texto"], v)} largo />}
-        <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} />
+        {conTexto && <Campo etiqueta="Texto del ejemplo" valor={a.ejemplo.texto} alCambiar={(v) => cambiar(["actividad", "ejemplo", "texto"], v)} ruta={["actividad", "ejemplo", "texto"]} largo />}
+        <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} ruta={["actividad", "ejemplo", "letra"]} />
       </section>
       {a.elementos.map((e, i) => (
         <section key={e.numero} className={CAJA}>
           <Cabecera titulo={conTexto ? `${e.numero}` : `Mensaje ${i + 1} (${e.numero})`} numero={e.numero} respuestas={respuestas} />
-          {conTexto && <Campo etiqueta={`Texto de la ${e.numero}`} valor={e.texto} alCambiar={(v) => cambiar(["actividad", "elementos", i, "texto"], v)} largo />}
+          {conTexto && <Campo etiqueta={`Texto de la ${e.numero}`} valor={e.texto} alCambiar={(v) => cambiar(["actividad", "elementos", i, "texto"], v)} ruta={["actividad", "elementos", i, "texto"]} largo />}
         </section>
       ))}
       {a.destinos.map((d, i) => (
         <section key={d.letra} className={CAJA}>
           <h3 className="font-bold">Texto {d.letra}</h3>
-          <Campo etiqueta="Título" valor={d.titulo} alCambiar={(v) => cambiar(["actividad", "destinos", i, "titulo"], v)} opcional />
-          <Campo etiqueta="Texto" valor={d.texto} alCambiar={(v) => cambiar(["actividad", "destinos", i, "texto"], v)} largo />
+          <Campo etiqueta="Título" valor={d.titulo} alCambiar={(v) => cambiar(["actividad", "destinos", i, "titulo"], v)} ruta={["actividad", "destinos", i, "titulo"]} opcional />
+          <Campo etiqueta="Texto" valor={d.texto} alCambiar={(v) => cambiar(["actividad", "destinos", i, "texto"], v)} ruta={["actividad", "destinos", i, "texto"]} largo />
         </section>
       ))}
     </>
@@ -67,20 +67,20 @@ export function FormaListaComun({ f, cambiar, respuestas }: { f: FormularioDe<"L
       <section className={CAJA}>
         <h3 className="font-bold">Lista común</h3>
         {a.comunes.map((c, i) => (
-          <Campo key={c.letra} etiqueta={`Opción ${c.letra}`} valor={c.texto} alCambiar={(v) => cambiar(["actividad", "comunes", i, "texto"], v)} />
+          <Campo key={c.letra} etiqueta={`Opción ${c.letra}`} valor={c.texto} alCambiar={(v) => cambiar(["actividad", "comunes", i, "texto"], v)} ruta={["actividad", "comunes", i, "texto"]} />
         ))}
       </section>
       {a.ejemplo && (
         <section className={CAJA}>
           <h3 className="font-bold">Ejemplo (0)</h3>
-          <Campo etiqueta="Enunciado del ejemplo" valor={a.ejemplo.enunciado} alCambiar={(v) => cambiar(["actividad", "ejemplo", "enunciado"], v)} />
-          <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} />
+          <Campo etiqueta="Enunciado del ejemplo" valor={a.ejemplo.enunciado} alCambiar={(v) => cambiar(["actividad", "ejemplo", "enunciado"], v)} ruta={["actividad", "ejemplo", "enunciado"]} />
+          <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} ruta={["actividad", "ejemplo", "letra"]} />
         </section>
       )}
       {a.preguntas.map((p, i) => (
         <section key={p.numero} className={CAJA}>
           <Cabecera titulo={`${p.numero}`} numero={p.numero} respuestas={respuestas} />
-          <Campo etiqueta="Enunciado" valor={p.enunciado} alCambiar={(v) => cambiar(["actividad", "preguntas", i, "enunciado"], v)} />
+          <Campo etiqueta="Enunciado" valor={p.enunciado} alCambiar={(v) => cambiar(["actividad", "preguntas", i, "enunciado"], v)} ruta={["actividad", "preguntas", i, "enunciado"]} />
         </section>
       ))}
     </>
@@ -94,9 +94,9 @@ export function FormaOpciones({ f, cambiar, respuestas }: { f: FormularioDe<"OPC
       {a.ejemplo && (
         <section className={CAJA}>
           <h3 className="font-bold">Ejemplo (0)</h3>
-          <Campo etiqueta="Enunciado del ejemplo" valor={a.ejemplo.enunciado} alCambiar={(v) => cambiar(["actividad", "ejemplo", "enunciado"], v)} />
+          <Campo etiqueta="Enunciado del ejemplo" valor={a.ejemplo.enunciado} alCambiar={(v) => cambiar(["actividad", "ejemplo", "enunciado"], v)} ruta={["actividad", "ejemplo", "enunciado"]} />
           <Opciones opciones={a.ejemplo.opciones} ruta={["actividad", "ejemplo", "opciones"]} cambiar={cambiar} />
-          <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} />
+          <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} ruta={["actividad", "ejemplo", "letra"]} />
         </section>
       )}
       {a.preguntas.map((p, i) => (
@@ -105,7 +105,7 @@ export function FormaOpciones({ f, cambiar, respuestas }: { f: FormularioDe<"OPC
             <p className="text-sm font-bold uppercase text-hp-600">Noticia {p.grupo}</p>
           )}
           <Cabecera titulo={`${p.numero}`} numero={p.numero} respuestas={respuestas} />
-          <Campo etiqueta="Enunciado" valor={p.enunciado} alCambiar={(v) => cambiar(["actividad", "preguntas", i, "enunciado"], v)} />
+          <Campo etiqueta="Enunciado" valor={p.enunciado} alCambiar={(v) => cambiar(["actividad", "preguntas", i, "enunciado"], v)} ruta={["actividad", "preguntas", i, "enunciado"]} />
           <Opciones opciones={p.opciones} ruta={["actividad", "preguntas", i, "opciones"]} cambiar={cambiar} />
         </section>
       ))}
@@ -118,9 +118,9 @@ export function FormaHuecos({ f, cambiar, respuestas }: { f: FormularioDe<"HUECO
   return (
     <>
       <section className={CAJA}>
-        <Campo etiqueta="Título" valor={a.titulo} alCambiar={(v) => cambiar(["actividad", "titulo"], v)} opcional />
-        <Campo etiqueta="Texto, con cada hueco marcado así: [19]" valor={a.texto} alCambiar={(v) => cambiar(["actividad", "texto"], v)} largo />
-        <Campo etiqueta="Autor o fuente" valor={a.fuente} alCambiar={(v) => cambiar(["actividad", "fuente"], v)} opcional />
+        <Campo etiqueta="Título" valor={a.titulo} alCambiar={(v) => cambiar(["actividad", "titulo"], v)} ruta={["actividad", "titulo"]} opcional />
+        <Campo etiqueta="Texto, con cada hueco marcado así: [19]" valor={a.texto} alCambiar={(v) => cambiar(["actividad", "texto"], v)} ruta={["actividad", "texto"]} largo />
+        <Campo etiqueta="Autor o fuente" valor={a.fuente} alCambiar={(v) => cambiar(["actividad", "fuente"], v)} ruta={["actividad", "fuente"]} opcional />
       </section>
       {a.huecos.map((h, i) => (
         <section key={h.numero} className={CAJA}>

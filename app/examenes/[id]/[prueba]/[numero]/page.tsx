@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { esPrueba, nombreCortoDeTarea } from "@/lib/dele/estructura";
 import { tareaParaElTaller } from "@/lib/taller/examenes";
+import { hayClaveDeIA } from "@/lib/taller/ia/llamar";
 import { FormularioDeTarea } from "@/components/taller/formulario-de-tarea";
+
+// Rellenar con IA puede tardar: una tarea con varias hojas y razonamiento, en torno al minuto.
+export const maxDuration = 300;
 
 export default async function PantallaDeTarea({ params }: { params: Promise<{ id: string; prueba: string; numero: string }> }) {
   await exigirProfesor();
@@ -38,6 +42,8 @@ export default async function PantallaDeTarea({ params }: { params: Promise<{ id
           respuestas={tarea.respuestas}
           temasDeLaHermana={tarea.temasDeLaHermana}
           estadoInicial={tarea.estado}
+          hayClave={hayClaveDeIA()}
+          hayHojas={tarea.paginas.length > 0}
         />
       </div>
     </main>

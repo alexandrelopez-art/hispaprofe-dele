@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // El formulario importa la acción, y la acción la base: aquí no hay base.
-vi.mock("@/app/examenes/acciones", () => ({ guardarTareaAccion: vi.fn() }));
+vi.mock("@/app/examenes/acciones", () => ({ guardarTareaAccion: vi.fn(), rellenarTareaConIAAccion: vi.fn() }));
 
 import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
@@ -10,7 +10,14 @@ import { FormularioDeTarea } from "@/components/taller/formulario-de-tarea";
 
 const VACIA = { estado: "VACIA" as const, motivos: ["Sin guardar todavía."], imagenesPendientes: 0 };
 
-function pintar(prueba: "CE" | "CO" | "EO", numero: number, respuestas: Record<string, string> | null, temas: string[] | null = null) {
+function pintar(
+  prueba: "CE" | "CO" | "EO",
+  numero: number,
+  respuestas: Record<string, string> | null,
+  temas: string[] | null = null,
+  hayClave = true,
+  hayHojas = true,
+) {
   const regla = reglaDe("A2_B1_ESCOLAR", prueba, numero)!;
   return renderToStaticMarkup(
     <FormularioDeTarea
@@ -22,6 +29,8 @@ function pintar(prueba: "CE" | "CO" | "EO", numero: number, respuestas: Record<s
       respuestas={respuestas}
       temasDeLaHermana={temas}
       estadoInicial={VACIA}
+      hayClave={hayClave}
+      hayHojas={hayHojas}
     />,
   );
 }
@@ -58,5 +67,29 @@ describe("el formulario de una tarea", () => {
   it("Lectura 1 tiene los diez textos de la A a la J", () => {
     const html = pintar("CE", 1, null);
     for (const letra of "ABCDEFGHIJ") expect(html).toContain(`Texto ${letra}`);
+  });
+});
+
+describe("el botón de rellenar con IA", () => {
+  // Mutación que la mata: no apagar el botón sin hojas.
+  it("sin hojas etiquetadas sale apagado y dice por qué", () => {
+    const html = pintar("CE", 3, null, null, true, false);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA<\/button>/);
+    expect(html).toContain("Etiqueta primero las hojas de esta tarea.");
+  });
+
+  // Mutación que la mata: no apagar el botón sin clave.
+  it("sin clave sale apagado y dice por qué", () => {
+    const html = pintar("CE", 3, null, null, false, true);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA<\/button>/);
+    expect(html).toContain("Falta la clave de la IA.");
+  });
+
+  // Mutación que la mata: dejarlo apagado siempre.
+  it("con hojas y clave sale encendido y sin avisos", () => {
+    const html = pintar("CE", 3, null, null, true, true);
+    expect(html).toMatch(/<button[^>]*>Rellenar con IA<\/button>/);
+    expect(html).not.toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA/);
+    expect(html).not.toContain("Falta la clave de la IA.");
   });
 });
