@@ -34,6 +34,8 @@ export type ReglaTarea = {
   opcionesConImagen?: boolean;
   /** ORAL_DIRECTO: el número de la tarea con la que va emparejada por tema. */
   hermana?: number;
+  /** CO: en cuántos trozos se parte la pista (el ejemplo suena y cuenta). Sin él, la tarea no lleva audio. */
+  trozos?: number;
 };
 
 export type EstructuraDeNivel = Readonly<Record<Prueba, ReadonlyArray<Readonly<ReglaTarea>>>>;
@@ -51,10 +53,10 @@ const ESCOLAR: EstructuraDeNivel = {
     { numero: 4, items: 7, primero: 19, forma: "HUECOS", ejemplo: false, letras: 3, textos: 0 },
   ],
   CO: [
-    { numero: 1, items: 7, primero: 1, forma: "OPCIONES", ejemplo: true, letras: 3, textos: 0, itemsConImagen: 4 },
-    { numero: 2, items: 6, primero: 8, forma: "RELACIONAR", ejemplo: true, letras: 10, textos: 0, elementosConTexto: false },
-    { numero: 3, items: 6, primero: 14, forma: "LISTA_COMUN", ejemplo: true, letras: 3, textos: 0 },
-    { numero: 4, items: 6, primero: 20, forma: "OPCIONES", ejemplo: false, letras: 3, textos: 0, grupos: 3 },
+    { numero: 1, items: 7, primero: 1, forma: "OPCIONES", ejemplo: true, letras: 3, textos: 0, itemsConImagen: 4, trozos: 8 },
+    { numero: 2, items: 6, primero: 8, forma: "RELACIONAR", ejemplo: true, letras: 10, textos: 0, elementosConTexto: false, trozos: 7 },
+    { numero: 3, items: 6, primero: 14, forma: "LISTA_COMUN", ejemplo: true, letras: 3, textos: 0, trozos: 1 },
+    { numero: 4, items: 6, primero: 20, forma: "OPCIONES", ejemplo: false, letras: 3, textos: 0, grupos: 3, trozos: 3 },
   ],
   EE: [
     { numero: 1, items: null, primero: null, forma: "REDACCION_UNA", ejemplo: false, letras: 0, textos: 0 },

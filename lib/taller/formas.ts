@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TipoActividad } from "@/lib/generated/prisma";
 import { letrasHasta, type Forma, type ReglaTarea } from "@/lib/dele/estructura";
+import { cortesEnOrden, huecosDeImagen } from "./medios";
 
 // Los textos pueden llegar vacíos: guardar a medias es legal. Lo que falta lo
 // dice el estado de la tarea (lib/taller/estado.ts), no el esquema. El esquema
@@ -17,11 +18,19 @@ const textoSuelto = z.strictObject({ etiqueta: texto, texto });
 const textos = z.array(textoSuelto).max(5);
 const opcion = z.strictObject({ letra, texto, conImagen: z.boolean() });
 const letraConTexto = z.strictObject({ letra, texto });
+const idDeFichero = z.string().min(1).max(40);
+const medios = z.strictObject({
+  /** Clave de `huecosDeImagen` → id del Fichero. */
+  imagenes: z.record(z.string().max(20), idDeFichero),
+  audio: z.strictObject({ fichero: idDeFichero, cortes: z.array(z.number()).max(20) }).nullable(),
+});
+export type Medios = z.infer<typeof medios>;
 
 const relacionar = z.strictObject({
   forma: z.literal("RELACIONAR"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     ejemplo: z.strictObject({ texto, letra }),
     elementos: z.array(z.strictObject({ numero: numeroDelLibro, texto })).max(20),
@@ -33,6 +42,7 @@ const listaComun = z.strictObject({
   forma: z.literal("LISTA_COMUN"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     comunes: z.array(letraConTexto).max(10),
     ejemplo: z.strictObject({ enunciado: texto, letra }).nullable(),
@@ -44,6 +54,7 @@ const opciones = z.strictObject({
   forma: z.literal("OPCIONES"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     ejemplo: z.strictObject({ enunciado: texto, opciones: z.array(opcion).max(10), letra }).nullable(),
     preguntas: z
@@ -63,6 +74,7 @@ const huecos = z.strictObject({
   forma: z.literal("HUECOS"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     titulo: texto,
     texto,
@@ -75,6 +87,7 @@ const redaccionUna = z.strictObject({
   forma: z.literal("REDACCION_UNA"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({ situacion: texto, textoRecibido: texto, pautas, palabras: rango }),
 });
 
@@ -82,6 +95,7 @@ const redaccionDos = z.strictObject({
   forma: z.literal("REDACCION_DOS"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     opciones: z.array(z.strictObject({ titulo: texto, contexto: texto, pautas })).max(4),
     palabras: rango,
@@ -92,6 +106,7 @@ const oralSolo = z.strictObject({
   forma: z.literal("ORAL_SOLO"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     opciones: z.array(z.strictObject({ tema: texto, pautas, conImagen: z.boolean() })).max(4),
     minutos: rango,
@@ -103,6 +118,7 @@ const oralDirecto = z.strictObject({
   forma: z.literal("ORAL_DIRECTO"),
   consigna: texto,
   textos,
+  medios,
   actividad: z.strictObject({
     opciones: z.array(z.strictObject({ tema: texto, situacion: texto, papelExaminador: texto, pautas })).max(4),
     minutos: rango,
@@ -230,6 +246,14 @@ export function fallosDeForma(regla: ReglaTarea, f: Formulario): string[] {
       if (f.actividad.opciones.length !== OPCIONES_ABIERTAS) fallos.push("Tiene que llevar dos opciones.");
       break;
   }
+  const huecosValidos = new Set(huecosDeImagen(f).map((h) => h.clave));
+  for (const clave of Object.keys(f.medios.imagenes)) {
+    if (!huecosValidos.has(clave)) fallos.push(`La foto «${clave}» no es de ninguna opción con imagen.`);
+  }
+  if (f.medios.audio) {
+    if (!regla.trozos) fallos.push("Esta tarea no lleva audio.");
+    else if (!cortesEnOrden(f.medios.audio.cortes)) fallos.push("Las marcas del audio tienen que ir en orden y separadas al menos 0,3 s.");
+  }
   return fallos;
 }
 
@@ -244,6 +268,7 @@ export function formularioVacio(regla: ReglaTarea): Formulario {
   const numeros = numerosDe(regla);
   const abc = letrasHasta(regla.letras);
   const consigna = "";
+  const medios = { imagenes: {}, audio: null };
   const textos = Array.from({ length: regla.textos }, () => ({ etiqueta: "", texto: "" }));
   const opcionesVacias = (conImagen: boolean) => abc.map((l) => ({ letra: l, texto: "", conImagen }));
   const sinRango = { min: null, max: null };
@@ -252,7 +277,7 @@ export function formularioVacio(regla: ReglaTarea): Formulario {
   switch (regla.forma) {
     case "RELACIONAR":
       return {
-        forma: "RELACIONAR", consigna, textos,
+        forma: "RELACIONAR", consigna, textos, medios,
         actividad: {
           ejemplo: { texto: "", letra: "" },
           elementos: numeros.map((numero) => ({ numero, texto: "" })),
@@ -261,7 +286,7 @@ export function formularioVacio(regla: ReglaTarea): Formulario {
       };
     case "LISTA_COMUN":
       return {
-        forma: "LISTA_COMUN", consigna, textos,
+        forma: "LISTA_COMUN", consigna, textos, medios,
         actividad: {
           comunes: abc.map((l) => ({ letra: l, texto: "" })),
           ejemplo: regla.ejemplo ? { enunciado: "", letra: "" } : null,
@@ -271,7 +296,7 @@ export function formularioVacio(regla: ReglaTarea): Formulario {
     case "OPCIONES": {
       const conImagen = regla.itemsConImagen ?? 0;
       return {
-        forma: "OPCIONES", consigna, textos,
+        forma: "OPCIONES", consigna, textos, medios,
         actividad: {
           ejemplo: regla.ejemplo ? { enunciado: "", opciones: opcionesVacias(conImagen > 0), letra: "" } : null,
           preguntas: numeros.map((numero, i) => ({
@@ -282,22 +307,22 @@ export function formularioVacio(regla: ReglaTarea): Formulario {
     }
     case "HUECOS":
       return {
-        forma: "HUECOS", consigna, textos,
+        forma: "HUECOS", consigna, textos, medios,
         actividad: {
           titulo: "", texto: "", fuente: "",
           huecos: numeros.map((numero) => ({ numero, opciones: abc.map((l) => ({ letra: l, texto: "" })) })),
         },
       };
     case "REDACCION_UNA":
-      return { forma: "REDACCION_UNA", consigna, textos, actividad: { situacion: "", textoRecibido: "", pautas: [""], palabras: sinRango } };
+      return { forma: "REDACCION_UNA", consigna, textos, medios, actividad: { situacion: "", textoRecibido: "", pautas: [""], palabras: sinRango } };
     case "REDACCION_DOS":
       return {
-        forma: "REDACCION_DOS", consigna, textos,
+        forma: "REDACCION_DOS", consigna, textos, medios,
         actividad: { opciones: dos(() => ({ titulo: "", contexto: "", pautas: [""] })), palabras: sinRango },
       };
     case "ORAL_SOLO":
       return {
-        forma: "ORAL_SOLO", consigna, textos,
+        forma: "ORAL_SOLO", consigna, textos, medios,
         actividad: {
           opciones: dos(() => ({ tema: "", pautas: [""], conImagen: Boolean(regla.opcionesConImagen) })),
           minutos: sinRango, preparacion: null,
@@ -305,7 +330,7 @@ export function formularioVacio(regla: ReglaTarea): Formulario {
       };
     case "ORAL_DIRECTO":
       return {
-        forma: "ORAL_DIRECTO", consigna, textos,
+        forma: "ORAL_DIRECTO", consigna, textos, medios,
         actividad: { opciones: dos(() => ({ tema: "", situacion: "", papelExaminador: "", pautas: [""] })), minutos: sinRango },
       };
   }

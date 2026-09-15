@@ -80,6 +80,14 @@ describe("la estructura del A2/B1 escolar", () => {
     expect(reglaDe("A2_B1_ESCOLAR", "CO", 1)!.itemsConImagen).toBe(4);
     expect(reglaDe("A2_B1_ESCOLAR", "CO", 4)!.grupos).toBe(3);
   });
+
+  // Mutación que la mata: cambiar CO1.trozos de 8 a 7 (olvidar que el ejemplo suena).
+  it("las pistas de auditiva se parten en 8, 7, 1 y 3 trozos, y ninguna otra tarea lleva audio", () => {
+    expect(ESCOLAR.CO.map((r) => r.trozos)).toEqual([8, 7, 1, 3]);
+    for (const prueba of ["CE", "EE", "EO"] as const) {
+      for (const r of ESCOLAR[prueba]) expect(r.trozos).toBeUndefined();
+    }
+  });
 });
 
 describe("los niveles", () => {

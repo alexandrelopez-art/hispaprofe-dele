@@ -145,4 +145,34 @@ describe("las formas del formulario", () => {
     expect(TIPO_DE_ACTIVIDAD.HUECOS).toBe("HUECOS");
     expect(TIPO_DE_ACTIVIDAD.LISTA_COMUN).toBe("OPCION");
   });
+
+  // Mutación que la mata: no mirar las claves de medios.imagenes en fallosDeForma.
+  it("una foto en una clave que no es de ninguna opción con imagen no pasa", () => {
+    const r = regla("CO", 1);
+    const f = formularioVacio(r);
+    f.medios.imagenes["ejemplo-A"] = "f1";
+    expect(pasa(r, f)).toBe(true);
+    f.medios.imagenes["5-A"] = "f2";
+    expect(pasa(r, f)).toBe(false);
+  });
+
+  // Mutación que la mata: no mirar regla.trozos antes de aceptar un audio.
+  it("audio solo en las tareas con trozos, y con las marcas en orden", () => {
+    const ce3 = regla("CE", 3);
+    const conAudio = formularioVacio(ce3);
+    conAudio.medios.audio = { fichero: "a1", cortes: [] };
+    expect(pasa(ce3, conAudio)).toBe(false);
+
+    const co4 = regla("CO", 4);
+    const f = formularioVacio(co4);
+    f.medios.audio = { fichero: "a1", cortes: [120, 240] };
+    expect(pasa(co4, f)).toBe(true);
+    f.medios.audio = { fichero: "a1", cortes: [240, 120] };
+    expect(pasa(co4, f)).toBe(false);
+  });
+
+  // Mutación que la mata: olvidar medios en el vacío de alguna forma.
+  it.each(TODAS)("el vacío de $nombre no trae fotos ni pista", ({ regla: r }) => {
+    expect(formularioVacio(r).medios).toEqual({ imagenes: {}, audio: null });
+  });
 });

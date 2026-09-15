@@ -68,7 +68,9 @@ describe("las dudas de la IA", () => {
   // Mutación que la mata: comparar con JSON.stringify (el orden de las claves daría "algo escrito").
   it("un formulario vacío con las claves en otro orden no tiene nada escrito", () => {
     const v = ce3();
-    const reordenado = JSON.parse(JSON.stringify({ textos: v.textos, actividad: v.actividad, consigna: v.consigna, forma: v.forma }));
+    const reordenado = JSON.parse(
+      JSON.stringify({ textos: v.textos, actividad: v.actividad, consigna: v.consigna, forma: v.forma, medios: v.medios }),
+    );
     expect(tieneAlgoEscrito(reordenado, v)).toBe(false);
   });
 
