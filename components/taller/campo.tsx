@@ -93,7 +93,7 @@ export function Numero({ etiqueta, valor, alCambiar, ruta }: { etiqueta: string;
         min={0}
         value={valor ?? ""}
         onChange={(e) => alCambiar(e.target.value === "" ? null : Math.max(0, Math.trunc(Number(e.target.value))))}
-        className={`${ENTRADA} w-28 border-tinta-suave/30 bg-white`}
+        className={`${ENTRADA} w-28 ${duda ? "border-sol-400 bg-sol-100" : "border-tinta-suave/30 bg-white"}`}
       />
       {duda && <span data-duda={claveDeRuta(ruta)} className="text-sm text-tinta-suave">La IA duda: {duda}</span>}
     </label>

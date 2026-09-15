@@ -92,4 +92,12 @@ describe("el botón de rellenar con IA", () => {
     expect(html).not.toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA/);
     expect(html).not.toContain("Falta la clave de la IA.");
   });
+
+  // Mutación que la mata: volver a poner el bloque del botón debajo del formulario.
+  it("el botón va encima del formulario, antes de la consigna", () => {
+    const html = pintar("CE", 3, null, null, true, true);
+    expect(html.indexOf(">Rellenar con IA<")).toBeGreaterThan(-1);
+    expect(html.indexOf("Consigna, ya corregida")).toBeGreaterThan(-1);
+    expect(html.indexOf(">Rellenar con IA<")).toBeLessThan(html.indexOf("Consigna, ya corregida"));
+  });
 });

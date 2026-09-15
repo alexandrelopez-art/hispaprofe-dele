@@ -81,28 +81,6 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <DudasContext.Provider value={mapaDeDudas}>
-        <EstadoDeLaTarea estado={estado} />
-        <section className={CAJA}>
-          <Campo etiqueta="Consigna, ya corregida (sin «Hoja de respuestas»)" valor={f.consigna} alCambiar={(v) => cambiar(["consigna"], v)} ruta={["consigna"]} largo />
-        </section>
-        {f.textos.map((t, i) => (
-          <section key={i} className={CAJA}>
-            <h3 className="font-bold">Texto {i + 1}</h3>
-            <Campo etiqueta="Nombre o título" valor={t.etiqueta} alCambiar={(v) => cambiar(["textos", i, "etiqueta"], v)} ruta={["textos", i, "etiqueta"]} opcional />
-            <Campo etiqueta="Texto" valor={t.texto} alCambiar={(v) => cambiar(["textos", i, "texto"], v)} ruta={["textos", i, "texto"]} largo />
-          </section>
-        ))}
-
-        {f.forma === "RELACIONAR" && <FormaRelacionar f={f} regla={regla} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "LISTA_COMUN" && <FormaListaComun f={f} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "OPCIONES" && <FormaOpciones f={f} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "HUECOS" && <FormaHuecos f={f} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "REDACCION_UNA" && <FormaRedaccionUna f={f} cambiar={cambiar} />}
-        {f.forma === "REDACCION_DOS" && <FormaRedaccionDos f={f} cambiar={cambiar} />}
-        {f.forma === "ORAL_SOLO" && <FormaOralSolo f={f} cambiar={cambiar} />}
-        {f.forma === "ORAL_DIRECTO" && <FormaOralDirecto f={f} cambiar={cambiar} temasDeLaHermana={temasDeLaHermana} />}
-
-        {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
         <div className="flex flex-wrap items-center gap-3">
           {/* El apagado no se calcula con la utilidad disabled: de Tailwind: la palabra "disabled" literal en la clase
               rompería cualquier prueba que busque el atributo real, aun con el botón encendido. */}
@@ -125,6 +103,28 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
             </ul>
           </section>
         )}
+        <EstadoDeLaTarea estado={estado} />
+        <section className={CAJA}>
+          <Campo etiqueta="Consigna, ya corregida (sin «Hoja de respuestas»)" valor={f.consigna} alCambiar={(v) => cambiar(["consigna"], v)} ruta={["consigna"]} largo />
+        </section>
+        {f.textos.map((t, i) => (
+          <section key={i} className={CAJA}>
+            <h3 className="font-bold">Texto {i + 1}</h3>
+            <Campo etiqueta="Nombre o título" valor={t.etiqueta} alCambiar={(v) => cambiar(["textos", i, "etiqueta"], v)} ruta={["textos", i, "etiqueta"]} opcional />
+            <Campo etiqueta="Texto" valor={t.texto} alCambiar={(v) => cambiar(["textos", i, "texto"], v)} ruta={["textos", i, "texto"]} largo />
+          </section>
+        ))}
+
+        {f.forma === "RELACIONAR" && <FormaRelacionar f={f} regla={regla} cambiar={cambiar} respuestas={respuestas} />}
+        {f.forma === "LISTA_COMUN" && <FormaListaComun f={f} cambiar={cambiar} respuestas={respuestas} />}
+        {f.forma === "OPCIONES" && <FormaOpciones f={f} cambiar={cambiar} respuestas={respuestas} />}
+        {f.forma === "HUECOS" && <FormaHuecos f={f} cambiar={cambiar} respuestas={respuestas} />}
+        {f.forma === "REDACCION_UNA" && <FormaRedaccionUna f={f} cambiar={cambiar} />}
+        {f.forma === "REDACCION_DOS" && <FormaRedaccionDos f={f} cambiar={cambiar} />}
+        {f.forma === "ORAL_SOLO" && <FormaOralSolo f={f} cambiar={cambiar} />}
+        {f.forma === "ORAL_DIRECTO" && <FormaOralDirecto f={f} cambiar={cambiar} temasDeLaHermana={temasDeLaHermana} />}
+
+        {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
         <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-tinta-suave/20 bg-fondo py-3">
           <button type="button" onClick={guardar} disabled={guardando || rellenando} className="rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50">
             {guardando ? "Guardando…" : "Guardar"}
