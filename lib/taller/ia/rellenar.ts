@@ -29,10 +29,32 @@ const REALES: Dependencias = {
   apuntar: apuntarLlamada,
 };
 
+/**
+ * La IA a veces escribe la letra con paréntesis o punto («(B)», «b.») aunque
+ * las instrucciones pidan solo la mayúscula: el esquema (`letra` max 1) la
+ * rechazaría entera. Se normaliza cada propiedad "letra" del árbol antes de
+ * validar, sin tocar el objeto que llegó.
+ */
+function normalizarLetras(x: unknown): unknown {
+  if (Array.isArray(x)) return x.map(normalizarLetras);
+  if (x && typeof x === "object") {
+    return Object.fromEntries(
+      Object.entries(x as Record<string, unknown>).map(([k, v]) => {
+        if (k === "letra" && typeof v === "string") {
+          const letras = v.trim().toUpperCase().match(/[A-Z]/g);
+          return [k, letras ? letras[letras.length - 1] : ""];
+        }
+        return [k, normalizarLetras(v)];
+      }),
+    );
+  }
+  return x;
+}
+
 export function interpretar(regla: ReglaTarea, respuesta: RespuestaDeLaIA): ResultadoDeRelleno {
   if (respuesta.stopReason === "max_tokens") return { error: "La IA se quedó sin espacio y la respuesta está a medias." };
   if (respuesta.stopReason === "refusal") return { error: "La IA no quiso leer estas hojas." };
-  const leida = esquemaDeRespuesta(regla.forma).safeParse(respuesta.salida);
+  const leida = esquemaDeRespuesta(regla.forma).safeParse(normalizarLetras(respuesta.salida));
   if (!leida.success) return { error: "La IA devolvió algo que no es esta tarea." };
   const impuesta = imponerEstructura(formularioVacio(regla), leida.data.formulario);
   if ("error" in impuesta) return impuesta;
@@ -88,8 +110,21 @@ export async function rellenarTarea(examenId: string, prueba: Prueba, numero: nu
   try {
     respuesta = await deps.leer(encargo);
   } catch (e) {
+    // Los errores del SDK llevan status, cuerpo e id de petición (nunca la
+    // clave): quedan en el log del servidor y, recortados, en el registro.
+    // Lo que ve el profesor es solo el texto en español.
+    console.error("Llamada a la IA fallida", e);
     const error = mensajeDeError(e);
-    await apuntarSinRomper(deps, { examenId, prueba, numero, modelo: MODELO, uso: SIN_USO, milisegundos: deps.reloj() - inicio, error });
+    const detalle = (e instanceof Error ? e.message : String(e)).slice(0, 500);
+    await apuntarSinRomper(deps, {
+      examenId,
+      prueba,
+      numero,
+      modelo: MODELO,
+      uso: SIN_USO,
+      milisegundos: deps.reloj() - inicio,
+      error: `${error} — ${detalle}`,
+    });
     return { error };
   }
 

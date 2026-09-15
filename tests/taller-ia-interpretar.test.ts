@@ -42,6 +42,19 @@ describe("interpretar lo que devuelve la IA", () => {
     expect(interpretar(ce3, respuesta({ formulario: f, dudas: [] }))).toEqual({ error: "La IA leyó 5 preguntas y la tarea tiene 6." });
   });
 
+  // Mutación que la mata: no normalizar "letra" antes de validar (el esquema, letra max 1, rechazaría "b." entero).
+  it("la letra del ejemplo escrita «b.» se acepta y queda «B»", () => {
+    const uno = reglaDe("A2_B1_ESCOLAR", "CE", 1)!;
+    const f = formularioVacio(uno);
+    if (f.forma !== "RELACIONAR") throw new Error();
+    f.consigna = "Relaciona los mensajes.";
+    f.actividad.ejemplo.letra = "b.";
+    const r = interpretar(uno, respuesta({ formulario: f, dudas: [] }));
+    if ("error" in r) throw new Error(r.error);
+    if (r.formulario.forma !== "RELACIONAR") throw new Error();
+    expect(r.formulario.actividad.ejemplo.letra).toBe("B");
+  });
+
   // Mutación que la mata: devolver las dudas crudas sin filtrar.
   it("el caso bueno devuelve el formulario y las dudas filtradas con la de la consigna", () => {
     const r = interpretar(ce3, respuesta({ formulario: bueno(), dudas: [{ campo: "actividad.preguntas.0.enunciado", nota: "borroso" }, { campo: "nada", nota: "x" }] }));

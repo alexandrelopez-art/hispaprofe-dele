@@ -83,10 +83,31 @@ describe("rellenar una tarea con IA", () => {
 
   // Mutación que la mata: no apuntar cuando leer lanza.
   it("si la llamada revienta, apunta la llamada con el mensaje traducido", async () => {
-    const examenId = await examenConHoja(["CE-3"]);
-    const r = await rellenarTarea(examenId, "CE", 3, dobles(null, { leer: vi.fn(async () => { throw new SyntaxError("x"); }) }));
-    expect(r).toEqual({ error: "La IA devolvió algo que no es esta tarea." });
-    expect(await prisma.llamadaDeIA.count()).toBe(1);
+    const espia = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const examenId = await examenConHoja(["CE-3"]);
+      const r = await rellenarTarea(examenId, "CE", 3, dobles(null, { leer: vi.fn(async () => { throw new SyntaxError("x"); }) }));
+      expect(r).toEqual({ error: "La IA devolvió algo que no es esta tarea." });
+      expect(await prisma.llamadaDeIA.count()).toBe(1);
+    } finally {
+      espia.mockRestore();
+    }
+  });
+
+  // Mutación que la mata: no guardar el detalle real tras « — », o llevarlo a la respuesta del profesor.
+  it("el detalle real del fallo queda en el registro tras « — », y la respuesta al profesor no lo lleva", async () => {
+    const espia = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const examenId = await examenConHoja(["CE-3"]);
+      const r = await rellenarTarea(examenId, "CE", 3, dobles(null, { leer: vi.fn(async () => { throw new SyntaxError("mensaje raro del SDK"); }) }));
+      expect(r).toEqual({ error: "La IA devolvió algo que no es esta tarea." });
+      const filas = await prisma.llamadaDeIA.findMany();
+      expect(filas).toHaveLength(1);
+      expect(filas[0].error).toBe("La IA devolvió algo que no es esta tarea. — mensaje raro del SDK");
+      expect(espia).toHaveBeenCalledWith("Llamada a la IA fallida", expect.any(SyntaxError));
+    } finally {
+      espia.mockRestore();
+    }
   });
 
   // Mutación que la mata: quitar la comprobación de hojas.

@@ -21,27 +21,45 @@ export function hayClaveDeIA(): boolean {
  */
 export const leerConClaude: LeerHojas = async (encargo) => {
   const cliente = new Anthropic();
-  const flujo = cliente.beta.messages.stream({
-    model: MODELO,
-    max_tokens: 32_000,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "high", format: betaZodOutputFormat(esquemaDeRespuesta(encargo.forma)) },
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: [{ type: "text", text: encargo.system, cache_control: { type: "ephemeral" } }],
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...encargo.hojas.map((h) => ({ type: "image" as const, source: { type: "base64" as const, media_type: h.tipo, data: h.datos } })),
-          { type: "text" as const, text: encargo.texto },
-        ],
-      },
-    ],
-  });
+  // El SDK valida la salida con Zod dentro de betaZodOutputFormat: si rechaza,
+  // finalMessage() lanza y la llamada se apunta a coste 0 sin que el profesor
+  // sepa que la IA sí respondió. Se manda el mismo esquema como JSON Schema
+  // suelto para que el SDK no valide nada: interpretar() hace su propia
+  // validación con safeParse, que sí sabe traducir el fallo al profesor.
+  const { schema } = betaZodOutputFormat(esquemaDeRespuesta(encargo.forma));
+  const flujo = cliente.beta.messages.stream(
+    {
+      model: MODELO,
+      max_tokens: 20_000,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "high", format: { type: "json_schema", schema } },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: [{ type: "text", text: encargo.system, cache_control: { type: "ephemeral" } }],
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...encargo.hojas.map((h) => ({ type: "image" as const, source: { type: "base64" as const, media_type: h.tipo, data: h.datos } })),
+            { type: "text" as const, text: encargo.texto },
+          ],
+        },
+      ],
+    },
+    { signal: AbortSignal.timeout(270_000) },
+  );
   const mensaje = await flujo.finalMessage();
+  const bloqueDeTexto = mensaje.content.find((b) => b.type === "text");
+  let salida: unknown = null;
+  if (bloqueDeTexto) {
+    try {
+      salida = JSON.parse(bloqueDeTexto.text);
+    } catch {
+      salida = null;
+    }
+  }
   return {
-    salida: mensaje.parsed_output ?? null,
+    salida,
     stopReason: mensaje.stop_reason,
     modelo: mensaje.model,
     uso: {

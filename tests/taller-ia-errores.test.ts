@@ -27,4 +27,22 @@ describe("traducir los errores de la IA", () => {
   it("lo que no es del SDK es una respuesta que no se entiende", () => {
     expect(mensajeDeError(new SyntaxError("Unexpected end of JSON"))).toBe("La IA devolvió algo que no es esta tarea.");
   });
+
+  // Mutación que la mata: no tratar el aborto/timeout como caso propio (caería en "no se entiende").
+  it("un aborto o un tiempo de espera agotado piden repartir las hojas", () => {
+    const TARDO = "La IA tardó demasiado. Prueba otra vez o reparte las hojas.";
+    expect(mensajeDeError(new Anthropic.APIUserAbortError({ message: "x" }))).toBe(TARDO);
+    expect(mensajeDeError(new Anthropic.APIConnectionTimeoutError({ message: "x" }))).toBe(TARDO);
+    const timeout = new DOMException("x", "TimeoutError");
+    expect(mensajeDeError(timeout)).toBe(TARDO);
+    const abort = new DOMException("x", "AbortError");
+    expect(mensajeDeError(abort)).toBe(TARDO);
+  });
+
+  // Mutación que la mata: no tratar status undefined ni 529 como "no responde".
+  it("un status sin definir o 529 (sobrecarga) también es «no responde»", () => {
+    const NO_RESPONDE = "La IA no responde ahora. Prueba en un minuto.";
+    expect(mensajeDeError(new Anthropic.APIError(undefined, undefined, "x", cabeceras))).toBe(NO_RESPONDE);
+    expect(mensajeDeError(new Anthropic.APIError(529, undefined, "x", cabeceras))).toBe(NO_RESPONDE);
+  });
 });
