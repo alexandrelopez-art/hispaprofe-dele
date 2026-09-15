@@ -25,11 +25,51 @@ function esCampo(f: unknown, ruta: Ruta): boolean {
   return aqui === null || typeof aqui !== "object";
 }
 
+/**
+ * Junta lo que lee la IA con la duda fija de la consigna: si la IA también
+ * duda de la consigna, su nota se funde tras la fija. Dos dudas del mismo
+ * campo se funden en una sola, notas unidas con « · ». La IA a veces
+ * antepone "formulario." a campo (el nombre de la clave en el esquema): se
+ * quita antes de comprobar si el campo existe.
+ */
 export function dudasDelFormulario(f: Formulario, leidas: { campo: string; nota: string }[]): Duda[] {
-  const validas = leidas
-    .filter((d) => d.campo !== DUDA_DE_LA_CONSIGNA.clave && esCampo(f, rutaDeClave(d.campo)))
-    .map((d) => ({ clave: d.campo, nota: d.nota }));
-  return [DUDA_DE_LA_CONSIGNA, ...validas];
+  const notas = new Map<string, string>([[DUDA_DE_LA_CONSIGNA.clave, DUDA_DE_LA_CONSIGNA.nota]]);
+  for (const d of leidas) {
+    const campo = d.campo.startsWith("formulario.") ? d.campo.slice("formulario.".length) : d.campo;
+    if (campo !== DUDA_DE_LA_CONSIGNA.clave && !esCampo(f, rutaDeClave(campo))) continue;
+    const previa = notas.get(campo);
+    notas.set(campo, previa ? `${previa} · ${d.nota}` : d.nota);
+  }
+  return [...notas.entries()].map(([clave, nota]) => ({ clave, nota }));
+}
+
+function letraDeIndice(i: number): string {
+  return String.fromCharCode(65 + i);
+}
+
+/**
+ * Etiqueta legible para la lista de dudas, a partir de la clave (la ruta del
+ * campo). Los casos comunes tienen su propia redacción; el resto, la clave
+ * con los índices en base uno y los puntos cambiados por « · ».
+ */
+export function etiquetaDeDuda(clave: string): string {
+  if (clave === DUDA_DE_LA_CONSIGNA.clave) return "Consigna";
+  const ruta = rutaDeClave(clave);
+  const [a, b, c, d, e, f] = ruta;
+  if (ruta.length === 3 && a === "textos" && typeof b === "number" && c === "texto") return `Texto ${b + 1}`;
+  if (ruta.length === 4 && a === "actividad" && b === "preguntas" && typeof c === "number" && d === "enunciado") {
+    return `Pregunta ${c + 1} · enunciado`;
+  }
+  if (ruta.length === 6 && a === "actividad" && b === "preguntas" && typeof c === "number" && d === "opciones" && typeof e === "number" && f === "texto") {
+    return `Pregunta ${c + 1} · opción ${letraDeIndice(e)}`;
+  }
+  if (ruta.length === 6 && a === "actividad" && b === "huecos" && typeof c === "number" && d === "opciones" && typeof e === "number" && f === "texto") {
+    return `Hueco ${c + 1} · opción ${letraDeIndice(e)}`;
+  }
+  if (ruta.length === 5 && a === "actividad" && b === "opciones" && typeof c === "number" && d === "pautas" && typeof e === "number") {
+    return `Opción ${c + 1} · pauta ${e + 1}`;
+  }
+  return ruta.map((paso) => (typeof paso === "number" ? String(paso + 1) : paso)).join(" · ");
 }
 
 /** Al editar un campo (o una lista entera, como las pautas) se van sus dudas. */

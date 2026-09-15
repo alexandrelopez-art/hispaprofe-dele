@@ -6,7 +6,7 @@ import type { ReglaTarea } from "@/lib/dele/estructura";
 import { cambiar as cambiarEn, type Ruta } from "@/lib/taller/editar";
 import type { EstadoDeTarea } from "@/lib/taller/estado";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
-import { quitarDudasDe, tieneAlgoEscrito, type Duda } from "@/lib/taller/ia/dudas";
+import { etiquetaDeDuda, quitarDudasDe, tieneAlgoEscrito, type Duda } from "@/lib/taller/ia/dudas";
 import { CAJA, Campo } from "./campo";
 import { DudasContext } from "./dudas";
 import { EstadoDeLaTarea } from "./estado-de-la-tarea";
@@ -99,30 +99,34 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
           <section className={CAJA} data-lista-de-dudas>
             <h3 className="font-bold">La IA duda en {dudas.length} {dudas.length === 1 ? "sitio" : "sitios"} (marcados en amarillo)</h3>
             <ul className="list-disc pl-5">
-              {dudas.map((d) => <li key={d.clave}>{d.nota}</li>)}
+              {dudas.map((d) => <li key={d.clave}><strong>{etiquetaDeDuda(d.clave)}:</strong> {d.nota}</li>)}
             </ul>
           </section>
         )}
         <EstadoDeLaTarea estado={estado} />
-        <section className={CAJA}>
-          <Campo etiqueta="Consigna, ya corregida (sin «Hoja de respuestas»)" valor={f.consigna} alCambiar={(v) => cambiar(["consigna"], v)} ruta={["consigna"]} largo />
-        </section>
-        {f.textos.map((t, i) => (
-          <section key={i} className={CAJA}>
-            <h3 className="font-bold">Texto {i + 1}</h3>
-            <Campo etiqueta="Nombre o título" valor={t.etiqueta} alCambiar={(v) => cambiar(["textos", i, "etiqueta"], v)} ruta={["textos", i, "etiqueta"]} opcional />
-            <Campo etiqueta="Texto" valor={t.texto} alCambiar={(v) => cambiar(["textos", i, "texto"], v)} ruta={["textos", i, "texto"]} largo />
+        {/* Mientras la IA lee las hojas, los campos se apagan para no perder lo que el
+            profesor escriba mientras espera: el botón y la lista de dudas quedan fuera. */}
+        <fieldset disabled={rellenando} className="contents">
+          <section className={CAJA}>
+            <Campo etiqueta="Consigna, ya corregida (sin «Hoja de respuestas»)" valor={f.consigna} alCambiar={(v) => cambiar(["consigna"], v)} ruta={["consigna"]} largo />
           </section>
-        ))}
+          {f.textos.map((t, i) => (
+            <section key={i} className={CAJA}>
+              <h3 className="font-bold">Texto {i + 1}</h3>
+              <Campo etiqueta="Nombre o título" valor={t.etiqueta} alCambiar={(v) => cambiar(["textos", i, "etiqueta"], v)} ruta={["textos", i, "etiqueta"]} opcional />
+              <Campo etiqueta="Texto" valor={t.texto} alCambiar={(v) => cambiar(["textos", i, "texto"], v)} ruta={["textos", i, "texto"]} largo />
+            </section>
+          ))}
 
-        {f.forma === "RELACIONAR" && <FormaRelacionar f={f} regla={regla} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "LISTA_COMUN" && <FormaListaComun f={f} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "OPCIONES" && <FormaOpciones f={f} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "HUECOS" && <FormaHuecos f={f} cambiar={cambiar} respuestas={respuestas} />}
-        {f.forma === "REDACCION_UNA" && <FormaRedaccionUna f={f} cambiar={cambiar} />}
-        {f.forma === "REDACCION_DOS" && <FormaRedaccionDos f={f} cambiar={cambiar} />}
-        {f.forma === "ORAL_SOLO" && <FormaOralSolo f={f} cambiar={cambiar} />}
-        {f.forma === "ORAL_DIRECTO" && <FormaOralDirecto f={f} cambiar={cambiar} temasDeLaHermana={temasDeLaHermana} />}
+          {f.forma === "RELACIONAR" && <FormaRelacionar f={f} regla={regla} cambiar={cambiar} respuestas={respuestas} />}
+          {f.forma === "LISTA_COMUN" && <FormaListaComun f={f} cambiar={cambiar} respuestas={respuestas} />}
+          {f.forma === "OPCIONES" && <FormaOpciones f={f} cambiar={cambiar} respuestas={respuestas} />}
+          {f.forma === "HUECOS" && <FormaHuecos f={f} cambiar={cambiar} respuestas={respuestas} />}
+          {f.forma === "REDACCION_UNA" && <FormaRedaccionUna f={f} cambiar={cambiar} />}
+          {f.forma === "REDACCION_DOS" && <FormaRedaccionDos f={f} cambiar={cambiar} />}
+          {f.forma === "ORAL_SOLO" && <FormaOralSolo f={f} cambiar={cambiar} />}
+          {f.forma === "ORAL_DIRECTO" && <FormaOralDirecto f={f} cambiar={cambiar} temasDeLaHermana={temasDeLaHermana} />}
+        </fieldset>
 
         {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
         <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-tinta-suave/20 bg-fondo py-3">
