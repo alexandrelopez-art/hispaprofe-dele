@@ -145,6 +145,12 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
           </div>
         </>
       )}
+      {/* La lista de trozos se oculta en las tareas que no se cortan (trozos === 1): con una
+          sola pista, el reproductor nativo de arriba ya basta y no hace falta una fila
+          "Trozo 1 · …" redundante. No hay prueba automática de esto: `duracion` depende de
+          onLoadedMetadata o de leerPista, que solo corren con un navegador real, así que
+          renderToStaticMarkup nunca la pinta y ninguna prueba de este fichero puede
+          distinguir el guard correcto del roto. Se comprueba en la aceptación manual. */}
       {duracion !== null && !cortaSinMarcas && (
         <ol className="flex flex-col gap-2">
           {trozosDe(audio.cortes, duracion).map(([inicio, fin], i) => (

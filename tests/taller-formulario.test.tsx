@@ -167,16 +167,6 @@ describe("el bloque de audio", () => {
     expect(html).not.toContain("Proponer marcas");
   });
 
-  // NOTA: bajo renderToStaticMarkup la `duracion` del bloque siempre es null (depende de
-  // onLoadedMetadata o de leerPista, que no corren sin DOM real), así que la lista de
-  // trozos nunca se pinta aquí y esta prueba no puede matar la mutación de quitar el
-  // `&& !cortaSinMarcas` del guard (verificado a mano: sigue en verde sin él). Queda como
-  // documentación del HTML esperado; la protección real depende de una revisión manual.
-  it("Auditiva 3 no se corta: sin fila de trozo, el reproductor nativo basta", () => {
-    const html = pintar("CO", 3, null, null, true, true, { inicial: conPista(3, []) });
-    expect(html).not.toContain("Trozo 1 ·");
-  });
-
   // Mutación que la mata: no concordar "trozo"/"trozos" con marcas + 1.
   it("el contador concuerda el singular cuando queda un solo trozo por delante", () => {
     const html = pintar("CO", 4, null, null, true, true, { inicial: conPista(4, []) });
