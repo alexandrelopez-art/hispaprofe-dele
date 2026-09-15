@@ -23,13 +23,14 @@ describe("los huecos de foto de una tarea", () => {
     expect(huecosDeImagen(vacio("EO", 3))).toEqual([]);
   });
 
+  // Mutación que la mata: en huecosDeImagen, que el default devuelva los huecos de OPCIONES aunque no haya conImagen.
   it("una tarea sin imágenes no tiene huecos", () => {
     expect(huecosDeImagen(vacio("CE", 3))).toEqual([]);
   });
 });
 
 describe("las marcas del audio", () => {
-  // Mutación que la mata: comparar con > en vez de >= contra la separación mínima.
+  // Mutación que la mata: quitar la condición `c > 0`.
   it("en orden, positivas y a 0,3 s como poco", () => {
     expect(cortesEnOrden([])).toBe(true);
     expect(cortesEnOrden([10, 10.3, 42])).toBe(true);
