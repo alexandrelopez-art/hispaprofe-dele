@@ -56,7 +56,8 @@ export function interpretar(regla: ReglaTarea, respuesta: RespuestaDeLaIA): Resu
   if (respuesta.stopReason === "refusal") return { error: "La IA no quiso leer estas hojas." };
   const leida = esquemaDeRespuesta(regla.forma).safeParse(normalizarLetras(respuesta.salida));
   if (!leida.success) return { error: "La IA devolvió algo que no es esta tarea." };
-  const impuesta = imponerEstructura(formularioVacio(regla), leida.data.formulario);
+  // Lo leído no trae `medios` (la IA no los ve); imponerEstructura los toma del vacío.
+  const impuesta = imponerEstructura(formularioVacio(regla), leida.data.formulario as Formulario);
   if ("error" in impuesta) return impuesta;
   const fallos = fallosDeForma(regla, impuesta.formulario);
   if (fallos.length > 0) return { error: `Fallo del taller al ordenar lo leído: ${fallos[0]}` };

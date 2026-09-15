@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Nivel, Prueba } from "@/lib/generated/prisma";
 import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, letrasHasta, type Forma, type ReglaTarea } from "@/lib/dele/estructura";
-import { ESQUEMA_DE_FORMA, formularioVacio } from "@/lib/taller/formas";
+import { ESQUEMA_PARA_LA_IA, formularioVacio, type Formulario } from "@/lib/taller/formas";
 
 export type TipoDeHoja = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 export type Hoja = { datos: string; tipo: TipoDeHoja };
@@ -81,9 +81,16 @@ export function descripcionDeLaForma(regla: ReglaTarea): string {
   }
 }
 
+/** El formulario sin las fotos ni la pista: la IA no las ve, no las rellena y no las devuelve. */
+export function sinMedios(f: Formulario): Record<string, unknown> {
+  const copia: Record<string, unknown> = { ...f };
+  delete copia.medios;
+  return copia;
+}
+
 export function esquemaDeRespuesta(forma: Forma) {
   return z.strictObject({
-    formulario: ESQUEMA_DE_FORMA[forma],
+    formulario: ESQUEMA_PARA_LA_IA[forma],
     dudas: z.array(z.strictObject({ campo: z.string(), nota: z.string() })),
   });
 }
@@ -93,7 +100,7 @@ export function encargoDeTarea(nivel: Nivel, prueba: Prueba, regla: ReglaTarea, 
     `Tarea: ${NOMBRE_DE_PRUEBA[prueba]}, tarea ${regla.numero}, ${NOMBRE_DE_NIVEL[nivel]}.`,
     `Qué tiene: ${descripcionDeLaForma(regla)}.`,
     "Formulario vacío:",
-    JSON.stringify(formularioVacio(regla), null, 2),
+    JSON.stringify(sinMedios(formularioVacio(regla)), null, 2),
   ].join("\n");
   return { system: INSTRUCCIONES, hojas, texto, forma: regla.forma };
 }

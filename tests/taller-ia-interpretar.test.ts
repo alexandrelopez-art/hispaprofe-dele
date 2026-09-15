@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({ prisma: {} }));
 
 import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
+import { sinMedios } from "@/lib/taller/ia/encargo";
 import { interpretar } from "@/lib/taller/ia/rellenar";
 import { SIN_USO } from "@/lib/taller/ia/coste";
 
@@ -14,7 +15,7 @@ const ce3 = reglaDe("A2_B1_ESCOLAR", "CE", 3)!;
 const respuesta = (salida: unknown, stopReason: string | null = "end_turn") => ({ salida, stopReason, modelo: "claude-opus-5", uso: SIN_USO });
 const bueno = () => {
   const f = formularioVacio(ce3);
-  return { ...f, consigna: "Lee el texto." };
+  return sinMedios({ ...f, consigna: "Lee el texto." });
 };
 
 describe("interpretar lo que devuelve la IA", () => {
@@ -36,10 +37,10 @@ describe("interpretar lo que devuelve la IA", () => {
 
   // Mutación que la mata: no llamar a imponerEstructura.
   it("una pregunta de menos es error", () => {
-    const f = bueno();
+    const f = formularioVacio(ce3);
     if (f.forma !== "OPCIONES") throw new Error();
     f.actividad.preguntas.pop();
-    expect(interpretar(ce3, respuesta({ formulario: f, dudas: [] }))).toEqual({ error: "La IA leyó 5 preguntas y la tarea tiene 6." });
+    expect(interpretar(ce3, respuesta({ formulario: sinMedios(f), dudas: [] }))).toEqual({ error: "La IA leyó 5 preguntas y la tarea tiene 6." });
   });
 
   // Mutación que la mata: no normalizar "letra" antes de validar (el esquema, letra max 1, rechazaría "b." entero).
@@ -49,7 +50,7 @@ describe("interpretar lo que devuelve la IA", () => {
     if (f.forma !== "RELACIONAR") throw new Error();
     f.consigna = "Relaciona los mensajes.";
     f.actividad.ejemplo.letra = "b.";
-    const r = interpretar(uno, respuesta({ formulario: f, dudas: [] }));
+    const r = interpretar(uno, respuesta({ formulario: sinMedios(f), dudas: [] }));
     if ("error" in r) throw new Error(r.error);
     if (r.formulario.forma !== "RELACIONAR") throw new Error();
     expect(r.formulario.actividad.ejemplo.letra).toBe("B");
@@ -61,5 +62,13 @@ describe("interpretar lo que devuelve la IA", () => {
     if ("error" in r) throw new Error(r.error);
     expect(r.formulario.consigna).toBe("Lee el texto.");
     expect(r.dudas.map((d) => d.clave)).toEqual(["consigna", "actividad.preguntas.0.enunciado"]);
+  });
+
+  // Mutación que la mata: quitar "medios" de las claves FIJAS de imponerEstructura.
+  it("lo leído vuelve con medios vacíos y cumple su forma", () => {
+    const co1 = reglaDe("A2_B1_ESCOLAR", "CO", 1)!;
+    const r = interpretar(co1, respuesta({ formulario: sinMedios({ ...formularioVacio(co1), consigna: "Escucha." }), dudas: [] }));
+    if ("error" in r) throw new Error(r.error);
+    expect(r.formulario.medios).toEqual({ imagenes: {}, audio: null });
   });
 });

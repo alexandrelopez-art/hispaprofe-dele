@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
 import { crearExamen, guardarTarea } from "@/lib/taller/examenes";
+import { sinMedios } from "@/lib/taller/ia/encargo";
 import { rellenarTarea, type Dependencias } from "@/lib/taller/ia/rellenar";
 import { apuntarLlamada } from "@/lib/taller/ia/registro";
 
@@ -35,7 +36,7 @@ function dobles(salida: unknown, extra: Partial<Dependencias> = {}): Dependencia
   };
 }
 
-const leido = () => ({ formulario: { ...formularioVacio(ce3), consigna: "Lee el texto." }, dudas: [] });
+const leido = () => ({ formulario: sinMedios({ ...formularioVacio(ce3), consigna: "Lee el texto." }), dudas: [] });
 
 /** Todo lo que guarda una tarea, para comparar antes y después. */
 async function fotoDeLaTarea() {

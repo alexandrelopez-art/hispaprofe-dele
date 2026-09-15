@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
-import { descripcionDeLaForma, encargoDeTarea, esquemaDeRespuesta, type Hoja } from "@/lib/taller/ia/encargo";
+import { descripcionDeLaForma, encargoDeTarea, esquemaDeRespuesta, sinMedios, type Hoja } from "@/lib/taller/ia/encargo";
 
 const HOJA_A: Hoja = { datos: "AAAA", tipo: "image/jpeg" };
 const HOJA_B: Hoja = { datos: "BBBB", tipo: "image/png" };
@@ -20,7 +20,7 @@ describe("el encargo que se manda a la IA", () => {
   it("el texto lleva qué tarea es y su formulario vacío en JSON", () => {
     const e = encargoDeTarea("A2_B1_ESCOLAR", "CE", regla("CE", 3), [HOJA_A]);
     expect(e.texto).toContain("comprensión de lectura, tarea 3, A2/B1 escolar");
-    expect(e.texto).toContain(JSON.stringify(formularioVacio(regla("CE", 3)), null, 2));
+    expect(e.texto).toContain(JSON.stringify(sinMedios(formularioVacio(regla("CE", 3))), null, 2));
     expect(e.forma).toBe("OPCIONES");
   });
 
@@ -58,14 +58,30 @@ describe("el encargo que se manda a la IA", () => {
     const esquema = esquemaDeRespuesta("HUECOS");
     const huecos = formularioVacio(regla("CE", 4));
     const otra = formularioVacio(regla("CE", 3));
-    expect(esquema.safeParse({ formulario: huecos, dudas: [] }).success).toBe(true);
-    expect(esquema.safeParse({ formulario: otra, dudas: [] }).success).toBe(false);
+    expect(esquema.safeParse({ formulario: sinMedios(huecos), dudas: [] }).success).toBe(true);
+    expect(esquema.safeParse({ formulario: sinMedios(otra), dudas: [] }).success).toBe(false);
   });
 
   // Mutación que la mata: z.object en vez de z.strictObject en las dudas.
   it("una duda con un campo de más rebota", () => {
     const esquema = esquemaDeRespuesta("HUECOS");
     const huecos = formularioVacio(regla("CE", 4));
-    expect(esquema.safeParse({ formulario: huecos, dudas: [{ campo: "consigna", nota: "x", seguro: false }] }).success).toBe(false);
+    expect(esquema.safeParse({ formulario: sinMedios(huecos), dudas: [{ campo: "consigna", nota: "x", seguro: false }] }).success).toBe(false);
+  });
+});
+
+describe("la IA no ve las fotos ni la pista", () => {
+  const co1 = reglaDe("A2_B1_ESCOLAR", "CO", 1)!;
+
+  // Mutación que la mata: quitar el .omit({ medios: true }) del esquema de respuesta.
+  it("el esquema de respuesta rechaza un formulario con medios y acepta uno sin ellos", () => {
+    const esquema = esquemaDeRespuesta("OPCIONES");
+    expect(esquema.safeParse({ formulario: formularioVacio(co1), dudas: [] }).success).toBe(false);
+    expect(esquema.safeParse({ formulario: sinMedios(formularioVacio(co1)), dudas: [] }).success).toBe(true);
+  });
+
+  // Mutación que la mata: mandar formularioVacio(regla) sin quitarle medios.
+  it("el formulario vacío que se le manda no lleva medios", () => {
+    expect(encargoDeTarea("A2_B1_ESCOLAR", "CO", co1, []).texto).not.toContain("medios");
   });
 });

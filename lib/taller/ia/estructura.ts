@@ -1,8 +1,8 @@
 import type { Ruta } from "@/lib/taller/editar";
 import type { Formulario } from "@/lib/taller/formas";
 
-/** Las que manda el formulario vacío, diga lo que diga la IA. */
-const FIJAS = new Set(["forma", "numero", "conImagen", "grupo"]);
+/** Las que manda el formulario vacío, diga lo que diga la IA. `medios` la repone la pantalla (conMediosDe). */
+const FIJAS = new Set(["forma", "numero", "conImagen", "grupo", "medios"]);
 /** Listas cuya cantidad no fija la forma. */
 const LIBRES = new Set(["pautas"]);
 const NOMBRE_DE_LISTA: Record<string, string> = {
