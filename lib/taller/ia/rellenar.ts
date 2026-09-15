@@ -18,6 +18,7 @@ export type Dependencias = {
   descargar: (ruta: string, tipoMime: string) => Promise<Hoja>;
   hayClave: () => boolean;
   reloj: () => number;
+  apuntar: typeof apuntarLlamada;
 };
 
 const REALES: Dependencias = {
@@ -25,6 +26,7 @@ const REALES: Dependencias = {
   descargar: (ruta, tipoMime) => descargarHoja(ruta, tipoMime),
   hayClave: hayClaveDeIA,
   reloj: () => Date.now(),
+  apuntar: apuntarLlamada,
 };
 
 export function interpretar(regla: ReglaTarea, respuesta: RespuestaDeLaIA): ResultadoDeRelleno {
@@ -37,6 +39,20 @@ export function interpretar(regla: ReglaTarea, respuesta: RespuestaDeLaIA): Resu
   const fallos = fallosDeForma(regla, impuesta.formulario);
   if (fallos.length > 0) return { error: `Fallo del taller al ordenar lo leído: ${fallos[0]}` };
   return { formulario: impuesta.formulario, dudas: dudasDelFormulario(impuesta.formulario, leida.data.dudas) };
+}
+
+/**
+ * Apunta la llamada sin dejar que un fallo al escribir en LlamadaDeIA se lleve
+ * por delante el resultado ya calculado (el formulario, o el error traducido).
+ * Si falla, queda en el log del servidor: se pierde el registro del gasto,
+ * nunca la respuesta al profesor.
+ */
+async function apuntarSinRomper(deps: Dependencias, datos: Parameters<typeof apuntarLlamada>[0]): Promise<void> {
+  try {
+    await deps.apuntar(datos);
+  } catch (e) {
+    console.error("No se pudo apuntar la llamada a la IA", e);
+  }
 }
 
 /**
@@ -73,12 +89,17 @@ export async function rellenarTarea(examenId: string, prueba: Prueba, numero: nu
     respuesta = await deps.leer(encargo);
   } catch (e) {
     const error = mensajeDeError(e);
-    await apuntarLlamada({ examenId, prueba, numero, modelo: MODELO, uso: SIN_USO, milisegundos: deps.reloj() - inicio, error });
+    await apuntarSinRomper(deps, { examenId, prueba, numero, modelo: MODELO, uso: SIN_USO, milisegundos: deps.reloj() - inicio, error });
     return { error };
   }
 
-  const resultado = interpretar(regla, respuesta);
-  await apuntarLlamada({
+  let resultado: ResultadoDeRelleno;
+  try {
+    resultado = interpretar(regla, respuesta);
+  } catch {
+    resultado = { error: "Fallo del taller al ordenar lo leído." };
+  }
+  await apuntarSinRomper(deps, {
     examenId,
     prueba,
     numero,

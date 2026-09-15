@@ -4,6 +4,7 @@ import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
 import { crearExamen, guardarTarea } from "@/lib/taller/examenes";
 import { rellenarTarea, type Dependencias } from "@/lib/taller/ia/rellenar";
+import { apuntarLlamada } from "@/lib/taller/ia/registro";
 
 beforeEach(async () => {
   await prisma.paginaDeExamen.deleteMany();
@@ -29,6 +30,7 @@ function dobles(salida: unknown, extra: Partial<Dependencias> = {}): Dependencia
     descargar: vi.fn(async () => ({ datos: "AAAA", tipo: "image/jpeg" as const })),
     hayClave: () => true,
     reloj: () => 0,
+    apuntar: apuntarLlamada,
     ...extra,
   };
 }
@@ -111,5 +113,21 @@ describe("rellenar una tarea con IA", () => {
     expect(await rellenarTarea(examenId, "CE", 3, d)).toEqual({ error: "No se pudo leer la hoja 1 del almacén." });
     expect(d.leer).not.toHaveBeenCalled();
     expect(await prisma.llamadaDeIA.count()).toBe(0);
+  });
+
+  // Mutación que la mata: quitar el try/catch alrededor de deps.apuntar.
+  it("si apuntar la llamada revienta, aun así devuelve el formulario", async () => {
+    const espia = vi.spyOn(console, "error").mockImplementation(() => {});
+    const examenId = await examenConHoja(["CE-3"]);
+    const d = dobles(leido(), {
+      apuntar: vi.fn(async () => {
+        throw new Error("la base no responde");
+      }),
+    });
+    const r = await rellenarTarea(examenId, "CE", 3, d);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.formulario.consigna).toBe("Lee el texto.");
+    expect(espia).toHaveBeenCalled();
+    espia.mockRestore();
   });
 });
