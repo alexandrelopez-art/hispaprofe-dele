@@ -123,6 +123,18 @@ export const formularioBase = z.discriminatedUnion("forma", [
 export type Formulario = z.infer<typeof formularioBase>;
 export type FormularioDe<F extends Forma> = Extract<Formulario, { forma: F }>;
 
+/** El esquema de UNA forma, para pedirle a la IA exactamente esa y no la unión entera. */
+export const ESQUEMA_DE_FORMA = {
+  RELACIONAR: relacionar,
+  LISTA_COMUN: listaComun,
+  OPCIONES: opciones,
+  HUECOS: huecos,
+  REDACCION_UNA: redaccionUna,
+  REDACCION_DOS: redaccionDos,
+  ORAL_SOLO: oralSolo,
+  ORAL_DIRECTO: oralDirecto,
+} as const satisfies Record<Forma, z.ZodType>;
+
 export const TIPO_DE_ACTIVIDAD: Record<Forma, TipoActividad> = {
   RELACIONAR: "RELACIONAR",
   LISTA_COMUN: "OPCION",
