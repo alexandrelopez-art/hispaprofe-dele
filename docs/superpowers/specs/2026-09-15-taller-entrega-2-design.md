@@ -189,8 +189,9 @@ rellenar deja «sin guardar»; con algo escrito pide confirmación y sin nada no
 
 **Contra la API de verdad, a mano y una vez** (unos 1 $): **una tarea de cada una de
 las 8 formas** del examen 1. Es lo único que demuestra que la API acepta los ocho
-esquemas y que la caché acierta (`cache_read_input_tokens` > 0 desde la segunda
-llamada). Se hace en la aceptación, en producción.
+esquemas. Se observa, sin exigirlo, si la caché acierta (`cache_read_input_tokens`):
+las instrucciones fijas rondan el mínimo cacheable de Opus 5 y el ahorro posible es
+de céntimos. Se hace en la aceptación, en producción.
 
 ## 8. Lo que hace falta antes de la aceptación
 

@@ -1995,6 +1995,6 @@ Expected: todo verde; el número de pruebas es el de partida (Task 1, Step 0) m�
 select prueba, numero, modelo, resultado, error, "tokensEntrada", "tokensCacheLeidos", "tokensCacheEscritos", "tokensSalida", "costeMilesimasDeDolar", milisegundos
 from "LlamadaDeIA" order by "createdAt";
 ```
-Expected: 8 filas `OK`; `tokensCacheLeidos > 0` desde la segunda (si es 0 en todas, la caché no acierta: revisar que `INSTRUCCIONES` supera el mínimo cacheable de Opus 5 y que no cambia entre llamadas); coste total en torno a 1 $; `modelo` = `claude-opus-5` en todas (otro modelo = respondió el respaldo: apuntarlo).
+Expected: 8 filas `OK`; se observa `tokensCacheLeidos`, sin exigir que sea mayor que 0 desde la segunda: las instrucciones fijas rondan el mínimo cacheable de Opus 5 y el ahorro posible es de céntimos; coste total en torno a 1 $; `modelo` = `claude-opus-5` en todas (otro modelo = respondió el respaldo: apuntarlo). Usar CE1, la tarea más larga, para medir cuánto tarda y cuántos tokens de salida gasta.
 
 - [ ] **Step 6: Memoria.** Actualizar `hispaprofe-dele-taller-entrega-2.md` con el resultado real (coste por tarea, segundos, qué acertó y qué no la IA) y la línea de `MEMORY.md`.
