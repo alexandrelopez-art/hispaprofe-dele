@@ -234,6 +234,7 @@ describe("fotos y pista", () => {
     expect(motivos).toEqual(["La pista tiene 2 trozos y esta tarea lleva 3."]);
   });
 
+  // Mutación que la mata: en motivosDeMedios, exigir al menos una marca siempre que haya pista.
   it("Auditiva 3 no se corta: la pista sin marcas vale", () => {
     const f = conMedios("CO", 3, lleno("CO", 3));
     expect(f.medios.audio?.cortes).toEqual([]);
@@ -250,5 +251,14 @@ describe("fotos y pista", () => {
   it("Auditiva 1 con todo puesto está completa, y Lectura 3 no pide pista", () => {
     expect(estadoDeTarea(regla("CO", 1), conMedios("CO", 1, lleno("CO", 1)), CO1, null).estado).toBe("COMPLETA");
     expect(motivosDeTarea(regla("CE", 3), lleno("CE", 3), CE3, null)).toEqual([]);
+  });
+
+  // Mutación que la mata: quitar el !o.conImagen de textosQueFaltan (se exigiría texto a las opciones con foto).
+  it("una opción con imagen no necesita texto", () => {
+    const f = conMedios("CO", 1, lleno("CO", 1));
+    if (f.forma !== "OPCIONES") throw new Error();
+    if (f.actividad.ejemplo) for (const o of f.actividad.ejemplo.opciones) if (o.conImagen) o.texto = "";
+    for (const p of f.actividad.preguntas) for (const o of p.opciones) if (o.conImagen) o.texto = "";
+    expect(motivosDeTarea(regla("CO", 1), f, CO1, null)).toEqual([]);
   });
 });
