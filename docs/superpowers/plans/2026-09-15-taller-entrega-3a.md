@@ -2483,10 +2483,10 @@ Expected: todo verde. Las cifras son las de la Task 0 más las nuevas, y **no so
 
 - [ ] **Step 4: Aceptación en producción con el examen 1 del libro** (spec §9, obligatoria). Antes, contarle al profesor lo que salió en la Task 0 sobre CORS.
 1. Subir las pistas 05, 06, 07 y 08 (`~/Downloads/A2B1 examenes/claves_dele_escolar_mp3/`) a las tareas 1-4 de auditiva del examen 1.
-2. Con la 08, la onda se dibuja y la propuesta cae cerca de 188-191 s y 354-358 s. Tras mover lo que haga falta, «Oír» del trozo 2 empieza donde arranca la segunda noticia, y el trozo 1 acaba después de su segunda audición. **Si la propuesta cae mal en varias pistas, se quita** el botón y la propuesta automática (spec §4.2), sin afinar a ciegas.
+2. Con la 08, la onda se dibuja y la propuesta cae cerca de 188-191 s y 354-358 s. Tras mover lo que haga falta, «Oír» del trozo 2 empieza donde arranca la segunda noticia, y el trozo 1 acaba después de su segunda audición. **Si la propuesta cae mal en varias pistas, se quita** el botón y la propuesta automática (spec §4.2), sin afinar a ciegas. En la tarea 3 de auditiva, que no se corta, comprobar que **no** sale ninguna fila «Trozo 1 · …» debajo del reproductor: sin navegador ninguna prueba puede cubrirlo.
 3. Guardar, cerrar la tarea y reabrirla. La onda se dibuja desde el almacén o, si la Task 0 dijo que no hay CORS, sale el campo a mano con las marcas guardadas.
 4. Subir las fotos de la tarea 1 de auditiva y de la tarea 1 de oral, desde el portátil y desde el móvil.
-5. «Rellenar con IA» sobre una tarea con fotos: las fotos siguen en pantalla y siguen tras guardar.
+5. «Rellenar con IA» sobre una tarea con fotos: las fotos siguen en pantalla y siguen tras guardar. **Es la comprobación más importante del paseo:** la línea que las conserva (`setF((actual) => conMediosDe(r.formulario, actual))` en `components/taller/formulario-de-tarea.tsx`) no la cubre ninguna prueba automática, y cambiarla por `setF(r.formulario)` borraría las fotos subidas sin poner nada en rojo.
 6. Publicar con una tarea a medias: apagado y con motivos. Completar y publicar. Abrir una tarea: aviso y todo apagado. Retirar.
 7. Mirar la pantalla de la tarea de auditiva 1 y la del examen a 400 px de ancho: nada desborda.
 
