@@ -51,12 +51,12 @@ enum TipoActividad {
 }
 
 model Examen {
-  id        String       @id @default(cuid())
-  titulo    String
-  nivel     Nivel
-  estado    EstadoExamen @default(EN_CONSTRUCCION)
-  tareas    Tarea[]
-  paginas   PaginaDeExamen[]
+  id           String           @id @default(cuid())
+  titulo       String
+  nivel        Nivel
+  estado       EstadoExamen     @default(EN_CONSTRUCCION)
+  tareas       Tarea[]
+  paginas      PaginaDeExamen[]
   llamadasDeIA LlamadaDeIA[]
 
   /// De dónde salen las respuestas correctas, y qué examen del libro es.
@@ -64,8 +64,8 @@ model Examen {
   cuadernilloId       String?
   numeroEnCuadernillo Int?
 
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([estado])
 }
@@ -99,8 +99,8 @@ model PaginaDeExamen {
 }
 
 model Tarea {
-  id       String @id @default(cuid())
-  examen   Examen @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  id       String  @id @default(cuid())
+  examen   Examen  @relation(fields: [examenId], references: [id], onDelete: Cascade)
   examenId String
   prueba   Prueba
   numero   Int
@@ -115,14 +115,14 @@ model Tarea {
 /// como haga falta, en el orden que sea. No hay ninguna regla que limite a una
 /// actividad por tarea.
 model Pieza {
-  id     String    @id @default(cuid())
-  tarea  Tarea     @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  id      String    @id @default(cuid())
+  tarea   Tarea     @relation(fields: [tareaId], references: [id], onDelete: Cascade)
   tareaId String
-  orden  Int
-  tipo   TipoPieza
+  orden   Int
+  tipo    TipoPieza
 
   /// Para TEXTO. En las demás va a null.
-  texto String?
+  texto    String?
   /// Pie de foto, título del audio o etiqueta del vídeo.
   etiqueta String?
 
@@ -206,17 +206,17 @@ model Sesion {
 
 /// Dónde está un fichero, nunca el fichero. La base no guarda bytes.
 model Fichero {
-  id            String   @id @default(cuid())
-  almacen       Almacen
-  ruta          String
+  id             String   @id @default(cuid())
+  almacen        Almacen
+  ruta           String
   nombreOriginal String?
-  tipoMime      String
-  bytes         Int
-  subidoPor     Persona? @relation(fields: [subidoPorId], references: [id], onDelete: SetNull)
-  subidoPorId   String?
-  createdAt     DateTime @default(now())
+  tipoMime       String
+  bytes          Int
+  subidoPor      Persona? @relation(fields: [subidoPorId], references: [id], onDelete: SetNull)
+  subidoPorId    String?
+  createdAt      DateTime @default(now())
 
-  piezas Pieza[]
+  piezas  Pieza[]
   paginas PaginaDeExamen[]
 
   @@unique([almacen, ruta])

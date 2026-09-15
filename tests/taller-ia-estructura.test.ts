@@ -20,6 +20,7 @@ function lleno(f: Formulario): Formulario {
 
 const TAREAS: [P, number, Forma][] = [
   ["CE", 1, "RELACIONAR"], ["CE", 2, "LISTA_COMUN"], ["CE", 3, "OPCIONES"], ["CE", 4, "HUECOS"],
+  ["CO", 1, "OPCIONES"], ["CO", 2, "RELACIONAR"], ["CO", 3, "LISTA_COMUN"], ["CO", 4, "OPCIONES"],
   ["EE", 1, "REDACCION_UNA"], ["EE", 2, "REDACCION_DOS"], ["EO", 1, "ORAL_SOLO"], ["EO", 2, "ORAL_DIRECTO"],
 ];
 
