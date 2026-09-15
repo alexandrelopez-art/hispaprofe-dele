@@ -133,3 +133,41 @@ describe("fotos y solo lectura", () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Rellenar con IA<\/button>/);
   });
 });
+
+describe("el bloque de audio", () => {
+  const conPista = (numero: number, cortes: number[]) => {
+    const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "CO", numero)!);
+    f.medios.audio = { fichero: "a1", cortes };
+    return f;
+  };
+
+  // Mutación que la mata: pintar el bloque también en tareas sin `trozos`.
+  it("solo en auditiva, y sin pista pide subirla", () => {
+    const html = pintar("CO", 4, null);
+    expect(html).toContain("data-bloque-audio");
+    expect(html).toContain("Subir la pista");
+    expect(pintar("CE", 3, null)).not.toContain("data-bloque-audio");
+  });
+
+  // Mutación que la mata: comparar cortes.length con trozos en el contador.
+  it("el contador dice cuántos trozos salen y cuántos lleva la tarea", () => {
+    const mal = pintar("CO", 4, null, null, true, true, { inicial: conPista(4, [100]) });
+    expect(mal).toContain('data-contador="mal"');
+    expect(mal).toContain("1 marca → 2 trozos, esta tarea lleva 3");
+    const bien = pintar("CO", 4, null, null, true, true, { inicial: conPista(4, [100, 200]) });
+    expect(bien).toContain('data-contador="bien"');
+    expect(bien).toContain("2 marcas → 3 trozos, esta tarea lleva 3");
+  });
+
+  it("Auditiva 3 no se corta: sin contador ni botón de proponer", () => {
+    const html = pintar("CO", 3, null, null, true, true, { inicial: conPista(3, []) });
+    expect(html).toContain("Esta tarea no se corta");
+    expect(html).not.toContain("data-contador");
+    expect(html).not.toContain("Proponer marcas");
+  });
+
+  // Mutación que la mata: dejar el <audio> sin la ruta del fichero.
+  it("con pista, el reproductor apunta a la pista guardada", () => {
+    expect(pintar("CO", 4, null, null, true, true, { inicial: conPista(4, [100, 200]) })).toContain('src="/api/ficheros/a1"');
+  });
+});

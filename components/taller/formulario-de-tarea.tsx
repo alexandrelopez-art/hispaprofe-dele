@@ -9,6 +9,7 @@ import { formularioVacio, type Formulario, type Medios } from "@/lib/taller/form
 import { etiquetaDeDuda, quitarDudasDe, tieneAlgoEscrito, type Duda } from "@/lib/taller/ia/dudas";
 import { conMediosDe } from "@/lib/taller/medios";
 import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
+import { BloqueDeAudio } from "./bloque-de-audio";
 import { CAJA, Campo } from "./campo";
 import { DudasContext } from "./dudas";
 import { EstadoDeLaTarea } from "./estado-de-la-tarea";
@@ -60,8 +61,6 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
     setF((actual) => cambiarEn(actual, ["medios", "audio"], audio));
     setSinGuardar(true);
   };
-  // `cambiarAudio` no se usa todavía: la Task 8 lo enchufa.
-  void cambiarAudio;
 
   function guardar() {
     setError(null);
@@ -129,6 +128,7 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
         {/* Mientras la IA lee las hojas, los campos se apagan para no perder lo que el
             profesor escriba mientras espera: el botón y la lista de dudas quedan fuera. */}
         <fieldset disabled={rellenando || publicado} className="contents">
+          {regla.trozos ? <BloqueDeAudio audio={f.medios.audio} trozos={regla.trozos} alCambiar={cambiarAudio} /> : null}
           <section className={CAJA}>
             <Campo etiqueta="Consigna, ya corregida (sin «Hoja de respuestas»)" valor={f.consigna} alCambiar={(v) => cambiar(["consigna"], v)} ruta={["consigna"]} largo />
           </section>
