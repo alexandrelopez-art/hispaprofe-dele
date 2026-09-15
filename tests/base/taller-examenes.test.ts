@@ -85,7 +85,7 @@ describe("guardar una tarea", () => {
   it("guarda consigna, texto y actividad, y la clave del cuadernillo aparte", async () => {
     const id = await examenConCuadernillo();
     const r = await guardarTarea(id, "CE", 3, ce3Lleno());
-    expect(r).toEqual({ estado: { estado: "COMPLETA", motivos: [], imagenesPendientes: 0 } });
+    expect(r).toEqual({ estado: { estado: "COMPLETA", motivos: [] } });
 
     const piezas = await prisma.pieza.findMany({
       where: { tarea: { examenId: id, prueba: "CE", numero: 3 } },

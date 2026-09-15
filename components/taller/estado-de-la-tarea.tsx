@@ -21,9 +21,6 @@ export function EstadoDeLaTarea({ estado }: { estado: EstadoDeTarea }) {
     <section className="flex flex-col gap-2 rounded-2xl border border-tinta-suave/20 bg-white p-4" aria-live="polite">
       <div className="flex flex-wrap items-center gap-2">
         <InsigniaDeEstado estado={estado.estado} />
-        {estado.imagenesPendientes > 0 && (
-          <span className="text-sm text-tinta-suave">Faltan {estado.imagenesPendientes} imágenes (se suben en la Entrega 3).</span>
-        )}
       </div>
       {estado.estado !== "COMPLETA" && estado.motivos.length > 0 && (
         <ul className="list-disc pl-5 text-tinta">

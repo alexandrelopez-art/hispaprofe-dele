@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { reglaDe } from "@/lib/dele/estructura";
+import { huecosDeImagen } from "@/lib/taller/medios";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import {
   claveDelFormulario,
   estadoDeTarea,
-  imagenesPendientes,
   letrasPosibles,
   motivosDeTarea,
 } from "@/lib/taller/estado";
@@ -29,6 +29,15 @@ function lleno(prueba: "CE" | "CO" | "EE" | "EO", numero: number): Formulario {
   return f;
 }
 
+/** Pone una foto en cada hueco y, si la regla lleva trozos, una pista con las marcas justas. */
+function conMedios(prueba: "CE" | "CO" | "EE" | "EO", numero: number, f: Formulario): Formulario {
+  const r = regla(prueba, numero);
+  const imagenes = Object.fromEntries(huecosDeImagen(f).map((h) => [h.clave, "foto"]));
+  const audio = r.trozos ? { fichero: "pista", cortes: Array.from({ length: r.trozos - 1 }, (_, i) => (i + 1) * 10) } : null;
+  return { ...f, medios: { imagenes, audio } };
+}
+const CO1 = { "1": "A", "2": "B", "3": "C", "4": "A", "5": "B", "6": "C", "7": "A" };
+
 const CE3 = { "13": "B", "14": "A", "15": "C", "16": "A", "17": "B", "18": "C" };
 const CE1 = { "1": "A", "2": "B", "3": "C", "4": "E", "5": "F", "6": "G" };
 
@@ -36,7 +45,7 @@ describe("una tarea completa", () => {
   // Mutación que la mata: devolver A_MEDIAS siempre.
   it("Lectura 3 llena y con su cuadernillo está completa", () => {
     expect(estadoDeTarea(regla("CE", 3), lleno("CE", 3), CE3, null)).toEqual({
-      estado: "COMPLETA", motivos: [], imagenesPendientes: 0,
+      estado: "COMPLETA", motivos: [],
     });
   });
 
@@ -92,16 +101,6 @@ describe("lo que falta", () => {
     expect(motivosDeTarea(regla("EO", 2), f, null, null)).toEqual(["Falta la situación de la opción 1."]);
   });
 
-  // Mutación que la mata: exigir texto a las opciones con imagen.
-  it("una opción con imagen no necesita texto, y cuenta como imagen pendiente", () => {
-    const f = lleno("CO", 1);
-    if (f.forma !== "OPCIONES") throw new Error();
-    for (const p of f.actividad.preguntas) for (const o of p.opciones) if (o.conImagen) o.texto = "";
-    const respuestas = { "1": "A", "2": "B", "3": "C", "4": "A", "5": "B", "6": "C", "7": "A" };
-    expect(motivosDeTarea(regla("CO", 1), f, respuestas, null)).toEqual([]);
-    expect(imagenesPendientes(f)).toBe(15);
-  });
-
   // Mutación que la mata: exigir texto a los elementos de Auditiva 2.
   it("en Auditiva 2 los mensajes no llevan texto", () => {
     const f = formularioVacio(regla("CO", 2));
@@ -110,7 +109,7 @@ describe("lo que falta", () => {
     f.actividad.ejemplo.letra = "D";
     f.actividad.destinos = f.actividad.destinos.map((d) => ({ ...d, texto: "algo" }));
     const respuestas = { "8": "A", "9": "B", "10": "C", "11": "E", "12": "F", "13": "G" };
-    expect(motivosDeTarea(regla("CO", 2), f, respuestas, null)).toEqual([]);
+    expect(motivosDeTarea(regla("CO", 2), conMedios("CO", 2, f), respuestas, null)).toEqual([]);
   });
 
   // Mutación que la mata: en pautasVacias, usar pautas.every(vacio) en vez de pautas.some(vacio).
@@ -214,5 +213,42 @@ describe("las marcas de los huecos", () => {
     if (f.forma !== "HUECOS") throw new Error();
     f.actividad.texto = "";
     expect(motivosDeTarea(regla("CE", 4), f, CE4, null)).toEqual(["Falta el texto con los huecos."]);
+  });
+});
+
+describe("fotos y pista", () => {
+  // Mutación que la mata: no llamar a motivosDeMedios desde motivosDeTarea.
+  it("Auditiva 1 sin fotos ni pista dice cada foto que falta y que falta la pista", () => {
+    const motivos = motivosDeTarea(regla("CO", 1), lleno("CO", 1), CO1, null);
+    expect(motivos).toContain("Falta la foto de la opción A del ejemplo.");
+    expect(motivos).toContain("Falta la foto de la opción C de la pregunta 4.");
+    expect(motivos.filter((m) => m.startsWith("Falta la foto"))).toHaveLength(15);
+    expect(motivos).toContain("Falta la pista de audio.");
+  });
+
+  // Mutación que la mata: comparar cortes.length con trozos en vez de cortes.length + 1.
+  it("Auditiva 4 con una sola marca tiene 2 trozos y lleva 3", () => {
+    const f = conMedios("CO", 4, lleno("CO", 4));
+    f.medios.audio = { fichero: "pista", cortes: [100] };
+    const motivos = motivosDeTarea(regla("CO", 4), f, { "20": "A", "21": "A", "22": "A", "23": "A", "24": "A", "25": "A" }, null);
+    expect(motivos).toEqual(["La pista tiene 2 trozos y esta tarea lleva 3."]);
+  });
+
+  it("Auditiva 3 no se corta: la pista sin marcas vale", () => {
+    const f = conMedios("CO", 3, lleno("CO", 3));
+    expect(f.medios.audio?.cortes).toEqual([]);
+    expect(motivosDeTarea(regla("CO", 3), f, { "14": "A", "15": "A", "16": "A", "17": "A", "18": "A", "19": "A" }, null)).toEqual([]);
+  });
+
+  // Mutación que la mata: en huecosDeImagen, olvidar ORAL_SOLO.
+  it("Oral 1 sin fotos dice qué opción no la tiene; con ellas está completa", () => {
+    expect(motivosDeTarea(regla("EO", 1), lleno("EO", 1), null, null)).toEqual(["Falta la foto de la opción 1.", "Falta la foto de la opción 2."]);
+    expect(estadoDeTarea(regla("EO", 1), conMedios("EO", 1, lleno("EO", 1)), null, null)).toEqual({ estado: "COMPLETA", motivos: [] });
+  });
+
+  // Mutación que la mata: exigir pista en tareas sin trozos.
+  it("Auditiva 1 con todo puesto está completa, y Lectura 3 no pide pista", () => {
+    expect(estadoDeTarea(regla("CO", 1), conMedios("CO", 1, lleno("CO", 1)), CO1, null).estado).toBe("COMPLETA");
+    expect(motivosDeTarea(regla("CE", 3), lleno("CE", 3), CE3, null)).toEqual([]);
   });
 });

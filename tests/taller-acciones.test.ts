@@ -134,7 +134,7 @@ describe("lo que hace cada acción con el profesor", () => {
 
   // Mutación que la mata: llamar a `guardarTarea(examenId, prueba, numero + 1, formulario)`.
   it("guardar una tarea devuelve lo que diga la base", async () => {
-    dobles.guardarTarea.mockResolvedValue({ estado: { estado: "COMPLETA", motivos: [], imagenesPendientes: 0 } });
+    dobles.guardarTarea.mockResolvedValue({ estado: { estado: "COMPLETA", motivos: [] } });
     expect(await guardarTareaAccion("x1", "CE", 3, { forma: "OPCIONES" })).toMatchObject({ estado: { estado: "COMPLETA" } });
     expect(dobles.guardarTarea).toHaveBeenCalledWith("x1", "CE", 3, { forma: "OPCIONES" });
   });

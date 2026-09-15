@@ -1,12 +1,11 @@
 import type { ReglaTarea } from "@/lib/dele/estructura";
+import { huecosDeImagen } from "./medios";
 import type { Formulario, FormularioDe } from "./formas";
 import type { RespuestasDeUnaPrueba } from "./soluciones";
 
 export type EstadoDeTarea = {
   estado: "VACIA" | "A_MEDIAS" | "COMPLETA";
   motivos: string[];
-  /** Imágenes que la tarea necesita y que se suben en la Entrega 3. No bloquean todavía. */
-  imagenesPendientes: number;
 };
 
 const vacio = (s: string) => s.trim() === "";
@@ -33,17 +32,6 @@ export function letrasPosibles(f: Formulario, numero: number): string[] {
     case "OPCIONES": return f.actividad.preguntas.find((p) => p.numero === numero)?.opciones.map((o) => o.letra) ?? [];
     case "HUECOS": return f.actividad.huecos.find((h) => h.numero === numero)?.opciones.map((o) => o.letra) ?? [];
     default: return [];
-  }
-}
-
-export function imagenesPendientes(f: Formulario): number {
-  switch (f.forma) {
-    case "OPCIONES": {
-      const delEjemplo = f.actividad.ejemplo?.opciones.filter((o) => o.conImagen).length ?? 0;
-      return delEjemplo + f.actividad.preguntas.reduce((t, p) => t + p.opciones.filter((o) => o.conImagen).length, 0);
-    }
-    case "ORAL_SOLO": return f.actividad.opciones.filter((o) => o.conImagen).length;
-    default: return 0;
   }
 }
 
@@ -156,6 +144,21 @@ function motivosDeMarcas(f: FormularioDe<"HUECOS">): string[] {
   return m;
 }
 
+/** Las fotos que faltan y la pista: que esté, y que sus marcas den los trozos que lleva la tarea. */
+function motivosDeMedios(regla: ReglaTarea, f: Formulario): string[] {
+  const m = huecosDeImagen(f)
+    .filter((h) => !f.medios.imagenes[h.clave])
+    .map((h) => `Falta la foto de ${h.etiqueta}.`);
+  if (regla.trozos) {
+    const audio = f.medios.audio;
+    if (!audio) m.push("Falta la pista de audio.");
+    else if (audio.cortes.length + 1 !== regla.trozos) {
+      m.push(`La pista tiene ${audio.cortes.length + 1} trozos y esta tarea lleva ${regla.trozos}.`);
+    }
+  }
+  return m;
+}
+
 export function motivosDeTarea(
   regla: ReglaTarea,
   f: Formulario,
@@ -164,6 +167,7 @@ export function motivosDeTarea(
 ): string[] {
   const motivos = textosQueFaltan(regla, f);
   if (f.forma === "HUECOS") motivos.push(...motivosDeMarcas(f));
+  motivos.push(...motivosDeMedios(regla, f));
 
   const numeros = itemsDelFormulario(f);
   if (numeros.length === 0) return motivos;
@@ -201,7 +205,7 @@ export function estadoDeTarea(
   respuestas: RespuestasDeUnaPrueba | null,
   claveGuardada: Record<string, string> | null,
 ): EstadoDeTarea {
-  if (!f) return { estado: "VACIA", motivos: ["Sin guardar todavía."], imagenesPendientes: 0 };
+  if (!f) return { estado: "VACIA", motivos: ["Sin guardar todavía."] };
   const motivos = motivosDeTarea(regla, f, respuestas, claveGuardada);
-  return { estado: motivos.length === 0 ? "COMPLETA" : "A_MEDIAS", motivos, imagenesPendientes: imagenesPendientes(f) };
+  return { estado: motivos.length === 0 ? "COMPLETA" : "A_MEDIAS", motivos };
 }

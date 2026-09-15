@@ -8,7 +8,7 @@ import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
 import { FormularioDeTarea } from "@/components/taller/formulario-de-tarea";
 
-const VACIA = { estado: "VACIA" as const, motivos: ["Sin guardar todavía."], imagenesPendientes: 0 };
+const VACIA = { estado: "VACIA" as const, motivos: ["Sin guardar todavía."] };
 
 function pintar(
   prueba: "CE" | "CO" | "EO",

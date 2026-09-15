@@ -147,7 +147,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
         { id: "p2", ficheroId: "f2", orden: 2, etiquetas: [] },
       ],
       tareas: [
-        { prueba: "CE", numero: 1, estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna.", "Falta el texto 1."], imagenesPendientes: 0 } },
+        { prueba: "CE", numero: 1, estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna.", "Falta el texto 1."] } },
       ],
       gasto: { llamadas: 0, milesimas: 0 },
     });
@@ -178,7 +178,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
       regla,
       formulario: formularioVacio(regla),
       guardada: false,
-      estado: { estado: "VACIA", motivos: ["Sin guardar todavía."], imagenesPendientes: 0 },
+      estado: { estado: "VACIA", motivos: ["Sin guardar todavía."] },
       respuestas: null,
       paginas: [],
       temasDeLaHermana: null,
@@ -201,7 +201,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
       regla,
       formulario: formularioVacio(regla),
       guardada: true,
-      estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna."], imagenesPendientes: 0 },
+      estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna."] },
       respuestas: null,
       paginas: [
         { ficheroId: "f1", orden: 3 },
