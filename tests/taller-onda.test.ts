@@ -23,6 +23,7 @@ describe("silencios", () => {
     expect(s).toEqual([{ inicio: 7, fin: 9 }]);
   });
 
+  // Mutación que la mata: contar cada ventana callada como silencio, sin duración mínima.
   it("en la señal de tres trozos oídos dos veces hay seis silencios", () => {
     expect(silencios(senal(TRES_DOS_VECES), HZ).map((x) => x.fin)).toEqual([6, 13, 22, 29, 38, 45]);
   });
@@ -33,6 +34,7 @@ describe("silencios", () => {
     expect(silencios(floja, HZ)).toEqual([{ inicio: 3, fin: 5 }]);
   });
 
+  // Mutación que la mata: devolver silencios aunque no haya pista (maximo sea 0).
   it("una pista muda no tiene silencios que proponer", () => {
     expect(silencios(new Float32Array(1000), HZ)).toEqual([]);
   });
@@ -73,6 +75,7 @@ describe("marcas y trozos", () => {
     expect(trozosDe([], 50)).toEqual([[0, 50]]);
   });
 
+  // Mutación que la mata: no llenar de ceros los segundos, o error en la fórmula minutos/segundos.
   it("el tiempo se escribe en minutos y segundos", () => {
     expect(formatearTiempo(102.4)).toBe("1:42");
     expect(formatearTiempo(5)).toBe("0:05");
