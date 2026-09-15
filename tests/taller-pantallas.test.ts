@@ -286,6 +286,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(html).toContain("Subir un cuadernillo nuevo");
   });
 
+  // Mutación que la mata: fijar disabled en true siempre (apagar «Publicar») en app/examenes/[id]/page.tsx.
   it("sin motivos, Publicar encendido", async () => {
     dobles.listarCuadernillos.mockResolvedValue([]);
     dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());

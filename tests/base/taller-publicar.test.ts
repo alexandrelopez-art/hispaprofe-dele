@@ -110,7 +110,7 @@ describe("un examen publicado no se escribe", () => {
     return id;
   }
 
-  // Mutación que la mata: quitar la comprobación de bloquearExamen en guardarTarea.
+  // Mutación que la mata: quitar la comprobación de exigirEditable en guardarTarea.
   it("guardar una tarea se rechaza y no toca las piezas", async () => {
     const id = await publicado();
     const antes = await prisma.pieza.findMany({ orderBy: { id: "asc" } });
@@ -131,6 +131,7 @@ describe("un examen publicado no se escribe", () => {
     expect((await prisma.examen.findUniqueOrThrow({ where: { id } })).cuadernilloId).not.toBeNull();
   });
 
+  // Mutación que la mata: quitar exigirEditable de etiquetarPagina en lib/taller/paginas.ts.
   it("etiquetar una página se rechaza", async () => {
     const id = await examenCompleto();
     const hoja = await fichero("image/jpeg");
