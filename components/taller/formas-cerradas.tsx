@@ -4,18 +4,24 @@ import type { ReglaTarea } from "@/lib/dele/estructura";
 import type { Cambiar } from "@/lib/taller/editar";
 import type { FormularioDe } from "@/lib/taller/formas";
 import { CAJA, Campo, Letra, Respuesta } from "./campo";
+import { FotoDeOpcion } from "./foto-de-opcion";
 
 type Respuestas = Record<string, string> | null;
 type Opcion = { letra: string; texto: string; conImagen?: boolean };
+type Fotos = { imagenes: Record<string, string>; cambiarImagen: (clave: string, ficheroId: string | null) => void };
 
-function Opciones({ opciones, ruta, cambiar }: { opciones: Opcion[]; ruta: (string | number)[]; cambiar: Cambiar }) {
+function Opciones({ opciones, ruta, cambiar, fotos, claveDe }: { opciones: Opcion[]; ruta: (string | number)[]; cambiar: Cambiar; fotos?: Fotos; claveDe?: (letra: string) => string }) {
   return (
     <div className="flex flex-col gap-2">
       {opciones.map((o, i) =>
-        o.conImagen ? (
-          <p key={o.letra} className="rounded-xl bg-hp-50 p-3 text-tinta-suave">
-            Opción {o.letra}: imagen: se sube en la Entrega 3
-          </p>
+        o.conImagen && fotos && claveDe ? (
+          <FotoDeOpcion
+            key={o.letra}
+            clave={claveDe(o.letra)}
+            etiqueta={`Opción ${o.letra}`}
+            ficheroId={fotos.imagenes[claveDe(o.letra)] ?? null}
+            alCambiar={(id) => fotos.cambiarImagen(claveDe(o.letra), id)}
+          />
         ) : (
           <Campo key={o.letra} etiqueta={`Opción ${o.letra}`} valor={o.texto} alCambiar={(v) => cambiar([...ruta, i, "texto"], v)} ruta={[...ruta, i, "texto"]} />
         ),
@@ -87,15 +93,16 @@ export function FormaListaComun({ f, cambiar, respuestas }: { f: FormularioDe<"L
   );
 }
 
-export function FormaOpciones({ f, cambiar, respuestas }: { f: FormularioDe<"OPCIONES">; cambiar: Cambiar; respuestas: Respuestas }) {
+export function FormaOpciones({ f, cambiar, respuestas, cambiarImagen }: { f: FormularioDe<"OPCIONES">; cambiar: Cambiar; respuestas: Respuestas; cambiarImagen: Fotos["cambiarImagen"] }) {
   const a = f.actividad;
+  const fotos = { imagenes: f.medios.imagenes, cambiarImagen };
   return (
     <>
       {a.ejemplo && (
         <section className={CAJA}>
           <h3 className="font-bold">Ejemplo (0)</h3>
           <Campo etiqueta="Enunciado del ejemplo" valor={a.ejemplo.enunciado} alCambiar={(v) => cambiar(["actividad", "ejemplo", "enunciado"], v)} ruta={["actividad", "ejemplo", "enunciado"]} />
-          <Opciones opciones={a.ejemplo.opciones} ruta={["actividad", "ejemplo", "opciones"]} cambiar={cambiar} />
+          <Opciones opciones={a.ejemplo.opciones} ruta={["actividad", "ejemplo", "opciones"]} cambiar={cambiar} fotos={fotos} claveDe={(l) => `ejemplo-${l}`} />
           <Letra etiqueta="Letra del ejemplo" valor={a.ejemplo.letra} alCambiar={(v) => cambiar(["actividad", "ejemplo", "letra"], v)} ruta={["actividad", "ejemplo", "letra"]} />
         </section>
       )}
@@ -106,7 +113,7 @@ export function FormaOpciones({ f, cambiar, respuestas }: { f: FormularioDe<"OPC
           )}
           <Cabecera titulo={`${p.numero}`} numero={p.numero} respuestas={respuestas} />
           <Campo etiqueta="Enunciado" valor={p.enunciado} alCambiar={(v) => cambiar(["actividad", "preguntas", i, "enunciado"], v)} ruta={["actividad", "preguntas", i, "enunciado"]} />
-          <Opciones opciones={p.opciones} ruta={["actividad", "preguntas", i, "opciones"]} cambiar={cambiar} />
+          <Opciones opciones={p.opciones} ruta={["actividad", "preguntas", i, "opciones"]} cambiar={cambiar} fotos={fotos} claveDe={(l) => `${p.numero}-${l}`} />
         </section>
       ))}
     </>

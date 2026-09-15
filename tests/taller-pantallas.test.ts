@@ -178,6 +178,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
       regla,
       formulario: formularioVacio(regla),
       guardada: false,
+      publicado: false,
       estado: { estado: "VACIA", motivos: ["Sin guardar todavía."] },
       respuestas: null,
       paginas: [],
@@ -201,6 +202,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
       regla,
       formulario: formularioVacio(regla),
       guardada: true,
+      publicado: false,
       estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna."] },
       respuestas: null,
       paginas: [

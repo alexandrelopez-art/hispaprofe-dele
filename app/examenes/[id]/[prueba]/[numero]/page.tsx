@@ -44,6 +44,7 @@ export default async function PantallaDeTarea({ params }: { params: Promise<{ id
           estadoInicial={tarea.estado}
           hayClave={hayClaveDeIA()}
           hayHojas={tarea.paginas.length > 0}
+          publicado={tarea.publicado}
         />
       </div>
     </main>

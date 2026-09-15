@@ -3,6 +3,7 @@
 import type { Cambiar } from "@/lib/taller/editar";
 import type { FormularioDe } from "@/lib/taller/formas";
 import { CAJA, Campo, Numero, Pautas } from "./campo";
+import { FotoDeOpcion } from "./foto-de-opcion";
 
 type Rango = { min: number | null; max: number | null };
 
@@ -46,7 +47,7 @@ export function FormaRedaccionDos({ f, cambiar }: { f: FormularioDe<"REDACCION_D
   );
 }
 
-export function FormaOralSolo({ f, cambiar }: { f: FormularioDe<"ORAL_SOLO">; cambiar: Cambiar }) {
+export function FormaOralSolo({ f, cambiar, cambiarImagen }: { f: FormularioDe<"ORAL_SOLO">; cambiar: Cambiar; cambiarImagen: (clave: string, ficheroId: string | null) => void }) {
   const a = f.actividad;
   return (
     <>
@@ -54,7 +55,14 @@ export function FormaOralSolo({ f, cambiar }: { f: FormularioDe<"ORAL_SOLO">; ca
         <section key={i} className={CAJA}>
           <h3 className="font-bold">Opción {i + 1}</h3>
           <Campo etiqueta="Tema" valor={o.tema} alCambiar={(v) => cambiar(["actividad", "opciones", i, "tema"], v)} ruta={["actividad", "opciones", i, "tema"]} />
-          {o.conImagen && <p className="rounded-xl bg-hp-50 p-3 text-tinta-suave">Foto: se sube en la Entrega 3</p>}
+          {o.conImagen && (
+            <FotoDeOpcion
+              clave={`opcion-${i + 1}`}
+              etiqueta="Foto"
+              ficheroId={f.medios.imagenes[`opcion-${i + 1}`] ?? null}
+              alCambiar={(id) => cambiarImagen(`opcion-${i + 1}`, id)}
+            />
+          )}
           <Pautas etiqueta="Pautas" pautas={o.pautas} alCambiar={(v) => cambiar(["actividad", "opciones", i, "pautas"], v)} ruta={["actividad", "opciones", i, "pautas"]} />
         </section>
       ))}
