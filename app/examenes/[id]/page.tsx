@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
-import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS, etiquetasDeNivel, nombreCortoDeTarea } from "@/lib/dele/estructura";
+import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS, etiquetasDeNivel, nombreCortoDeTarea, nombreDeEtiqueta } from "@/lib/dele/estructura";
 import { examenParaElTaller } from "@/lib/taller/examenes";
 import { textoDelGasto } from "@/lib/taller/ia/coste";
 import { listarCuadernillos } from "@/lib/taller/cuadernillos";
+import { publicarExamenAccion, retirarExamenAccion } from "@/app/examenes/acciones";
+import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 import { ElegirCuadernillo } from "@/components/taller/elegir-cuadernillo";
 import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";
 import { InsigniaDeEstado } from "@/components/taller/estado-de-la-tarea";
@@ -29,6 +31,8 @@ export default async function PantallaDelExamen({
   const sinEtiqueta = examen.paginas.filter((p) => p.etiquetas.length === 0).length;
   const elegido = examen.cuadernillo;
   const resumenDelNumero = elegido?.resumen.find((r) => r.examen === String(examen.numeroEnCuadernillo));
+  const publicado = examen.estado === "PUBLICADO";
+  const motivos = examen.motivosParaPublicar;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 p-6">
@@ -39,6 +43,30 @@ export default async function PantallaDelExamen({
         {textoDelGasto(examen.gasto) && <p className="text-sm text-tinta-suave">{textoDelGasto(examen.gasto)}</p>}
       </header>
       {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
+
+      <section className={CAJA} data-publicacion>
+        <h2 className="text-xl font-bold">Publicación</h2>
+        {publicado ? (
+          <>
+            <p className="font-bold text-verde-600">Publicado</p>
+            <p className="text-tinta-suave">{MENSAJE_PUBLICADO}</p>
+            <form action={retirarExamenAccion.bind(null, examen.id)}>
+              <button type="submit" className="rounded-2xl border border-hp-400 px-5 py-2 font-bold text-hp-600">Retirar</button>
+            </form>
+          </>
+        ) : (
+          <>
+            <form action={publicarExamenAccion.bind(null, examen.id)}>
+              <button type="submit" disabled={motivos.length > 0} className={`rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white ${motivos.length > 0 ? "opacity-50" : ""}`}>Publicar</button>
+            </form>
+            {motivos.length > 0 && (
+              <ul className="list-disc pl-5">
+                {motivos.map((m) => <li key={m}>{m}</li>)}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
 
       <section className={CAJA}>
         <h2 className="text-xl font-bold">Tareas</h2>
@@ -66,13 +94,15 @@ export default async function PantallaDelExamen({
 
       <section className={CAJA}>
         <h2 className="text-xl font-bold">Cuadernillo de soluciones</h2>
-        <ElegirCuadernillo
-          key={`${examen.cuadernillo?.id ?? ""}-${examen.numeroEnCuadernillo ?? ""}`}
-          examenId={examen.id}
-          cuadernillos={cuadernillos}
-          elegidoId={elegido?.id ?? null}
-          numero={examen.numeroEnCuadernillo}
-        />
+        {!publicado && (
+          <ElegirCuadernillo
+            key={`${examen.cuadernillo?.id ?? ""}-${examen.numeroEnCuadernillo ?? ""}`}
+            examenId={examen.id}
+            cuadernillos={cuadernillos}
+            elegidoId={elegido?.id ?? null}
+            numero={examen.numeroEnCuadernillo}
+          />
+        )}
 
         {elegido && (
           <div className="overflow-x-auto">
@@ -104,10 +134,12 @@ export default async function PantallaDelExamen({
           </div>
         )}
 
-        <details>
-          <summary className="cursor-pointer font-bold">Subir un cuadernillo nuevo</summary>
-          <div className="pt-3"><SubirCuadernillo examenId={examen.id} /></div>
-        </details>
+        {!publicado && (
+          <details>
+            <summary className="cursor-pointer font-bold">Subir un cuadernillo nuevo</summary>
+            <div className="pt-3"><SubirCuadernillo examenId={examen.id} /></div>
+          </details>
+        )}
       </section>
 
       <section className={CAJA}>
@@ -117,10 +149,20 @@ export default async function PantallaDelExamen({
         )}
         {examen.paginas.length > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {examen.paginas.map((p) => <EtiquetasDePagina key={p.id} examenId={examen.id} pagina={p} todas={todas} />)}
+            {examen.paginas.map((p) =>
+              publicado ? (
+                <figure key={p.id} className="flex min-w-0 flex-col gap-2 rounded-2xl border border-tinta-suave/20 bg-white p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de 5 minutos */}
+                  <img src={`/api/ficheros/${p.ficheroId}`} alt={`Hoja ${p.orden}`} loading="lazy" className="w-full rounded-xl border border-tinta-suave/10" />
+                  <figcaption className="font-bold">Hoja {p.orden} · {p.etiquetas.map(nombreDeEtiqueta).join(", ") || "sin etiquetar"}</figcaption>
+                </figure>
+              ) : (
+                <EtiquetasDePagina key={p.id} examenId={examen.id} pagina={p} todas={todas} />
+              ),
+            )}
           </div>
         )}
-        <SubirPaginas examenId={examen.id} hayPaginas={examen.paginas.length > 0} />
+        {!publicado && <SubirPaginas examenId={examen.id} hayPaginas={examen.paginas.length > 0} />}
       </section>
     </main>
   );

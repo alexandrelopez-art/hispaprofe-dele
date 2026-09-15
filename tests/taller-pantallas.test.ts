@@ -37,6 +37,8 @@ vi.mock("@/app/examenes/acciones", () => ({
   etiquetarPaginaAccion: vi.fn(),
   guardarCuadernilloAccion: vi.fn(),
   guardarTareaAccion: vi.fn(),
+  publicarExamenAccion: vi.fn(),
+  retirarExamenAccion: vi.fn(),
 }));
 
 import Examenes from "@/app/examenes/page";
@@ -52,6 +54,34 @@ function como(persona: Persona) {
 }
 
 const sinError = () => Promise.resolve({});
+
+function examenDePrueba(extra: Record<string, unknown> = {}) {
+  return {
+    id: "x1",
+    titulo: "Examen 1",
+    nivel: "A2_B1_ESCOLAR",
+    numeroEnCuadernillo: 1,
+    cuadernillo: {
+      id: "c1",
+      titulo: "Libro de preparación",
+      resumen: [
+        { examen: "1", pruebas: [], bien: true },
+        { examen: "2", pruebas: [], bien: false },
+      ],
+    },
+    paginas: [
+      { id: "p1", ficheroId: "f1", orden: 1, etiquetas: ["CE-1"] },
+      { id: "p2", ficheroId: "f2", orden: 2, etiquetas: [] },
+    ],
+    tareas: [
+      { prueba: "CE", numero: 1, estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna.", "Falta el texto 1."] } },
+    ],
+    gasto: { llamadas: 0, milesimas: 0 },
+    estado: "EN_CONSTRUCCION",
+    motivosParaPublicar: [],
+    ...extra,
+  };
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -129,28 +159,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
   // Mutación que la mata: quitar el párrafo «Hay N hoja(s) sin etiquetar.»
   // (el `{examen.paginas.length > 0 && sinEtiqueta > 0 && (...)}`).
   it("la pantalla del examen enseña el aviso de páginas sin etiquetar, cuántas tareas faltan y qué examen del cuadernillo cuadra", async () => {
-    dobles.examenParaElTaller.mockResolvedValue({
-      id: "x1",
-      titulo: "Examen 1",
-      nivel: "A2_B1_ESCOLAR",
-      numeroEnCuadernillo: 1,
-      cuadernillo: {
-        id: "c1",
-        titulo: "Libro de preparación",
-        resumen: [
-          { examen: "1", pruebas: [], bien: true },
-          { examen: "2", pruebas: [], bien: false },
-        ],
-      },
-      paginas: [
-        { id: "p1", ficheroId: "f1", orden: 1, etiquetas: ["CE-1"] },
-        { id: "p2", ficheroId: "f2", orden: 2, etiquetas: [] },
-      ],
-      tareas: [
-        { prueba: "CE", numero: 1, estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna.", "Falta el texto 1."] } },
-      ],
-      gasto: { llamadas: 0, milesimas: 0 },
-    });
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());
     // El cuadernillo trae un tercer examen (el "3") que el resumen guardado
     // no tiene: si el select del número saliera del resumen (el bug que se
     // arregla aquí) en vez de la lista de cuadernillos, "Examen 3" no
@@ -234,7 +243,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
   // (por ejemplo `elegidoId={null}` o `numero={1}`) en vez de leerlos de
   // `examen.cuadernillo` / `examen.numeroEnCuadernillo`.
   it("la pantalla pasa el cuadernillo y el número guardados de CADA examen al selector, no uno fijo", async () => {
-    const base = { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" as const, tareas: [], paginas: [], gasto: { llamadas: 0, milesimas: 0 } };
+    const base = { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" as const, tareas: [], paginas: [], gasto: { llamadas: 0, milesimas: 0 }, estado: "EN_CONSTRUCCION" as const, motivosParaPublicar: [] };
     dobles.listarCuadernillos.mockResolvedValue([
       { id: "c1", titulo: "Libro Uno", examenes: ["1"] },
       { id: "c2", titulo: "Libro Dos", examenes: ["2"] },
@@ -264,5 +273,36 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(primero).not.toContain('value="c2" selected');
     expect(segundo).toContain('value="c2" selected');
     expect(segundo).not.toContain('value="c1" selected');
+  });
+
+  // Mutación que la mata: no apagar «Publicar» cuando hay motivos.
+  it("en construcción con motivos: Publicar apagado y la lista de por qué", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ motivosParaPublicar: ["Faltan por completar: CO1, EO1."] }));
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html).toContain("data-publicacion");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Publicar<\/button>/);
+    expect(html).toContain("Faltan por completar: CO1, EO1.");
+    expect(html).toContain("Subir un cuadernillo nuevo");
+  });
+
+  it("sin motivos, Publicar encendido", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Publicar<\/button>/);
+    expect(html).toContain(">Publicar</button>");
+  });
+
+  // Mutación que la mata: seguir pintando los editores (cuadernillo, páginas, etiquetas) con el examen publicado.
+  it("publicado: Retirar, el aviso, y nada que edite", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ estado: "PUBLICADO" }));
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html).toContain(">Retirar</button>");
+    expect(html).toContain("El examen está publicado: retíralo para editarlo.");
+    expect(html).not.toContain("Subir un cuadernillo nuevo");
+    expect(html).not.toContain("aria-pressed");
+    expect(html).not.toContain(">Publicar</button>");
   });
 });
