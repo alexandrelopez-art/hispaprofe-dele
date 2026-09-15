@@ -237,3 +237,39 @@ describe("leer para el taller", () => {
     expect((await examenParaElTaller(id))!.gasto).toEqual({ llamadas: 1, milesimas: 50 });
   });
 });
+
+describe("fotos y pista al guardar", () => {
+  function fichero(tipoMime: string) {
+    return prisma.fichero.create({ data: { almacen: "VERCEL", ruta: `material/${Math.random().toString(36).slice(2)}`, tipoMime, bytes: 1 } });
+  }
+  const co1 = () => formularioVacio(reglaDe("A2_B1_ESCOLAR", "CO", 1)!);
+
+  // Mutación que la mata: no escribir `cortes` (o `ficheroId`) al crear la pieza.
+  it("la foto y la pista con sus marcas van y vuelven", async () => {
+    const id = await examenConCuadernillo();
+    const [foto, pista] = [await fichero("image/jpeg"), await fichero("audio/mpeg")];
+    const f = co1();
+    f.medios = { imagenes: { "ejemplo-A": foto.id }, audio: { fichero: pista.id, cortes: [30.5, 75.25] } };
+    const r = await guardarTarea(id, "CO", 1, f);
+    if ("error" in r) throw new Error(r.error);
+    expect((await tareaParaElTaller(id, "CO", 1))!.formulario.medios).toEqual(f.medios);
+  });
+
+  // Mutación que la mata: comprobar que el fichero existe sin mirar que sea una imagen.
+  it("una foto que no es una imagen no se guarda, y no se escribe nada", async () => {
+    const id = await examenConCuadernillo();
+    const f = co1();
+    f.medios.imagenes["ejemplo-A"] = (await fichero("audio/mpeg")).id;
+    expect(await guardarTarea(id, "CO", 1, f)).toEqual({ error: "Una de las fotos ya no existe: vuelve a subirla." });
+    expect(await prisma.pieza.count()).toBe(0);
+  });
+
+  // Mutación que la mata: no comprobar la pista.
+  it("una pista que no existe no se guarda", async () => {
+    const id = await examenConCuadernillo();
+    const f = co1();
+    f.medios.audio = { fichero: "no-existe", cortes: [] };
+    expect(await guardarTarea(id, "CO", 1, f)).toEqual({ error: "La pista de audio ya no existe: vuelve a subirla." });
+    expect(await prisma.pieza.count()).toBe(0);
+  });
+});

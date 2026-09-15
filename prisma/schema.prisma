@@ -132,6 +132,9 @@ model Pieza {
   fichero   Fichero? @relation(fields: [ficheroId], references: [id], onDelete: Restrict)
   ficheroId String?
 
+  /// Solo AUDIO: los segundos de cada marca, en orden. Parten la pista en trozos.
+  cortes    Float[]  @default([])
+
   @@unique([tareaId, orden])
   @@index([tareaId])
 }

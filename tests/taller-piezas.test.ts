@@ -14,6 +14,8 @@ function comoLeidas(f: Parameters<typeof piezasDelFormulario>[0]): PiezaLeida[] 
     tipo: p.tipo,
     texto: p.texto,
     etiqueta: p.etiqueta,
+    ficheroId: p.ficheroId,
+    cortes: p.cortes,
     actividad: p.actividad ? { datos: JSON.parse(JSON.stringify(p.actividad.datos)) } : null,
   }));
 }
@@ -64,5 +66,32 @@ describe("formulario y piezas", () => {
     const piezas = comoLeidas(formularioVacio(reglaDe("A2_B1_ESCOLAR", "CE", 3)!));
     piezas.at(-1)!.actividad = { datos: { forma: "OPCIONES", correcta: "B" } };
     expect(formularioDePiezas(piezas)).toBeNull();
+  });
+
+  // Mutación que la mata: no leer `imagenes` de los datos, o no leer la pieza AUDIO.
+  it("Auditiva 1 con fotos y pista va y vuelve igual", () => {
+    const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "CO", 1)!);
+    f.medios = { imagenes: { "ejemplo-A": "f1", "4-C": "f2" }, audio: { fichero: "a1", cortes: [12.5, 60] } };
+    expect(formularioDePiezas(comoLeidas(f))).toEqual(f);
+  });
+
+  // Mutación que la mata: dejar la actividad en `f.textos.length + 1` también cuando hay audio (choca con la pieza AUDIO).
+  it("con pista: consigna, audio y actividad, en orden seguido", () => {
+    const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "CO", 3)!);
+    f.medios.audio = { fichero: "a1", cortes: [] };
+    expect(piezasDelFormulario(f).map((p) => [p.orden, p.tipo, p.ficheroId])).toEqual([
+      [0, "TEXTO", null], [1, "AUDIO", "a1"], [2, "ACTIVIDAD", null],
+    ]);
+  });
+
+  // Mutación que la mata: exigir `imagenes` en los datos (lo guardado antes de la Entrega 3a no lo trae).
+  it("lo guardado antes de esta entrega, sin imagenes ni pista, se lee con medios vacíos", () => {
+    const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "CE", 3)!);
+    const leidas = comoLeidas(f).map((p) => {
+      if (!p.actividad) return p;
+      const { imagenes: _fuera, ...datos } = p.actividad.datos as Record<string, unknown>;
+      return { ...p, actividad: { datos } };
+    });
+    expect(formularioDePiezas(leidas)?.medios).toEqual({ imagenes: {}, audio: null });
   });
 });

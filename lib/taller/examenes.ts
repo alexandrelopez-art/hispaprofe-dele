@@ -166,6 +166,25 @@ export async function tareaParaElTaller(examenId: string, prueba: Prueba, numero
 }
 
 /**
+ * Las fotos y la pista tienen que ser ficheros del almacén de material, del
+ * tipo que toca. Una subida que se borró, o un id cualquiera, no se guarda.
+ */
+async function ficherosQueNoValen(f: Formulario): Promise<string | null> {
+  const fotos = Object.values(f.medios.imagenes);
+  const pista = f.medios.audio?.fichero ?? null;
+  const ids = pista ? [...fotos, pista] : fotos;
+  if (ids.length === 0) return null;
+  const encontrados = new Map((await prisma.fichero.findMany({ where: { id: { in: ids } } })).map((x) => [x.id, x]));
+  const vale = (id: string, prefijo: string) => {
+    const x = encontrados.get(id);
+    return x !== undefined && x.almacen === "VERCEL" && x.tipoMime.startsWith(prefijo);
+  };
+  if (fotos.some((id) => !vale(id, "image/"))) return "Una de las fotos ya no existe: vuelve a subirla.";
+  if (pista && !vale(pista, "audio/")) return "La pista de audio ya no existe: vuelve a subirla.";
+  return null;
+}
+
+/**
  * Valida contra la forma de la tarea y reescribe sus piezas en una
  * transacción. La clave se COPIA del cuadernillo en este momento; si luego
  * cambia el cuadernillo, el estado lo avisa hasta que se vuelva a guardar.
@@ -187,6 +206,8 @@ export async function guardarTarea(
   const leido = esquemaDelFormulario(regla).safeParse(bruto);
   if (!leido.success) return { error: "Los datos no casan con la forma de la tarea. No se ha guardado nada." };
   const formulario = leido.data;
+  const ficherosMalos = await ficherosQueNoValen(formulario);
+  if (ficherosMalos) return { error: ficherosMalos };
   const respuestas = respuestasDe(examen, prueba);
   const clave = claveDelFormulario(formulario, respuestas);
 
@@ -204,6 +225,8 @@ export async function guardarTarea(
           tipo: p.tipo,
           texto: p.texto,
           etiqueta: p.etiqueta,
+          ficheroId: p.ficheroId,
+          cortes: p.cortes,
           actividad: p.actividad
             ? {
                 create: {
