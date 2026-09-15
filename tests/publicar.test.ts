@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { motivosParaNoPublicar, type TareaParaRevisar } from "@/lib/examen/publicar";
+import { motivosParaNoPublicar, motivosParaPublicar, type TareaParaRevisar } from "@/lib/examen/publicar";
 
 /** Un examen entero y correcto: 4+4 tareas de opciones y las 6 abiertas. */
 function examenCompleto(): TareaParaRevisar[] {
@@ -86,5 +86,28 @@ describe("la guarda de publicación", () => {
   it("un nivel sin números no se publica", () => {
     const motivos = motivosParaNoPublicar("B2", examenCompleto());
     expect(motivos).toEqual(["Este nivel (B2) todavía no tiene sus números: no se puede publicar."]);
+  });
+});
+
+describe("motivos para publicar desde el taller", () => {
+  const todas = () =>
+    [["CE", [6, 6, 6, 7]], ["CO", [7, 6, 6, 6]], ["EE", [0, 0]], ["EO", [0, 0, 0, 0]]].flatMap(([prueba, items]) =>
+      (items as number[]).map((n, i) => ({ prueba: prueba as "CE" | "CO" | "EE" | "EO", numero: i + 1, items: n, completa: true })),
+    );
+
+  // Mutación que la mata: no mirar `completa`.
+  it("una tarea a medias se nombra y no deja publicar", () => {
+    const tareas = todas();
+    tareas.find((t) => t.prueba === "CO" && t.numero === 1)!.completa = false;
+    tareas.find((t) => t.prueba === "EO" && t.numero === 1)!.completa = false;
+    expect(motivosParaPublicar("A2_B1_ESCOLAR", tareas)).toEqual(["Faltan por completar: CO1, EO1."]);
+  });
+
+  // Mutación que la mata: devolver [] sin llamar a motivosParaNoPublicar cuando están todas completas.
+  it("con las 14 completas, manda la estructura", () => {
+    expect(motivosParaPublicar("A2_B1_ESCOLAR", todas())).toEqual([]);
+    const tareas = todas();
+    tareas[0].items = 5;
+    expect(motivosParaPublicar("A2_B1_ESCOLAR", tareas)).toEqual(["La tarea 1 de comprensión de lectura tiene que llevar 6 ítems y lleva 5."]);
   });
 });

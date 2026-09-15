@@ -1,4 +1,4 @@
-import type { Nivel, Prisma, Prueba } from "@/lib/generated/prisma";
+import type { EstadoExamen, Nivel, Prisma, Prueba } from "@/lib/generated/prisma";
 import { prisma } from "@/lib/db";
 import {
   ESTRUCTURAS,
@@ -8,10 +8,12 @@ import {
   reglaDe,
   type ReglaTarea,
 } from "@/lib/dele/estructura";
+import { motivosParaPublicar, type TareaConEstado } from "@/lib/examen/publicar";
 import { esquemaDelFormulario, formularioVacio, type Formulario } from "./formas";
 import { gastoDelExamen } from "./ia/registro";
 import { formularioDePiezas, piezasDelFormulario, type PiezaLeida } from "./piezas";
-import { claveDelFormulario, estadoDeTarea, type EstadoDeTarea } from "./estado";
+import { claveDelFormulario, estadoDeTarea, itemsDelFormulario, type EstadoDeTarea } from "./estado";
+import { ExamenPublicado, MENSAJE_PUBLICADO, bloquearExamen, exigirEditable } from "./publicado";
 import { resumenDeSoluciones, type RespuestasDeUnaPrueba, type ResumenDeExamen, type Soluciones } from "./soluciones";
 
 export async function crearExamen(datos: { titulo: string; nivel: string }): Promise<{ id: string } | { error: string }> {
@@ -63,6 +65,29 @@ function leerTarea(tarea: TareaConPiezas): { formulario: Formulario | null; clav
   return { formulario, claveGuardada: (clave as Record<string, string> | undefined) ?? {} };
 }
 
+type ExamenConTareas = {
+  nivel: Nivel;
+  numeroEnCuadernillo: number | null;
+  cuadernillo: { soluciones: unknown } | null;
+  tareas: (TareaConPiezas & { prueba: Prueba; numero: number })[];
+};
+
+/** Cada tarea del examen con su estado y sus ítems, en el orden de las pruebas. */
+function tareasConEstado(examen: ExamenConTareas): (TareaConEstado & { estado: EstadoDeTarea })[] {
+  return PRUEBAS.flatMap((prueba) =>
+    examen.tareas
+      .filter((t) => t.prueba === prueba)
+      .sort((a, b) => a.numero - b.numero)
+      .flatMap((t) => {
+        const regla = reglaDe(examen.nivel, t.prueba, t.numero);
+        if (!regla) return [];
+        const { formulario, claveGuardada } = leerTarea(t);
+        const estado = estadoDeTarea(regla, formulario, respuestasDe(examen, t.prueba), claveGuardada);
+        return [{ prueba: t.prueba, numero: t.numero, estado, completa: estado.estado === "COMPLETA", items: formulario ? itemsDelFormulario(formulario).length : 0 }];
+      }),
+  );
+}
+
 export type ExamenDelTaller = {
   id: string;
   titulo: string;
@@ -71,6 +96,8 @@ export type ExamenDelTaller = {
   cuadernillo: { id: string; titulo: string; resumen: ResumenDeExamen[] } | null;
   paginas: { id: string; ficheroId: string; orden: number; etiquetas: string[] }[];
   tareas: { prueba: Prueba; numero: number; estado: EstadoDeTarea }[];
+  estado: EstadoExamen;
+  motivosParaPublicar: string[];
   /** Lo que ha costado la IA en este examen (estimación). */
   gasto: { llamadas: number; milesimas: number };
 };
@@ -83,17 +110,8 @@ export async function examenParaElTaller(id: string): Promise<ExamenDelTaller | 
   if (!examen) return null;
   const estructura = ESTRUCTURAS[examen.nivel];
 
-  const tareas = PRUEBAS.flatMap((prueba) =>
-    examen.tareas
-      .filter((t) => t.prueba === prueba)
-      .sort((a, b) => a.numero - b.numero)
-      .flatMap((t) => {
-        const regla = reglaDe(examen.nivel, t.prueba, t.numero);
-        if (!regla) return [];
-        const { formulario, claveGuardada } = leerTarea(t);
-        return [{ prueba: t.prueba, numero: t.numero, estado: estadoDeTarea(regla, formulario, respuestasDe(examen, t.prueba), claveGuardada) }];
-      }),
-  );
+  const conEstado = tareasConEstado(examen);
+  const tareas = conEstado.map(({ prueba, numero, estado }) => ({ prueba, numero, estado }));
 
   return {
     id: examen.id,
@@ -110,6 +128,8 @@ export async function examenParaElTaller(id: string): Promise<ExamenDelTaller | 
         : null,
     paginas: examen.paginas.map((p) => ({ id: p.id, ficheroId: p.ficheroId, orden: p.orden, etiquetas: p.etiquetas })),
     tareas,
+    estado: examen.estado,
+    motivosParaPublicar: motivosParaPublicar(examen.nivel, conEstado),
     gasto: await gastoDelExamen(examen.id),
   };
 }
@@ -122,6 +142,7 @@ export type TareaDelTaller = {
   formulario: Formulario;
   guardada: boolean;
   estado: EstadoDeTarea;
+  publicado: boolean;
   /** Las respuestas del cuadernillo para los números de esta tarea, para enseñarlas sin editar. */
   respuestas: Record<string, string> | null;
   paginas: { ficheroId: string; orden: number }[];
@@ -159,6 +180,7 @@ export async function tareaParaElTaller(examenId: string, prueba: Prueba, numero
     formulario: mostrado,
     guardada: formulario !== null,
     estado: estadoDeTarea(regla, formulario, respuestas, claveGuardada),
+    publicado: examen.estado === "PUBLICADO",
     respuestas: claveDelFormulario(mostrado, respuestas),
     paginas: examen.paginas.filter((p) => p.etiquetas.includes(etiqueta)).map((p) => ({ ficheroId: p.ficheroId, orden: p.orden })),
     temasDeLaHermana,
@@ -211,35 +233,62 @@ export async function guardarTarea(
   const respuestas = respuestasDe(examen, prueba);
   const clave = claveDelFormulario(formulario, respuestas);
 
-  await prisma.$transaction(async (tx) => {
-    // Bloquea la fila de la Tarea para que dos guardados a la vez se
-    // serialicen: si no, el borrado del segundo no encuentra nada que borrar
-    // y sus creaciones chocan con las del primero (@@unique([tareaId, orden])).
-    await tx.$queryRaw`SELECT id FROM "Tarea" WHERE id = ${tarea.id} FOR UPDATE`;
-    await tx.pieza.deleteMany({ where: { tareaId: tarea.id } });
-    for (const p of piezasDelFormulario(formulario)) {
-      await tx.pieza.create({
-        data: {
-          tareaId: tarea.id,
-          orden: p.orden,
-          tipo: p.tipo,
-          texto: p.texto,
-          etiqueta: p.etiqueta,
-          ficheroId: p.ficheroId,
-          cortes: p.cortes,
-          actividad: p.actividad
-            ? {
-                create: {
-                  tipo: p.actividad.tipo,
-                  datos: p.actividad.datos as Prisma.InputJsonValue,
-                  clave: clave ? { create: { respuestas: clave } } : undefined,
-                },
-              }
-            : undefined,
-        },
-      });
-    }
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await exigirEditable(tx, examenId);
+      // Bloquea la fila de la Tarea para que dos guardados a la vez se
+      // serialicen: si no, el borrado del segundo no encuentra nada que borrar
+      // y sus creaciones chocan con las del primero (@@unique([tareaId, orden])).
+      await tx.$queryRaw`SELECT id FROM "Tarea" WHERE id = ${tarea.id} FOR UPDATE`;
+      await tx.pieza.deleteMany({ where: { tareaId: tarea.id } });
+      for (const p of piezasDelFormulario(formulario)) {
+        await tx.pieza.create({
+          data: {
+            tareaId: tarea.id,
+            orden: p.orden,
+            tipo: p.tipo,
+            texto: p.texto,
+            etiqueta: p.etiqueta,
+            ficheroId: p.ficheroId,
+            cortes: p.cortes,
+            actividad: p.actividad
+              ? {
+                  create: {
+                    tipo: p.actividad.tipo,
+                    datos: p.actividad.datos as Prisma.InputJsonValue,
+                    clave: clave ? { create: { respuestas: clave } } : undefined,
+                  },
+                }
+              : undefined,
+          },
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    throw error;
+  }
 
   return { estado: estadoDeTarea(regla, formulario, respuestas, clave ?? {}) };
+}
+
+/** Publica si las 14 tareas están completas y cuadran. Todo se recalcula con la fila del Examen bloqueada. */
+export async function publicarExamen(examenId: string): Promise<{ error?: string }> {
+  return prisma.$transaction(async (tx) => {
+    const estado = await bloquearExamen(tx, examenId);
+    if (estado === null) return { error: "Ese examen no existe." };
+    if (estado === "PUBLICADO") return {};
+    if (estado === "ARCHIVADO") return { error: "Un examen archivado no se publica." };
+    const examen = await tx.examen.findUniqueOrThrow({ where: { id: examenId }, include: { cuadernillo: true, tareas: { include: CON_PIEZAS } } });
+    const motivos = motivosParaPublicar(examen.nivel, tareasConEstado(examen));
+    if (motivos.length > 0) return { error: `No se puede publicar: ${motivos.join(" ")}` };
+    await tx.examen.update({ where: { id: examenId }, data: { estado: "PUBLICADO" } });
+    return {};
+  });
+}
+
+/** Devuelve un examen publicado a construcción. */
+export async function retirarExamen(examenId: string): Promise<{ error?: string }> {
+  const r = await prisma.examen.updateMany({ where: { id: examenId, estado: "PUBLICADO" }, data: { estado: "EN_CONSTRUCCION" } });
+  return r.count === 1 ? {} : { error: "Ese examen no está publicado." };
 }

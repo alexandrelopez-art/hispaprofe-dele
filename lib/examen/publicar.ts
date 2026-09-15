@@ -61,3 +61,17 @@ export function motivosParaNoPublicar(nivel: Nivel, tareas: TareaParaRevisar[]):
 
   return motivos;
 }
+
+export type TareaConEstado = TareaParaRevisar & { completa: boolean };
+
+/**
+ * Lo que enseña el taller al lado de «Publicar». Primero las tareas a medias,
+ * que es lo que el profesor tiene que ir a arreglar. La estructura solo se mira
+ * con todas completas: una tarea sin guardar tiene 0 ítems y llenaría la
+ * lista de avisos que no dicen nada nuevo.
+ */
+export function motivosParaPublicar(nivel: Nivel, tareas: TareaConEstado[]): string[] {
+  const aMedias = tareas.filter((t) => !t.completa).map((t) => `${t.prueba}${t.numero}`);
+  if (aMedias.length > 0) return [`Faltan por completar: ${aMedias.join(", ")}.`];
+  return motivosParaNoPublicar(nivel, tareas);
+}

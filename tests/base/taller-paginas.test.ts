@@ -243,7 +243,7 @@ describe("borrar las páginas", () => {
     await registrarPaginas(id, [uno.id, dos.id]);
     borrarDeVercel.mockRejectedValueOnce(new Error("almacén caído"));
 
-    await expect(borrarPaginas(id)).resolves.toBeUndefined();
+    expect(await borrarPaginas(id)).toEqual({});
 
     expect(await prisma.fichero.findUnique({ where: { id: uno.id } })).toBeNull();
     expect(await prisma.fichero.findUnique({ where: { id: dos.id } })).toBeNull();

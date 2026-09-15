@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { esPrueba } from "@/lib/dele/estructura";
-import { crearExamen, guardarTarea } from "@/lib/taller/examenes";
+import { crearExamen, guardarTarea, publicarExamen, retirarExamen } from "@/lib/taller/examenes";
 import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 import { elegirCuadernillo, guardarCuadernillo } from "@/lib/taller/cuadernillos";
 import type { EstadoDeTarea } from "@/lib/taller/estado";
@@ -32,10 +32,11 @@ export async function registrarPaginasAccion(examenId: string, ficheroIds: strin
   return r;
 }
 
-export async function borrarPaginasAccion(examenId: string): Promise<void> {
+export async function borrarPaginasAccion(examenId: string): Promise<{ error?: string }> {
   await exigirProfesor();
-  await borrarPaginas(examenId);
+  const r = await borrarPaginas(examenId);
   revalidatePath(pantallaDelExamen(examenId));
+  return r;
 }
 
 export async function sustituirPaginasAccion(examenId: string, ficheroIds: string[]): Promise<{ error?: string }> {
@@ -93,4 +94,20 @@ export async function rellenarTareaConIAAccion(examenId: string, prueba: string,
   await exigirProfesor();
   if (!esPrueba(prueba) || !Number.isInteger(numero)) return { error: "Esa tarea no existe." };
   return rellenarTarea(examenId, prueba, numero);
+}
+
+async function volverAlExamen(examenId: string, r: { error?: string }): Promise<never> {
+  revalidatePath(pantallaDelExamen(examenId));
+  if (r.error) redirect(`${pantallaDelExamen(examenId)}?error=${encodeURIComponent(r.error)}`);
+  redirect(pantallaDelExamen(examenId));
+}
+
+export async function publicarExamenAccion(examenId: string): Promise<void> {
+  await exigirProfesor();
+  await volverAlExamen(examenId, await publicarExamen(examenId));
+}
+
+export async function retirarExamenAccion(examenId: string): Promise<void> {
+  await exigirProfesor();
+  await volverAlExamen(examenId, await retirarExamen(examenId));
 }

@@ -13,6 +13,8 @@ const dobles = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   crearExamen: vi.fn(),
   guardarTarea: vi.fn(),
+  publicarExamen: vi.fn(),
+  retirarExamen: vi.fn(),
   registrarPaginas: vi.fn(),
   sustituirPaginas: vi.fn(),
   etiquetarPagina: vi.fn(),
@@ -26,7 +28,12 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet 
 vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie: dobles.personaDeLaCookie }));
 vi.mock("next/navigation", () => ({ redirect: dobles.redirect, notFound: dobles.notFound }));
 vi.mock("next/cache", () => ({ revalidatePath: dobles.revalidatePath }));
-vi.mock("@/lib/taller/examenes", () => ({ crearExamen: dobles.crearExamen, guardarTarea: dobles.guardarTarea }));
+vi.mock("@/lib/taller/examenes", () => ({
+  crearExamen: dobles.crearExamen,
+  guardarTarea: dobles.guardarTarea,
+  publicarExamen: dobles.publicarExamen,
+  retirarExamen: dobles.retirarExamen,
+}));
 vi.mock("@/lib/taller/paginas", () => ({
   registrarPaginas: dobles.registrarPaginas,
   sustituirPaginas: dobles.sustituirPaginas,
@@ -46,8 +53,10 @@ import {
   etiquetarPaginaAccion,
   guardarCuadernilloAccion,
   guardarTareaAccion,
+  publicarExamenAccion,
   registrarPaginasAccion,
   rellenarTareaConIAAccion,
+  retirarExamenAccion,
   sustituirPaginasAccion,
 } from "@/app/examenes/acciones";
 
@@ -81,6 +90,8 @@ const ACCIONES = [
   { nombre: "guardarCuadernilloAccion", llamar: () => guardarCuadernilloAccion("x1", "Libro", []), tocan: [dobles.guardarCuadernillo, dobles.elegirCuadernillo] },
   { nombre: "elegirCuadernilloAccion", llamar: () => elegirCuadernilloAccion("x1", formulario({ cuadernilloId: "c1", numero: "1" })), tocan: [dobles.elegirCuadernillo] },
   { nombre: "guardarTareaAccion", llamar: () => guardarTareaAccion("x1", "CE", 3, {}), tocan: [dobles.guardarTarea] },
+  { nombre: "publicarExamenAccion", llamar: () => publicarExamenAccion("x1"), tocan: [dobles.publicarExamen] },
+  { nombre: "retirarExamenAccion", llamar: () => retirarExamenAccion("x1"), tocan: [dobles.retirarExamen] },
 ];
 
 beforeEach(() => {
@@ -211,6 +222,16 @@ describe("lo que hace cada acción con el profesor", () => {
       error: "Otra pestaña está subiendo páginas a este examen. Recarga la pantalla.",
     });
     expect(dobles.sustituirPaginas).toHaveBeenCalledWith("x1", ["f2", "f1"]);
+  });
+
+  // Mutación que la mata: redirigir siempre a la pantalla sin el ?error=.
+  it("publicar vuelve al examen, con el motivo si no se pudo", async () => {
+    dobles.publicarExamen.mockResolvedValue({});
+    expect(await mensajeDelRechazo(publicarExamenAccion("x1"))).toBe("REDIRECT:/examenes/x1");
+    dobles.publicarExamen.mockResolvedValue({ error: "No se puede publicar: Faltan por completar: CO1." });
+    expect(await mensajeDelRechazo(publicarExamenAccion("x1"))).toBe(
+      `REDIRECT:/examenes/x1?error=${encodeURIComponent("No se puede publicar: Faltan por completar: CO1.")}`,
+    );
   });
 });
 

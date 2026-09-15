@@ -2,6 +2,7 @@ import { Prisma } from "@/lib/generated/prisma";
 import { prisma } from "@/lib/db";
 import { CARPETA_DE_MATERIAL, borrarDeVercel } from "@/lib/ficheros/vercel";
 import { etiquetasDeNivel } from "@/lib/dele/estructura";
+import { ExamenPublicado, MENSAJE_PUBLICADO, exigirEditable } from "./publicado";
 
 const MAXIMO_DE_PAGINAS = 200;
 
@@ -34,10 +35,14 @@ export async function registrarPaginas(examenId: string, ficheroIds: string[]): 
   }
 
   try {
-    await prisma.paginaDeExamen.createMany({
-      data: ficheroIds.map((ficheroId, i) => ({ examenId, ficheroId, orden: i + 1 })),
+    await prisma.$transaction(async (tx) => {
+      await exigirEditable(tx, examenId);
+      await tx.paginaDeExamen.createMany({
+        data: ficheroIds.map((ficheroId, i) => ({ examenId, ficheroId, orden: i + 1 })),
+      });
     });
   } catch (error) {
+    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
     // Dos subidas a la vez pueden pasar las dos la comprobación de arriba (ninguna ha
     // escrito todavía) y chocar aquí contra @@unique([examenId, orden]): la que pierde
     // la carrera recibe el mismo error que si hubiera llegado tarde.
@@ -52,10 +57,18 @@ export async function etiquetarPagina(examenId: string, paginaId: string, etique
   if (!pagina || pagina.examenId !== examenId) return { error: "Esa página no existe." };
   const validas = etiquetasDeNivel(pagina.examen.nivel);
   if (etiquetas.some((e) => !validas.includes(e))) return { error: "Esa tarea no existe en este examen." };
-  await prisma.paginaDeExamen.update({
-    where: { id: paginaId },
-    data: { etiquetas: validas.filter((v) => etiquetas.includes(v)) },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await exigirEditable(tx, examenId);
+      await tx.paginaDeExamen.update({
+        where: { id: paginaId },
+        data: { etiquetas: validas.filter((v) => etiquetas.includes(v)) },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    throw error;
+  }
   return {};
 }
 
@@ -86,10 +99,20 @@ async function limpiarSiHuerfanos(candidatos: { id: string; ruta: string }[], id
 /**
  * Borra las páginas del examen y limpia los ficheros que se quedan huérfanos.
  */
-export async function borrarPaginas(examenId: string): Promise<void> {
-  const paginas = await prisma.paginaDeExamen.findMany({ where: { examenId }, include: { fichero: true } });
-  await prisma.paginaDeExamen.deleteMany({ where: { examenId } });
+export async function borrarPaginas(examenId: string): Promise<{ error?: string }> {
+  let paginas: { fichero: { id: string; ruta: string } }[] = [];
+  try {
+    await prisma.$transaction(async (tx) => {
+      await exigirEditable(tx, examenId);
+      paginas = await tx.paginaDeExamen.findMany({ where: { examenId }, include: { fichero: true } });
+      await tx.paginaDeExamen.deleteMany({ where: { examenId } });
+    });
+  } catch (error) {
+    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    throw error;
+  }
   await limpiarSiHuerfanos(paginas.map((p) => p.fichero), new Set());
+  return {};
 }
 
 /**
@@ -99,8 +122,8 @@ export async function borrarPaginas(examenId: string): Promise<void> {
  * mitad de camino (red, arranque en frío de Neon, una segunda pestaña) no
  * pueda dejar el examen sin páginas y sin ninguna forma de reintentar.
  *
- * El bloqueo de fila (`FOR UPDATE` sobre el Examen) sirve el mismo papel que
- * en `guardarTarea`: serializa dos sustituciones a la vez para que la
+ * El bloqueo de fila (`exigirEditable`, que es `FOR UPDATE` sobre el Examen)
+ * sirve el mismo papel que en `guardarTarea`: serializa dos sustituciones a la vez para que la
  * segunda no choque contra @@unique([examenId, orden]) a mitad de un
  * `createMany`. Si aun así choca (una carrera rarísima, o dos pestañas que
  * entraron casi a la vez), se traduce en un aviso claro en vez de un 500.
@@ -129,7 +152,7 @@ export async function sustituirPaginas(examenId: string, ficheroIds: string[]): 
   let antiguas: { fichero: { id: string; ruta: string } }[] = [];
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Examen" WHERE id = ${examenId} FOR UPDATE`;
+      await exigirEditable(tx, examenId);
       antiguas = await tx.paginaDeExamen.findMany({ where: { examenId }, include: { fichero: true } });
       await tx.paginaDeExamen.deleteMany({ where: { examenId } });
       await tx.paginaDeExamen.createMany({
@@ -137,6 +160,7 @@ export async function sustituirPaginas(examenId: string, ficheroIds: string[]): 
       });
     });
   } catch (error) {
+    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
     if (esClaveDuplicada(error)) return { error: "Otra pestaña está subiendo páginas a este examen. Recarga la pantalla." };
     throw error;
   }

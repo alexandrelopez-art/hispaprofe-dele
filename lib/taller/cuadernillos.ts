@@ -1,5 +1,6 @@
 import type { Prisma } from "@/lib/generated/prisma";
 import { prisma } from "@/lib/db";
+import { ExamenPublicado, MENSAJE_PUBLICADO, exigirEditable } from "./publicado";
 import { TOPE_DE_TROZOS, leerSoluciones, textoDeTrozos, trozosSchema, type Soluciones } from "./soluciones";
 
 export async function guardarCuadernillo(datos: { titulo: string; trozos: unknown }): Promise<{ id: string } | { error: string }> {
@@ -29,6 +30,19 @@ export async function listarCuadernillos(): Promise<{ id: string; titulo: string
   }));
 }
 
+async function escribirEnExamen(examenId: string, data: { cuadernilloId: string | null; numeroEnCuadernillo: number | null }): Promise<{ error?: string }> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await exigirEditable(tx, examenId);
+      await tx.examen.update({ where: { id: examenId }, data });
+    });
+    return {};
+  } catch (error) {
+    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    throw error;
+  }
+}
+
 /** `cuadernilloId` null quita el cuadernillo y el número. `numero` null deja el cuadernillo elegido sin número todavía. */
 export async function elegirCuadernillo(
   examenId: string,
@@ -38,14 +52,12 @@ export async function elegirCuadernillo(
   const examen = await prisma.examen.findUnique({ where: { id: examenId } });
   if (!examen) return { error: "Ese examen no existe." };
   if (cuadernilloId === null) {
-    await prisma.examen.update({ where: { id: examenId }, data: { cuadernilloId: null, numeroEnCuadernillo: null } });
-    return {};
+    return escribirEnExamen(examenId, { cuadernilloId: null, numeroEnCuadernillo: null });
   }
   const cuadernillo = await prisma.cuadernillo.findUnique({ where: { id: cuadernilloId } });
   if (!cuadernillo) return { error: "Ese cuadernillo no existe." };
   if (numero !== null && !(String(numero) in (cuadernillo.soluciones as Soluciones))) {
     return { error: `El cuadernillo no trae el examen ${numero}.` };
   }
-  await prisma.examen.update({ where: { id: examenId }, data: { cuadernilloId, numeroEnCuadernillo: numero } });
-  return {};
+  return escribirEnExamen(examenId, { cuadernilloId, numeroEnCuadernillo: numero });
 }
