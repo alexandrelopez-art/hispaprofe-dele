@@ -9,6 +9,7 @@ import {
   type ReglaTarea,
 } from "@/lib/dele/estructura";
 import { esquemaDelFormulario, formularioVacio, type Formulario } from "./formas";
+import { gastoDelExamen } from "./ia/registro";
 import { formularioDePiezas, piezasDelFormulario, type PiezaLeida } from "./piezas";
 import { claveDelFormulario, estadoDeTarea, type EstadoDeTarea } from "./estado";
 import { resumenDeSoluciones, type RespuestasDeUnaPrueba, type ResumenDeExamen, type Soluciones } from "./soluciones";
@@ -70,6 +71,8 @@ export type ExamenDelTaller = {
   cuadernillo: { id: string; titulo: string; resumen: ResumenDeExamen[] } | null;
   paginas: { id: string; ficheroId: string; orden: number; etiquetas: string[] }[];
   tareas: { prueba: Prueba; numero: number; estado: EstadoDeTarea }[];
+  /** Lo que ha costado la IA en este examen (estimación). */
+  gasto: { llamadas: number; milesimas: number };
 };
 
 export async function examenParaElTaller(id: string): Promise<ExamenDelTaller | null> {
@@ -107,6 +110,7 @@ export async function examenParaElTaller(id: string): Promise<ExamenDelTaller | 
         : null,
     paginas: examen.paginas.map((p) => ({ id: p.id, ficheroId: p.ficheroId, orden: p.orden, etiquetas: p.etiquetas })),
     tareas,
+    gasto: await gastoDelExamen(examen.id),
   };
 }
 

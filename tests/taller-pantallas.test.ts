@@ -149,6 +149,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
       tareas: [
         { prueba: "CE", numero: 1, estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna.", "Falta el texto 1."], imagenesPendientes: 0 } },
       ],
+      gasto: { llamadas: 0, milesimas: 0 },
     });
     // El cuadernillo trae un tercer examen (el "3") que el resumen guardado
     // no tiene: si el select del número saliera del resumen (el bug que se
@@ -231,7 +232,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
   // (por ejemplo `elegidoId={null}` o `numero={1}`) en vez de leerlos de
   // `examen.cuadernillo` / `examen.numeroEnCuadernillo`.
   it("la pantalla pasa el cuadernillo y el número guardados de CADA examen al selector, no uno fijo", async () => {
-    const base = { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" as const, tareas: [], paginas: [] };
+    const base = { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" as const, tareas: [], paginas: [], gasto: { llamadas: 0, milesimas: 0 } };
     dobles.listarCuadernillos.mockResolvedValue([
       { id: "c1", titulo: "Libro Uno", examenes: ["1"] },
       { id: "c2", titulo: "Libro Dos", examenes: ["2"] },

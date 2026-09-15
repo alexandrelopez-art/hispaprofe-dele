@@ -19,6 +19,7 @@ const dobles = vi.hoisted(() => ({
   borrarPaginas: vi.fn(),
   guardarCuadernillo: vi.fn(),
   elegirCuadernillo: vi.fn(),
+  rellenarTarea: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -36,6 +37,7 @@ vi.mock("@/lib/taller/cuadernillos", () => ({
   guardarCuadernillo: dobles.guardarCuadernillo,
   elegirCuadernillo: dobles.elegirCuadernillo,
 }));
+vi.mock("@/lib/taller/ia/rellenar", () => ({ rellenarTarea: dobles.rellenarTarea }));
 
 import {
   borrarPaginasAccion,
@@ -45,6 +47,7 @@ import {
   guardarCuadernilloAccion,
   guardarTareaAccion,
   registrarPaginasAccion,
+  rellenarTareaConIAAccion,
   sustituirPaginasAccion,
 } from "@/app/examenes/acciones";
 
@@ -208,5 +211,30 @@ describe("lo que hace cada acción con el profesor", () => {
       error: "Otra pestaña está subiendo páginas a este examen. Recarga la pantalla.",
     });
     expect(dobles.sustituirPaginas).toHaveBeenCalledWith("x1", ["f2", "f1"]);
+  });
+});
+
+describe("rellenar con IA", () => {
+  // Mutación que la mata: quitar `await exigirProfesor()` de rellenarTareaConIAAccion.
+  it("un estudiante no puede rellenar: no se llama a la IA", async () => {
+    como(ESTUDIANTE);
+    await expect(rellenarTareaConIAAccion("x1", "CE", 3)).rejects.toThrow("NOT_FOUND");
+    expect(dobles.rellenarTarea).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar la comprobación de esPrueba.
+  it("una prueba inventada no llega a la IA", async () => {
+    como(PROFESOR);
+    expect(await rellenarTareaConIAAccion("x1", "XX", 3)).toEqual({ error: "Esa tarea no existe." });
+    expect(dobles.rellenarTarea).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: no devolver lo que devuelve rellenarTarea.
+  it("el profesor recibe lo que devuelve rellenarTarea, sin revalidar la pantalla", async () => {
+    como(PROFESOR);
+    dobles.rellenarTarea.mockResolvedValue({ error: "La IA no responde ahora. Prueba en un minuto." });
+    expect(await rellenarTareaConIAAccion("x1", "CE", 3)).toEqual({ error: "La IA no responde ahora. Prueba en un minuto." });
+    expect(dobles.rellenarTarea).toHaveBeenCalledWith("x1", "CE", 3);
+    expect(dobles.revalidatePath).not.toHaveBeenCalled();
   });
 });

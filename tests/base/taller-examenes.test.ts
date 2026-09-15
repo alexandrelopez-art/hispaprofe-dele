@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { reglaDe } from "@/lib/dele/estructura";
 import { actividadParaElEstudiante } from "@/lib/examen/paraElEstudiante";
 import { formularioVacio } from "@/lib/taller/formas";
+import { apuntarLlamada } from "@/lib/taller/ia/registro";
 import {
   crearExamen,
   examenParaElTaller,
@@ -227,5 +228,12 @@ describe("leer para el taller", () => {
     const id = await examenConCuadernillo();
     expect(await tareaParaElTaller(id, "CE", 7)).toBeNull();
     expect(await examenParaElTaller("no-existe")).toBeNull();
+  });
+
+  // Mutación que la mata: no rellenar `gasto` en examenParaElTaller (dejarlo a cero).
+  it("el examen del taller trae el gasto de sus llamadas a la IA", async () => {
+    const id = await examenConCuadernillo();
+    await apuntarLlamada({ examenId: id, prueba: "CE", numero: 3, modelo: "claude-opus-5", uso: { entrada: 10_000, cacheLeidos: 0, cacheEscritos: 0, salida: 0 }, milisegundos: 1, error: null });
+    expect((await examenParaElTaller(id))!.gasto).toEqual({ llamadas: 1, milesimas: 50 });
   });
 });

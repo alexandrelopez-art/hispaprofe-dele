@@ -8,6 +8,7 @@ import { crearExamen, guardarTarea } from "@/lib/taller/examenes";
 import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 import { elegirCuadernillo, guardarCuadernillo } from "@/lib/taller/cuadernillos";
 import type { EstadoDeTarea } from "@/lib/taller/estado";
+import { rellenarTarea, type ResultadoDeRelleno } from "@/lib/taller/ia/rellenar";
 
 // Las pantallas ya exigen al profesor, pero una acción de servidor es una
 // dirección pública: cada una vuelve a comprobarlo, la primera línea.
@@ -85,4 +86,11 @@ export async function guardarTareaAccion(
   const r = await guardarTarea(examenId, prueba, numero, formulario);
   revalidatePath(pantallaDelExamen(examenId));
   return r;
+}
+
+/** Devuelve el formulario para la pantalla. No guarda la tarea, así que no hay nada que revalidar. */
+export async function rellenarTareaConIAAccion(examenId: string, prueba: string, numero: number): Promise<ResultadoDeRelleno> {
+  await exigirProfesor();
+  if (!esPrueba(prueba) || !Number.isInteger(numero)) return { error: "Esa tarea no existe." };
+  return rellenarTarea(examenId, prueba, numero);
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS, etiquetasDeNivel, nombreCortoDeTarea } from "@/lib/dele/estructura";
 import { examenParaElTaller } from "@/lib/taller/examenes";
+import { textoDelGasto } from "@/lib/taller/ia/coste";
 import { listarCuadernillos } from "@/lib/taller/cuadernillos";
 import { ElegirCuadernillo } from "@/components/taller/elegir-cuadernillo";
 import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";
@@ -35,6 +36,7 @@ export default async function PantallaDelExamen({
       <header>
         <h1 className="text-2xl font-bold">{examen.titulo}</h1>
         <p className="text-tinta-suave">{NOMBRE_DE_NIVEL[examen.nivel]}</p>
+        {textoDelGasto(examen.gasto) && <p className="text-sm text-tinta-suave">{textoDelGasto(examen.gasto)}</p>}
       </header>
       {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
 
