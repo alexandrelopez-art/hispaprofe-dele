@@ -116,7 +116,7 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
       ) : (
         <>
           <p data-contador={cuadra ? "bien" : "mal"} className={`font-bold ${cuadra ? "text-verde-600" : "text-error-600"}`}>
-            {`${marcas} ${marcas === 1 ? "marca" : "marcas"} → ${marcas + 1} trozos, esta tarea lleva ${trozos}`}
+            {`${marcas} ${marcas === 1 ? "marca" : "marcas"} → ${marcas + 1} ${marcas + 1 === 1 ? "trozo" : "trozos"}, esta tarea lleva ${trozos}`}
           </p>
           {leida && <Onda picos={leida.picos} duracion={leida.duracion} cortes={audio.cortes} alCambiar={cambiarCortes} />}
           {!leida && !sinOnda && <p className="text-tinta-suave">Dibujando la onda…</p>}
@@ -145,7 +145,7 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
           </div>
         </>
       )}
-      {duracion !== null && (
+      {duracion !== null && !cortaSinMarcas && (
         <ol className="flex flex-col gap-2">
           {trozosDe(audio.cortes, duracion).map(([inicio, fin], i) => (
             <li key={i} className="flex flex-wrap items-center gap-2">

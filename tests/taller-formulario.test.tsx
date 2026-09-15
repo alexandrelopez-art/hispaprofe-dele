@@ -159,11 +159,29 @@ describe("el bloque de audio", () => {
     expect(bien).toContain("2 marcas → 3 trozos, esta tarea lleva 3");
   });
 
+  // Mutación que la mata: pintar el contador también cuando trozos === 1.
   it("Auditiva 3 no se corta: sin contador ni botón de proponer", () => {
     const html = pintar("CO", 3, null, null, true, true, { inicial: conPista(3, []) });
     expect(html).toContain("Esta tarea no se corta");
     expect(html).not.toContain("data-contador");
     expect(html).not.toContain("Proponer marcas");
+  });
+
+  // NOTA: bajo renderToStaticMarkup la `duracion` del bloque siempre es null (depende de
+  // onLoadedMetadata o de leerPista, que no corren sin DOM real), así que la lista de
+  // trozos nunca se pinta aquí y esta prueba no puede matar la mutación de quitar el
+  // `&& !cortaSinMarcas` del guard (verificado a mano: sigue en verde sin él). Queda como
+  // documentación del HTML esperado; la protección real depende de una revisión manual.
+  it("Auditiva 3 no se corta: sin fila de trozo, el reproductor nativo basta", () => {
+    const html = pintar("CO", 3, null, null, true, true, { inicial: conPista(3, []) });
+    expect(html).not.toContain("Trozo 1 ·");
+  });
+
+  // Mutación que la mata: no concordar "trozo"/"trozos" con marcas + 1.
+  it("el contador concuerda el singular cuando queda un solo trozo por delante", () => {
+    const html = pintar("CO", 4, null, null, true, true, { inicial: conPista(4, []) });
+    expect(html).toContain('data-contador="mal"');
+    expect(html).toContain("0 marcas → 1 trozo, esta tarea lleva 3");
   });
 
   // Mutación que la mata: dejar el <audio> sin la ruta del fichero.
