@@ -165,6 +165,15 @@ describe("un examen archivado tampoco se escribe", () => {
     expect(await guardarTarea(id, "CO", 1, co1)).toEqual({ error: MENSAJE_ARCHIVADO });
     expect(await registrarPaginas(id, [hoja.id])).toEqual({ error: MENSAJE_ARCHIVADO });
     expect(await elegirCuadernillo(id, null, null)).toEqual({ error: MENSAJE_ARCHIVADO });
+  });
+
+  // Mutación que la mata: en rellenarTarea, quitar la comprobación de
+  // ARCHIVADO (lib/taller/ia/rellenar.ts:96). Es el séptimo sitio: no pasa por
+  // exigirEditable, mira examen.estado a mano, así que la comprobación de
+  // PUBLICADO no lo cubre.
+  it("rellenar con IA también se rechaza, sin llamar a la IA", async () => {
+    const id = await examenCompleto();
+    await archivarExamen(id);
     // Sin deps.hayClave forzado a true, esto fallaría antes con «Falta la clave
     // de la IA.»: no hay ANTHROPIC_API_KEY en el entorno de pruebas.
     const leer = vi.fn();

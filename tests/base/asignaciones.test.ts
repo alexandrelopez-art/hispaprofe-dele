@@ -156,8 +156,9 @@ describe("retirar un examen que tiene gente dentro", () => {
     expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("PUBLICADO");
   });
 
-  // Mutación que la mata: comprobar las asignaciones fuera de la transacción que
-  // bloquea el examen.
+  // Mutación que la mata: quitar el `tx.examen.update` que pasa a
+  // EN_CONSTRUCCION. La función seguiría devolviendo {}, pero el examen se
+  // quedaría publicado.
   it("sin nadie dentro retira como siempre", async () => {
     expect(await retirarExamen(examen.id)).toEqual({});
     expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("EN_CONSTRUCCION");
