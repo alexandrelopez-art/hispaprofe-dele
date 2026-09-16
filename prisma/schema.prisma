@@ -30,6 +30,11 @@ enum EstadoExamen {
   ARCHIVADO
 }
 
+enum ModoDeExamen {
+  COMPLETO
+  LIBRE
+}
+
 /// Lo que puede ser una pieza dentro de una tarea.
 enum TipoPieza {
   TEXTO
@@ -66,6 +71,8 @@ model Examen {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  asignaciones Asignacion[]
 
   @@index([estado])
 }
@@ -180,6 +187,9 @@ model Persona {
   enlaces  EnlaceDeEntrada[]
   sesiones Sesion[]
   ficheros Fichero[]
+
+  asignaciones       Asignacion[] @relation("recibidas")
+  asignacionesHechas Asignacion[] @relation("hechas")
 }
 
 /// El enlace que llega al correo. Del secreto se guarda solo la huella.
@@ -250,4 +260,23 @@ model LlamadaDeIA {
   createdAt             DateTime           @default(now())
 
   @@index([examenId])
+}
+
+/// Un examen puesto a una persona, con su fecha tope. Una sola por pareja:
+/// volver a asignarlo cambia la fecha, no crea otra fila. El estado de lo que
+/// el estudiante haga (empezada, entregada, la nota) llega con la 3c.
+model Asignacion {
+  id            String       @id @default(cuid())
+  examen        Examen       @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId      String
+  persona       Persona      @relation("recibidas", fields: [personaId], references: [id], onDelete: Cascade)
+  personaId     String
+  modo          ModoDeExamen @default(COMPLETO)
+  fechaTope     DateTime
+  asignadaEn    DateTime     @default(now())
+  asignadaPor   Persona?     @relation("hechas", fields: [asignadaPorId], references: [id], onDelete: SetNull)
+  asignadaPorId String?
+
+  @@unique([examenId, personaId])
+  @@index([personaId])
 }
