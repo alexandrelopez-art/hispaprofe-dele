@@ -157,6 +157,10 @@ describe("Inicio del estudiante", () => {
     expect(marcado).toContain("martes, 20 de octubre de 2026");
     expect(marcado).toContain("Examen 2");
     expect(marcado).toContain("miércoles, 21 de octubre de 2026");
+    // El doble devuelve siempre lo mismo pase el id que pase: sin este
+    // `toHaveBeenCalledWith`, una mutación que pidiera las asignaciones de otra
+    // persona (Ana viendo el examen de Luis) pasaría en verde igual.
+    expect(asignacionesDe).toHaveBeenCalledWith(ESTUDIANTE.id);
   });
 
   // Mutación que la mata: quitar la línea de «nada pendiente» y dejar la lista

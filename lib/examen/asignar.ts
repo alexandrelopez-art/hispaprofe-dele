@@ -18,10 +18,14 @@ type ResultadoDeLaTransaccion =
   | { error: string }
   | { examen: { titulo: string; nivel: Nivel }; personas: { id: string; nombre: string; correo: string }[] };
 
-export function estudiantesParaAsignar(): Promise<{ id: string; nombre: string; correo: string }[]> {
+// Sin `correo`: esto es lo que pinta <QuienLoHace>, un componente de cliente
+// que solo declara `{ id, nombre }`. asignarExamen tiene su propio select
+// dentro de la transacción (con correo, para mandar el aviso), así que quitarlo
+// de aquí no le afecta.
+export function estudiantesParaAsignar(): Promise<{ id: string; nombre: string }[]> {
   return prisma.persona.findMany({
     where: { papel: "ESTUDIANTE", activa: true },
-    select: { id: true, nombre: true, correo: true },
+    select: { id: true, nombre: true },
     orderBy: { nombre: "asc" },
   });
 }
@@ -68,7 +72,7 @@ export async function asignarExamen(
       });
     }
     return { examen, personas };
-  });
+  }, { timeout: 15_000 }); // doce upserts secuenciales, y Neon a veces despierta en frío: el timeout por defecto (5 s) se queda corto.
   if ("error" in guardado) return guardado;
 
   const sinAviso: string[] = [];

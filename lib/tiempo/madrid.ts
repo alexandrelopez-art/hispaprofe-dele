@@ -9,7 +9,11 @@ function desfaseEnMinutos(instante: Date): number {
   const partes = new Intl.DateTimeFormat("en-US", { timeZone: HUSO, timeZoneName: "longOffset" }).formatToParts(instante);
   const texto = partes.find((p) => p.type === "timeZoneName")?.value ?? "GMT+00:00";
   const leido = /GMT([+-])(\d{2}):(\d{2})/.exec(texto);
-  if (!leido) return 0;
+  // Hoy es inalcanzable con Europe/Madrid: Intl siempre da "GMT+02:00" o
+  // "GMT+01:00". Un `return 0` en silencio, si esto se reutiliza con otro
+  // huso el día que Intl cambie de forma, se traduciría en una fecha tope una
+  // hora larga sin que nada se ponga rojo.
+  if (!leido) throw new Error(`No se pudo leer el desfase de Madrid de "${texto}".`);
   return (leido[1] === "-" ? -1 : 1) * (Number(leido[2]) * 60 + Number(leido[3]));
 }
 

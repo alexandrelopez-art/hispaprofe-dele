@@ -14,7 +14,7 @@ import { gastoDelExamen } from "./ia/registro";
 import { formularioDePiezas, piezasDelFormulario, type PiezaLeida } from "./piezas";
 import { claveDelFormulario, estadoDeTarea, itemsDelFormulario, type EstadoDeTarea } from "./estado";
 import { listaDeNombres } from "@/lib/examen/nombres";
-import { ExamenNoEditable, bloquearExamen, exigirEditable } from "./publicado";
+import { ExamenNoEditable, MENSAJE_ARCHIVADO, MENSAJE_PUBLICADO, bloquearExamen, exigirEditable } from "./publicado";
 import { resumenDeSoluciones, type RespuestasDeUnaPrueba, type ResumenDeExamen, type Soluciones } from "./soluciones";
 
 export async function crearExamen(datos: { titulo: string; nivel: string }): Promise<{ id: string } | { error: string }> {
@@ -143,7 +143,8 @@ export type TareaDelTaller = {
   formulario: Formulario;
   guardada: boolean;
   estado: EstadoDeTarea;
-  publicado: boolean;
+  /** null si se puede editar; si no, el mensaje que explica por qué (publicado o archivado). */
+  bloqueo: string | null;
   /** Las respuestas del cuadernillo para los números de esta tarea, para enseñarlas sin editar. */
   respuestas: Record<string, string> | null;
   paginas: { ficheroId: string; orden: number }[];
@@ -181,7 +182,7 @@ export async function tareaParaElTaller(examenId: string, prueba: Prueba, numero
     formulario: mostrado,
     guardada: formulario !== null,
     estado: estadoDeTarea(regla, formulario, respuestas, claveGuardada),
-    publicado: examen.estado === "PUBLICADO",
+    bloqueo: examen.estado === "PUBLICADO" ? MENSAJE_PUBLICADO : examen.estado === "ARCHIVADO" ? MENSAJE_ARCHIVADO : null,
     respuestas: claveDelFormulario(mostrado, respuestas),
     paginas: examen.paginas.filter((p) => p.etiquetas.includes(etiqueta)).map((p) => ({ ficheroId: p.ficheroId, orden: p.orden })),
     temasDeLaHermana,

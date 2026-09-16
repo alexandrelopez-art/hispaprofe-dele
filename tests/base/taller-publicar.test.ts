@@ -96,7 +96,7 @@ describe("publicar y retirar", () => {
     expect((await examenParaElTaller(id))!.motivosParaPublicar).toEqual([]);
     expect(await publicarExamen(id)).toEqual({});
     expect(await estadoDe(id)).toBe("PUBLICADO");
-    expect((await tareaParaElTaller(id, "CE", 1))!.publicado).toBe(true);
+    expect((await tareaParaElTaller(id, "CE", 1))!.bloqueo).toBe(MENSAJE_PUBLICADO);
     expect(await retirarExamen(id)).toEqual({});
     expect(await estadoDe(id)).toBe("EN_CONSTRUCCION");
     expect(await retirarExamen(id)).toEqual({ error: "Ese examen no está publicado." });

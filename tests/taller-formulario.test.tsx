@@ -6,6 +6,7 @@ vi.mock("@/app/examenes/acciones", () => ({ guardarTareaAccion: vi.fn(), rellena
 
 import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
+import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 import { FormularioDeTarea } from "@/components/taller/formulario-de-tarea";
 
 const VACIA = { estado: "VACIA" as const, motivos: ["Sin guardar todavía."] };
@@ -17,7 +18,7 @@ function pintar(
   temas: string[] | null = null,
   hayClave = true,
   hayHojas = true,
-  extra: { inicial?: Formulario; publicado?: boolean } = {},
+  extra: { inicial?: Formulario; bloqueo?: string | null } = {},
 ) {
   const regla = reglaDe("A2_B1_ESCOLAR", prueba, numero)!;
   return renderToStaticMarkup(
@@ -32,7 +33,7 @@ function pintar(
       estadoInicial={VACIA}
       hayClave={hayClave}
       hayHojas={hayHojas}
-      publicado={extra.publicado ?? false}
+      bloqueo={extra.bloqueo ?? null}
     />,
   );
 }
@@ -124,9 +125,9 @@ describe("fotos y solo lectura", () => {
     expect(pintar("EO", 3, null)).not.toContain("data-foto=");
   });
 
-  // Mutación que la mata: no pasar `publicado` al fieldset.
+  // Mutación que la mata: no pasar `bloqueo` al fieldset.
   it("con el examen publicado, aviso arriba y todo apagado", () => {
-    const html = pintar("CE", 3, null, null, true, true, { publicado: true });
+    const html = pintar("CE", 3, null, null, true, true, { bloqueo: MENSAJE_PUBLICADO });
     expect(html).toContain("El examen está publicado: retíralo para editarlo.");
     expect(html).toMatch(/<fieldset[^>]*disabled=""/);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Guardar<\/button>/);

@@ -10,6 +10,7 @@ const TOPE = finDelDiaEnMadrid("2026-10-20")!;
 
 let profesor: Persona;
 let ana: Persona;
+let luis: Persona;
 let examen: Examen;
 
 beforeEach(async () => {
@@ -18,6 +19,7 @@ beforeEach(async () => {
   await prisma.persona.deleteMany();
   profesor = await prisma.persona.create({ data: { correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR" } });
   ana = await prisma.persona.create({ data: { correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE" } });
+  luis = await prisma.persona.create({ data: { correo: "luis@ejemplo.com", nombre: "Luis", papel: "ESTUDIANTE" } });
   examen = await prisma.examen.create({ data: { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR", estado: "PUBLICADO" } });
 });
 
@@ -64,6 +66,50 @@ describe("asignar un examen", () => {
     expect(enviados).toHaveLength(1);
     expect(enviados[0]!.a).toBe("ana@ejemplo.com");
     expect(enviados[0]!.texto).toContain("martes, 20 de octubre de 2026");
+    expect(enviados[0]!.texto).toContain("https://sitio"); // el enlace del sitio: es lo único que la ata a la portada
+  });
+
+  // La spec (§10.8) pide «uno por estudiante marcado», y con un solo estudiante
+  // en la prueba de arriba, cambiar el `for` por un único `await mandar(...personas[0]...)`
+  // seguiría en verde: doce asignados de verdad, once sin correo, y la pantalla
+  // diciendo «Asignado a 12.».
+  // Mutación que la mata: sustituir el `for (const persona of guardado.personas)`
+  // por un envío a una sola persona.
+  it("avisa a CADA estudiante marcado, no solo al primero", async () => {
+    const enviados: Mensaje[] = [];
+    const r = await asignarExamen(
+      examen.id,
+      [ana.id, luis.id],
+      "2026-10-20",
+      profesor.id,
+      async (m) => { enviados.push(m); },
+      "https://sitio",
+      ANTES,
+    );
+
+    expect(r).toEqual({ asignados: 2, sinAviso: [] });
+    expect(await prisma.asignacion.count()).toBe(2);
+    expect(enviados).toHaveLength(2);
+    expect(enviados.map((m) => m.a).sort()).toEqual(["ana@ejemplo.com", "luis@ejemplo.com"]);
+  });
+
+  // Mutación que la mata: deshacer la transacción, o dejar de guardar las
+  // asignaciones de los demás, cuando el correo de uno solo revienta. Las
+  // asignaciones de todos tienen que seguir en la base, y solo el nombre de
+  // quien no recibió el aviso aparece en `sinAviso`.
+  it("si el correo revienta con uno solo, el resto sigue asignado y avisado", async () => {
+    const r = await asignarExamen(
+      examen.id,
+      [ana.id, luis.id],
+      "2026-10-20",
+      profesor.id,
+      async (m) => { if (m.a === "ana@ejemplo.com") throw new Error("SMTP caído"); },
+      "https://sitio",
+      ANTES,
+    );
+
+    expect(r).toEqual({ asignados: 2, sinAviso: ["Ana"] });
+    expect(await prisma.asignacion.count()).toBe(2);
   });
 
   // Mutación que la mata: usar create en vez de upsert.
@@ -112,7 +158,7 @@ describe("asignar un examen", () => {
 
     expect(r).toEqual({ error: "Esa lista de estudiantes no vale." });
     expect(await prisma.asignacion.count()).toBe(0);
-    expect((await estudiantesParaAsignar()).map((e) => e.nombre)).toEqual(["Ana"]);
+    expect((await estudiantesParaAsignar()).map((e) => e.nombre)).toEqual(["Ana", "Luis"]);
   });
 });
 

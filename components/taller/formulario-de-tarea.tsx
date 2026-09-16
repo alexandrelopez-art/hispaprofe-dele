@@ -8,7 +8,6 @@ import type { EstadoDeTarea } from "@/lib/taller/estado";
 import { formularioVacio, type Formulario, type Medios } from "@/lib/taller/formas";
 import { etiquetaDeDuda, quitarDudasDe, tieneAlgoEscrito, type Duda } from "@/lib/taller/ia/dudas";
 import { conMediosDe } from "@/lib/taller/medios";
-import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 import { BloqueDeAudio } from "./bloque-de-audio";
 import { CAJA, Campo } from "./campo";
 import { DudasContext } from "./dudas";
@@ -27,10 +26,11 @@ type Props = {
   estadoInicial: EstadoDeTarea;
   hayClave: boolean;
   hayHojas: boolean;
-  publicado: boolean;
+  /** null si se puede editar; si no, el mensaje que explica por qué (publicado o archivado). */
+  bloqueo: string | null;
 };
 
-export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, respuestas, temasDeLaHermana, estadoInicial, hayClave, hayHojas, publicado }: Props) {
+export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, respuestas, temasDeLaHermana, estadoInicial, hayClave, hayHojas, bloqueo }: Props) {
   const [f, setF] = useState<Formulario>(inicial);
   const [estado, setEstado] = useState(estadoInicial);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
   const [dudas, setDudas] = useState<Duda[]>([]);
   const [rellenando, empezarRelleno] = useTransition();
   const mapaDeDudas = useMemo(() => new Map(dudas.map((d) => [d.clave, d.nota])), [dudas]);
-  const rellenoApagado = !hayClave || !hayHojas || rellenando || guardando || publicado;
+  const rellenoApagado = !hayClave || !hayHojas || rellenando || guardando || bloqueo !== null;
 
   const cambiar = (ruta: Ruta, valor: unknown) => {
     setF((actual) => cambiarEn(actual, ruta, valor));
@@ -101,7 +101,7 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <DudasContext.Provider value={mapaDeDudas}>
-        {publicado && <p role="status" className="rounded-2xl bg-sol-100 p-4 font-bold">{MENSAJE_PUBLICADO}</p>}
+        {bloqueo && <p role="status" className="rounded-2xl bg-sol-100 p-4 font-bold">{bloqueo}</p>}
         <div className="flex flex-wrap items-center gap-3">
           {/* El apagado no se calcula con la utilidad disabled: de Tailwind: la palabra "disabled" literal en la clase
               rompería cualquier prueba que busque el atributo real, aun con el botón encendido. */}
@@ -127,7 +127,7 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
         <EstadoDeLaTarea estado={estado} />
         {/* Mientras la IA lee las hojas, los campos se apagan para no perder lo que el
             profesor escriba mientras espera: el botón y la lista de dudas quedan fuera. */}
-        <fieldset disabled={rellenando || publicado} className="contents">
+        <fieldset disabled={rellenando || bloqueo !== null} className="contents">
           {regla.trozos ? <BloqueDeAudio audio={f.medios.audio} trozos={regla.trozos} alCambiar={cambiarAudio} /> : null}
           <section className={CAJA}>
             <Campo etiqueta="Consigna, ya corregida (sin «Hoja de respuestas»)" valor={f.consigna} alCambiar={(v) => cambiar(["consigna"], v)} ruta={["consigna"]} largo />
@@ -152,7 +152,7 @@ export function FormularioDeTarea({ examenId, prueba, numero, regla, inicial, re
 
         {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
         <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-tinta-suave/20 bg-fondo py-3">
-          <button type="button" onClick={guardar} disabled={guardando || rellenando || publicado} className="rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50">
+          <button type="button" onClick={guardar} disabled={guardando || rellenando || bloqueo !== null} className="rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50">
             {guardando ? "Guardando…" : "Guardar"}
           </button>
           {sinGuardar && <span className="text-tinta-suave">Hay cambios sin guardar.</span>}

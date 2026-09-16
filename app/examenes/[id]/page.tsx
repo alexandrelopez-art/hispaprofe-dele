@@ -40,6 +40,12 @@ export default async function PantallaDelExamen({
   const resumenDelNumero = elegido?.resumen.find((r) => r.examen === String(examen.numeroEnCuadernillo));
   const publicado = examen.estado === "PUBLICADO";
   const archivado = examen.estado === "ARCHIVADO";
+  // Una sola noción de editable para toda la pantalla: publicado y archivado se
+  // pintan distinto (Retirar / Recuperar) pero ninguno de los dos deja tocar
+  // cuadernillo, páginas ni etiquetas. Antes esto se decidía tres veces con
+  // `!publicado`, y un examen archivado (publicado === false) se colaba como
+  // editable.
+  const editable = examen.estado === "EN_CONSTRUCCION";
   const motivos = examen.motivosParaPublicar;
   // Solo se piden si hace falta: en construcción o archivado serían dos
   // consultas de más en cada visita al taller.
@@ -92,10 +98,15 @@ export default async function PantallaDelExamen({
         )}
       </section>
 
-      {publicado && (
+      {publicado ? (
         <section className={CAJA} data-asignacion>
           <h2 className="text-xl font-bold">Quién lo hace</h2>
           <QuienLoHace examenId={examen.id} estudiantes={estudiantes} asignaciones={asignaciones} />
+        </section>
+      ) : (
+        <section className={CAJA} data-asignacion>
+          <h2 className="text-xl font-bold">Quién lo hace</h2>
+          <p className="text-tinta-suave">Publícalo primero: un examen en construcción todavía no se asigna.</p>
         </section>
       )}
 
@@ -125,7 +136,7 @@ export default async function PantallaDelExamen({
 
       <section className={CAJA}>
         <h2 className="text-xl font-bold">Cuadernillo de soluciones</h2>
-        {!publicado && (
+        {editable && (
           <ElegirCuadernillo
             key={`${examen.cuadernillo?.id ?? ""}-${examen.numeroEnCuadernillo ?? ""}`}
             examenId={examen.id}
@@ -165,7 +176,7 @@ export default async function PantallaDelExamen({
           </div>
         )}
 
-        {!publicado && (
+        {editable && (
           <details>
             <summary className="cursor-pointer font-bold">Subir un cuadernillo nuevo</summary>
             <div className="pt-3"><SubirCuadernillo examenId={examen.id} /></div>
@@ -181,7 +192,7 @@ export default async function PantallaDelExamen({
         {examen.paginas.length > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {examen.paginas.map((p) =>
-              publicado ? (
+              !editable ? (
                 <figure key={p.id} className="flex min-w-0 flex-col gap-2 rounded-2xl border border-tinta-suave/20 bg-white p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de 5 minutos */}
                   <img src={`/api/ficheros/${p.ficheroId}`} alt={`Hoja ${p.orden}`} loading="lazy" className="w-full rounded-xl border border-tinta-suave/10" />
@@ -193,7 +204,7 @@ export default async function PantallaDelExamen({
             )}
           </div>
         )}
-        {!publicado && <SubirPaginas examenId={examen.id} hayPaginas={examen.paginas.length > 0} />}
+        {editable && <SubirPaginas examenId={examen.id} hayPaginas={examen.paginas.length > 0} />}
       </section>
     </main>
   );

@@ -91,7 +91,9 @@ nueva:
   23:59 nunca caen en el salto: una sola corrección basta, y eso queda escrito en el
   comentario para que nadie lo «arregle» con una librería.
 - `diaEnMadrid(instante: Date): string` — el camino de vuelta, para rellenar el campo de
-  fecha al cambiarla.
+  fecha al cambiarla. **No se implementó a propósito:** el diseño final deja una sola
+  fecha para toda la tanda (§4) y no hay campo que rellenar al cambiarla, así que habría
+  sido una exportación muerta.
 - `fechaEnPalabras(instante: Date): string` — «martes, 20 de octubre de 2026», con
   `Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid", dateStyle: "full" })`.
 
@@ -243,6 +245,7 @@ Todos en la misma voz que el resto del sitio: qué ha pasado y qué hacer.
 | retirar con gente dentro | «No se puede retirar: lo tienen asignado A, B, C y N más. Quítaselo antes.» |
 | archivar publicado | «Retíralo antes de archivarlo.» |
 | escribir en un archivado | «El examen está archivado: recupéralo para editarlo.» |
+| en la lista alguien que no es estudiante activo | «Esa lista de estudiantes no vale.» |
 | correo que no sale | «Asignado a N. No salió el aviso a X: díselo tú.» |
 
 ## 10. Cómo se prueba

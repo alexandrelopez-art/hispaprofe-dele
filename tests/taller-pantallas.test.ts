@@ -325,6 +325,27 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(html).not.toContain("aria-pressed");
     expect(html).not.toContain(">Publicar</button>");
   });
+
+  // Un examen ARCHIVADO no es PUBLICADO (`publicado` es `false`), así que si la
+  // pantalla siguiera decidiendo con `!publicado` (como hacía antes de esta
+  // ronda) un archivado se pintaría como en construcción: ElegirCuadernillo,
+  // «Subir un cuadernillo nuevo» y SubirPaginas volverían a aparecer sobre un
+  // examen fuera de circulación.
+  // Mutación que la mata: volver a decidir con `!publicado` en vez de
+  // `editable` en cualquiera de los cuatro sitios de la pantalla.
+  it("archivado: Recuperar, el aviso, y nada que edite", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ estado: "ARCHIVADO" }));
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html).toContain(">Recuperar</button>");
+    expect(html).toContain("Archivado: fuera de circulación.");
+    expect(html).not.toContain("Subir un cuadernillo nuevo");
+    expect(html).not.toContain("Qué examen del libro es");
+    expect(html).not.toContain('type="file"');
+    expect(html).not.toContain("aria-pressed");
+    expect(html).not.toContain(">Publicar</button>");
+    expect(html).not.toContain(">Retirar</button>");
+  });
 });
 
 describe("la caja de quién hace el examen", () => {
@@ -338,29 +359,62 @@ describe("la caja de quién hace el examen", () => {
 
   beforeEach(() => {
     dobles.estudiantesParaAsignar.mockResolvedValue([{ id: "e1", nombre: "Ana", correo: "ana@ejemplo.com" }]);
-    dobles.asignacionesDelExamen.mockResolvedValue([{ personaId: "e1", nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") }]);
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      { personaId: "e1", nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
+      // A las 23:30 UTC del 20 ya son las 01:30 del 21 en Madrid (CEST, +2):
+      // esta fecha sí discrepa entre pintar con huso o sin él (la de Ana cae
+      // el mismo día se aplique el huso o no, y por sí sola no distinguiría).
+      { personaId: "e2", nombre: "Luis", fechaTope: new Date("2026-10-20T23:30:00.000Z") },
+    ]);
   });
 
-  // Mutación que la mata: enseñar la caja también en construcción. El profesor
-  // rellenaría un formulario que no puede funcionar (asignar exige publicado).
-  it("no sale si el examen no está publicado", async () => {
+  // La caja sigue en pantalla en construcción, pero sin formulario: la
+  // diferencia entre «no hay nada que asignar todavía» y «esto se rompió» la
+  // paga el profesor en una pregunta si no se dice.
+  // Mutación que la mata: volver al `{publicado && (...)}` (quitar la caja
+  // entera en construcción), o pintar el formulario de todos modos.
+  it("en construcción, la caja explica por qué en vez de desaparecer", async () => {
     const marcado = await pintar("EN_CONSTRUCCION");
 
     expect(marcado.length).toBeGreaterThan(200); // que no esté vacío: si no, cualquier ausencia pasa
-    expect(marcado).not.toContain("Quién lo hace");
+    expect(marcado).toContain("Quién lo hace");
+    expect(marcado).toContain("Publícalo primero: un examen en construcción todavía no se asigna.");
+    expect(marcado).not.toContain("Marcar todos");
     expect(marcado).toContain("Archivar");
   });
 
-  // Mutación que la mata: no pintar la fecha de quien ya lo tiene, o pintarla en
-  // UTC (el 19 en vez del 20).
+  // Mutación que la mata: no pintar la fecha de quien ya lo tiene, o pintarla
+  // sin huso (quitar el `timeZone: "Europe/Madrid"` de fechaEnPalabras). Bajo
+  // TZ=UTC, como corre esta suite, la fecha de Luis (23:30 UTC del 20) cae en
+  // el 21 de octubre solo si se aplica el huso de Madrid; sin huso saldría el
+  // 20, igual que la de Ana, y la prueba no distinguiría nada.
   it("publicado, lista a los estudiantes y a quien ya lo tiene con su fecha", async () => {
     const marcado = await pintar("PUBLICADO");
 
     expect(marcado).toContain("Quién lo hace");
     expect(marcado).toContain("Ana");
     expect(marcado).toContain("martes, 20 de octubre de 2026");
-    // Quitárselo cambia algo: formulario POST, nunca un enlace.
-    expect(marcado).not.toContain('href="/examenes/x1/quitar');
+    expect(marcado).toContain("Luis");
+    expect(marcado).toContain("miércoles, 21 de octubre de 2026");
+  });
+
+  // Quitárselo cambia algo: tiene que ser un formulario POST, nunca un enlace
+  // (Next precarga los enlaces en cuanto se pintan, y eso los dispara solos).
+  // Antes esto se probaba con un `not.toContain('href="/examenes/x1/quitar')`
+  // sobre una ruta que no existe ni ha existido nunca: ninguna mutación real la
+  // haría aparecer.
+  // Mutación que la mata: cambiar el `<form action={quitarAsignacionAccion...}>`
+  // por un `<a href={...}>Quitárselo</a>`.
+  it("«Quitárselo» va en un formulario, uno por asignación además del de asignar", async () => {
+    const marcado = await pintar("PUBLICADO");
+    expect(marcado).toContain("Ana"); // que la caja se pintó de verdad
+
+    // Acotado a la caja «Quién lo hace»: la pantalla tiene otro <form> aparte
+    // (Retirar), que no es lo que esta prueba quiere vigilar.
+    const inicio = marcado.indexOf("data-asignacion");
+    const caja = marcado.slice(inicio, marcado.indexOf("</section>", inicio));
+    expect(caja.match(/<form /g) ?? []).toHaveLength(3); // el de asignar + uno por cada una de las dos asignaciones
+    expect(caja.match(/>Quitárselo<\/button>/g) ?? []).toHaveLength(2);
   });
 
   // Mutación que la mata: dejar las casillas marcadas de quien ya lo tiene.
@@ -371,8 +425,9 @@ describe("la caja de quién hace el examen", () => {
     expect(marcado).not.toContain("checked");
   });
 
-  // Mutación que la mata: quitar el botón, o dejarlo fijo en un solo texto en
-  // vez de alternar según si ya está todo marcado.
+  // Mutación que la mata: quitar el botón. `renderToStaticMarkup` solo ve el
+  // estado inicial (las casillas nacen vacías), así que no puede probar que el
+  // texto alterne al marcar todos: eso es para una prueba con jsdom, no esta.
   it("el botón «marcar todos» aparece, y con las casillas vacías dice «Marcar todos»", async () => {
     const marcado = await pintar("PUBLICADO");
     expect(marcado).toContain("Ana"); // que la caja se pintó de verdad
