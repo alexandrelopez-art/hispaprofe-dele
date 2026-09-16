@@ -41,6 +41,7 @@ describe("el aviso de examen asignado", () => {
     for (const parte of [mensaje.texto, mensaje.html]) {
       expect(parte).toContain("Ana");
       expect(parte).toContain("Examen 1");
+      expect(parte).toContain(datos.nivel);
       expect(parte).toContain("martes, 20 de octubre de 2026");
       expect(parte).toContain("https://hispaprofe-dele.vercel.app");
     }
@@ -54,5 +55,26 @@ describe("el aviso de examen asignado", () => {
 
     expect(mensaje.texto).not.toContain("/entrar/");
     expect(mensaje.texto).not.toContain("quince minutos");
+  });
+
+  // Mutación que la mata: quitar la llamada a escaparHtml de la interpolación
+  // del título. Sin escape, un & o < en el título rompería el marcado del correo.
+  it("escapa caracteres especiales en el HTML pero no en el texto plano", () => {
+    const datosConCaracteresEspeciales = {
+      ...datos,
+      titulo: "Examen 1 & 2 <escolar>",
+    };
+    const mensaje = mensajeDeAsignacion(
+      "ana@ejemplo.com",
+      datosConCaracteresEspeciales
+    );
+
+    // En el texto plano, los caracteres especiales van sin escapar
+    expect(mensaje.texto).toContain("Examen 1 & 2 <escolar>");
+
+    // En el HTML, están escapados
+    expect(mensaje.html).toContain("&amp;");
+    expect(mensaje.html).toContain("&lt;");
+    expect(mensaje.html).not.toContain("Examen 1 & 2 <escolar>");
   });
 });

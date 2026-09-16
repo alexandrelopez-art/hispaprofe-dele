@@ -23,6 +23,14 @@ ${url}
   return { a, asunto: "Tu entrada a HispaProfe", texto, html };
 }
 
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export type DatosDeAsignacion = {
   nombre: string;
   titulo: string;
@@ -49,8 +57,8 @@ export function mensajeDeAsignacion(a: string, datos: DatosDeAsignacion): Mensaj
     url,
   ].join("\n");
 
-  const html = `<p>Hola, ${nombre}.</p>
-<p>Tienes un examen para hacer: <strong>${titulo}</strong> (${nivel}).</p>
+  const html = `<p>Hola, ${escaparHtml(nombre)}.</p>
+<p>Tienes un examen para hacer: <strong>${escaparHtml(titulo)}</strong> (${escaparHtml(nivel)}).</p>
 <p>Fecha tope: ${fechaEnPalabras}.</p>
 <p><a href="${url}">Entrar en HispaProfe</a></p>`;
 
