@@ -357,6 +357,15 @@ function sinEmpezar(): PruebaParaHacer {
   return pruebaDePrueba();
 }
 
+// CE (lectura) YA EMPEZADA: la única fixture con reloj en marcha, que es donde
+// la salida a Inicio tiene que advertir de que el reloj no se para.
+function haciendoLectura(): PruebaParaHacer {
+  return pruebaDePrueba({
+    estado: { estado: "HACIENDO", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: 1800,
+  });
+}
+
 // CO (auditiva) sin empezar: el aviso de audio, todavía sin intento.
 function sinEmpezarAuditiva(): PruebaParaHacer {
   return pruebaDePrueba({ prueba: "CO", minutos: null, tareas: [auditivaUnoConFotos()] });
@@ -496,6 +505,30 @@ describe("la pantalla que hace el estudiante", () => {
     const html = await pintarPagina(entregadaCon19De25());
     expect(html).toContain("19 de 25");
     expect(html).not.toContain("La respuesta correcta");
+  });
+
+  // Mutación que la mata: quitar <VolverAInicio> del armazón, que es como salió
+  // la entrega: el sitio no tiene cabecera común, así que sin este enlace la
+  // pantalla del examen es un callejón y al terminar la lectura no hay forma de
+  // llegar a la auditiva salvo el botón de atrás. Lo cazó el profesor haciendo
+  // la aceptación, con la lectura ya entregada y sin saber cómo seguir.
+  it("las cuatro caras tienen salida a Inicio", async () => {
+    for (const cara of [sinEmpezar(), haciendoAuditiva(), entregadaCon19De25(), enLibre()]) {
+      const html = await pintarPagina(cara);
+      expect(html).not.toBe("");
+      expect(html).toContain('href="/"');
+      expect(html).toContain("Volver a Inicio");
+    }
+  });
+
+  // Mutación que la mata: enseñar el aviso del reloj siempre, o no enseñarlo
+  // nunca. Irse a Inicio a media lectura es legal —las respuestas ya están
+  // guardadas—, pero irse creyendo que el reloj se para, no.
+  it("solo avisa de que el reloj sigue cuando hay reloj y está empezada", async () => {
+    expect(await pintarPagina(haciendoLectura())).toContain("El reloj sigue corriendo.");
+    expect(await pintarPagina(haciendoAuditiva())).not.toContain("El reloj sigue corriendo.");
+    expect(await pintarPagina(sinEmpezar())).not.toContain("El reloj sigue corriendo.");
+    expect(await pintarPagina(entregadaCon19De25())).not.toContain("El reloj sigue corriendo.");
   });
 
   // Mutación que la mata: dejar el reloj en la pantalla del modo libre.

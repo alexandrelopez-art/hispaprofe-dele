@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Prueba } from "@/lib/generated/prisma";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
@@ -397,10 +398,40 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
 
   // El modo libre no tiene intento que abrir ni que cerrar: se corrige al
   // vuelo desde el primer momento, así que no pasa por el aviso previo.
-  if (prueba.modo === "LIBRE") return <PruebaLibre prueba={prueba} />;
-  if (prueba.estado.estado === "SIN_EMPEZAR") {
-    return <AvisoPrevio prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />;
-  }
-  if (prueba.estado.estado === "ENTREGADA") return <PruebaEntregada prueba={prueba} />;
-  return <PruebaHaciendo prueba={prueba} />;
+  const cara =
+    prueba.modo === "LIBRE" ? <PruebaLibre prueba={prueba} />
+    : prueba.estado.estado === "SIN_EMPEZAR" ? <AvisoPrevio prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />
+    : prueba.estado.estado === "ENTREGADA" ? <PruebaEntregada prueba={prueba} />
+    : <PruebaHaciendo prueba={prueba} />;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
+      {cara}
+    </div>
+  );
+}
+
+/**
+ * La salida. Sin esto la pantalla del examen es un callejón: no hay cabecera
+ * común en el sitio, así que al terminar la lectura no había forma de volver
+ * a Inicio para empezar la auditiva más que con el botón de atrás del
+ * navegador. Lo cazó el profesor en la aceptación, no las pruebas.
+ *
+ * Va en las cuatro caras, también mientras se hace una prueba con reloj: lo
+ * que NO se puede hacer es irse creyendo que el reloj se para, y por eso ahí
+ * lo dice. Es un enlace y no un formulario porque no cambia nada: las
+ * respuestas ya están guardadas en el servidor según se marcan.
+ */
+function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
+  return (
+    <p>
+      <Link href="/" className="text-hp-600 underline">
+        ← Volver a Inicio
+      </Link>
+      {haciendoConReloj && (
+        <span className="ml-2 text-sm text-tinta-suave">El reloj sigue corriendo.</span>
+      )}
+    </p>
+  );
 }
