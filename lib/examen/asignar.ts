@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/db";
 import type { Mandar } from "@/lib/correo/mensaje";
 import { mensajeDeAsignacion } from "@/lib/correo/mensaje";
-import type { ModoDeExamen, Nivel } from "@/lib/generated/prisma";
+import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
 import { NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { bloquearExamen } from "@/lib/taller/publicado";
-import { fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { estadoDePrueba, textoDelEstado, type EstadoDePrueba } from "./motor";
+import { PRUEBAS_QUE_SE_HACEN } from "./paraHacer";
 
 export type ResultadoDeAsignar = { asignados: number; sinAviso: string[] } | { error: string };
 
@@ -113,13 +115,56 @@ export async function quitarAsignacion(examenId: string, personaId: string): Pro
   return {};
 }
 
-export async function asignacionesDelExamen(examenId: string): Promise<{ personaId: string; nombre: string; fechaTope: Date }[]> {
+export type EstadoDeUnaPrueba = { prueba: Prueba; estado: EstadoDePrueba; texto: string };
+
+type IntentoParaEstado = { prueba: Prueba; entregadaEn: Date | null; aciertos: number | null; total: number | null; porTiempo: boolean };
+
+// Los campos que las dos consultas de abajo piden de `intentos`: los mismos
+// que necesita estadoDePrueba, más `prueba` para emparejarlos con
+// PRUEBAS_QUE_SE_HACEN. Nunca las respuestas ni la clave: eso no sale de
+// pruebaParaHacer.
+const CAMPOS_DEL_INTENTO = { prueba: true, entregadaEn: true, aciertos: true, total: true, porTiempo: true } as const;
+
+/**
+ * El estado de las dos pruebas que hoy tienen pantalla, para una asignación.
+ * En modo LIBRE no hay intento nunca (corregirEnLibre corrige al vuelo y no
+ * deja rastro): un estado ahí sería mentira, así que se devuelve vacío.
+ */
+function pruebasDeLaAsignacion(modo: ModoDeExamen, intentos: readonly IntentoParaEstado[]): EstadoDeUnaPrueba[] {
+  if (modo === "LIBRE") return [];
+  return PRUEBAS_QUE_SE_HACEN.map((prueba) => {
+    const estado = estadoDePrueba(intentos.find((i) => i.prueba === prueba) ?? null);
+    return { prueba, estado, texto: textoDelEstado(estado) };
+  });
+}
+
+/** Días enteros de retraso entre el tope y la entrega. Al menos 1: el tope ya es el final del día. */
+function diasDeRetraso(fechaTope: Date, entregadaEn: Date): number {
+  return Math.max(1, Math.ceil((entregadaEn.getTime() - fechaTope.getTime()) / 86_400_000));
+}
+
+export async function asignacionesDelExamen(
+  examenId: string,
+): Promise<{ personaId: string; nombre: string; fechaTope: Date; pruebas: EstadoDeUnaPrueba[] }[]> {
   const filas = await prisma.asignacion.findMany({
     where: { examenId },
-    include: { persona: { select: { nombre: true } } },
+    include: { persona: { select: { nombre: true } }, intentos: { select: CAMPOS_DEL_INTENTO } },
     orderBy: { persona: { nombre: "asc" } },
   });
-  return filas.map((f) => ({ personaId: f.personaId, nombre: f.persona.nombre, fechaTope: f.fechaTope }));
+  return filas.map((f) => ({
+    personaId: f.personaId,
+    nombre: f.persona.nombre,
+    fechaTope: f.fechaTope,
+    // El retraso se añade AQUÍ, no dentro de pruebasDeLaAsignacion: es lo que
+    // ve el profesor (la razón de ser de un tope blando), y no lo que se le
+    // enseña al propio estudiante en asignacionesDe.
+    pruebas: pruebasDeLaAsignacion(f.modo, f.intentos).map((p) => {
+      const entrega = f.intentos.find((i) => i.prueba === p.prueba)?.entregadaEn;
+      if (!entrega || !estaFueraDePlazo(f.fechaTope, entrega)) return p;
+      const dias = diasDeRetraso(f.fechaTope, entrega);
+      return { ...p, texto: `${p.texto} — ${dias} ${dias === 1 ? "día" : "días"} tarde` };
+    }),
+  }));
 }
 
 export type AsignacionDelEstudiante = {
@@ -128,17 +173,20 @@ export type AsignacionDelEstudiante = {
   nivel: Nivel;
   modo: ModoDeExamen;
   fechaTope: Date;
+  pruebas: EstadoDeUnaPrueba[];
 };
 
 /**
  * Lo único que sale hacia el navegador del estudiante. Se construye campo a
  * campo, como actividadParaElEstudiante: si mañana la asignación gana un campo
- * con la nota o con las respuestas, no se cuela solo por existir.
+ * con la nota o con las respuestas, no se cuela solo por existir. Ahora sí
+ * lleva la nota (en `pruebas`), y por eso importa más, no menos: el retraso
+ * que ve el profesor en asignacionesDelExamen NO se cuela aquí.
  */
 export async function asignacionesDe(personaId: string): Promise<AsignacionDelEstudiante[]> {
   const filas = await prisma.asignacion.findMany({
     where: { personaId },
-    include: { examen: { select: { id: true, titulo: true, nivel: true } } },
+    include: { examen: { select: { id: true, titulo: true, nivel: true } }, intentos: { select: CAMPOS_DEL_INTENTO } },
     orderBy: { fechaTope: "asc" },
   });
   return filas.map((f) => ({
@@ -147,5 +195,6 @@ export async function asignacionesDe(personaId: string): Promise<AsignacionDelEs
     nivel: f.examen.nivel,
     modo: f.modo,
     fechaTope: f.fechaTope,
+    pruebas: pruebasDeLaAsignacion(f.modo, f.intentos),
   }));
 }

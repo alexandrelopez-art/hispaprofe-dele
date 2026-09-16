@@ -7,10 +7,11 @@ import type { Persona } from "@/lib/generated/prisma";
 // funcionado. Mismos dobles que en tests/puerta-sesion-http.test.ts, porque
 // Portada llama a personaDeLaPeticion(), que vive sobre cookies() y
 // personaDeLaCookie.
-const { cookiesGet, personaDeLaCookie, asignacionesDe } = vi.hoisted(() => ({
+const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron } = vi.hoisted(() => ({
   cookiesGet: vi.fn(),
   personaDeLaCookie: vi.fn(),
   asignacionesDe: vi.fn(),
+  cerrarLasQueSePasaron: vi.fn(),
 }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: cookiesGet }),
@@ -19,6 +20,13 @@ vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie }));
 // Doblado para que la suite normal nunca arrastre el cliente de Prisma que
 // hay detrás de asignacionesDe: sin este doble, `npm test` pediría DATABASE_URL.
 vi.mock("@/lib/examen/asignar", () => ({ asignacionesDe }));
+// Mismo motivo: cerrarLasQueSePasaron vive sobre prisma.intento.
+vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron }));
+// La portada también importa PRUEBAS_QUE_SE_HACEN de lib/examen/paraHacer.ts,
+// que a su vez importa lib/db (prisma) al cargarse. Con este doble se deja
+// pasar el resto del módulo real (PRUEBAS_QUE_SE_HACEN, la lista de verdad)
+// sin arrastrar el cliente de Prisma.
+vi.mock("@/lib/db", () => ({ prisma: {} }));
 
 import Portada from "@/app/page";
 
@@ -118,6 +126,16 @@ describe("la portada", () => {
   });
 });
 
+const SIN_EMPEZAR = { estado: "SIN_EMPEZAR" as const, aciertos: null, total: null, porTiempo: false };
+// Las dos pruebas de hoy, ambas sin empezar: la forma que trae asignacionesDe
+// para una asignación en modo COMPLETO recién creada, según pruebasDeLaAsignacion.
+function dosSinEmpezar() {
+  return [
+    { prueba: "CE" as const, estado: SIN_EMPEZAR, texto: "Sin empezar" },
+    { prueba: "CO" as const, estado: SIN_EMPEZAR, texto: "Sin empezar" },
+  ];
+}
+
 const ASIGNADO = {
   examenId: "x1",
   titulo: "Examen 1",
@@ -128,6 +146,7 @@ const ASIGNADO = {
   nivel: "A2_B1_ESCOLAR" as const,
   modo: "COMPLETO" as const,
   fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+  pruebas: dosSinEmpezar(),
 };
 // A las 23:30 UTC del 20 ya son las 01:30 del 21 en Madrid (CEST, +2): esta sí
 // discrepa entre pintar con huso o sin él.
@@ -137,6 +156,7 @@ const ASIGNADO_DE_MADRUGADA = {
   nivel: "A2_B1_ESCOLAR" as const,
   modo: "COMPLETO" as const,
   fechaTope: new Date("2026-10-20T23:30:00.000Z"),
+  pruebas: dosSinEmpezar(),
 };
 
 describe("Inicio del estudiante", () => {
@@ -173,6 +193,76 @@ describe("Inicio del estudiante", () => {
     expect(await html()).toContain("No tienes nada pendiente");
   });
 
+  // Mutación que la mata: dejar la línea «Todavía no puedes empezarlo» de la
+  // 3b. Es la frase que esta entrega viene a borrar.
+  it("el estudiante ve un botón por prueba, no la promesa de la 3b", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([ASIGNADO]);
+
+    const marcado = await html();
+
+    expect(marcado).toContain("Lectura");
+    expect(marcado).toContain("Auditiva");
+    expect(marcado).toContain('href="/examen/x1/CE"');
+    expect(marcado).toContain('href="/examen/x1/CO"');
+    expect(marcado).not.toContain("Todavía no puedes empezarlo");
+  });
+
+  // Mutación que la mata: no pintar el estado de cada prueba. El estudiante no
+  // sabría si ya la hizo.
+  it("dice el estado de cada prueba", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([
+      {
+        ...ASIGNADO,
+        pruebas: [
+          { prueba: "CE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 19, total: 25, porTiempo: false }, texto: "Entregada, 19 de 25" },
+          { prueba: "CO" as const, estado: { estado: "HACIENDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "A medias" },
+        ],
+      },
+    ]);
+
+    const marcado = await html();
+
+    expect(marcado).toContain("Entregada, 19 de 25");
+    expect(marcado).toContain("A medias");
+    // El botón cambia con el estado: «Ver resultado» para la entregada, «Seguir»
+    // para la que está a medias. Mutación que la mata: un botón fijo que
+    // ignore `deLaPrueba.estado.estado`.
+    expect(marcado).toContain("Ver resultado");
+    expect(marcado).toContain("Seguir");
+  });
+
+  // Mutación que la mata: pintar también el estado en modo libre (ahí no hay
+  // intento nunca, así que un estado sería mentira), o no ofrecer «Practicar».
+  it("en modo libre, las dos filas sin estado y con Practicar", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([{ ...ASIGNADO, modo: "LIBRE" as const, pruebas: [] }]);
+
+    const marcado = await html();
+
+    expect(marcado).toContain("Lectura");
+    expect(marcado).toContain("Auditiva");
+    expect(marcado.match(/Practicar/g) ?? []).toHaveLength(2);
+    expect(marcado).not.toContain("Sin empezar");
+  });
+
+  // Mutación que la mata: no barrer antes de leer, o barrer sin ámbito (toda
+  // la base en vez de esta persona). Es lo que evita que quien cerró el
+  // portátil se quede «a medias» para siempre y sin nota.
+  it("antes de leer, cierra las pruebas de ESTA persona que se pasaron de hora", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+
+    await html();
+
+    expect(cerrarLasQueSePasaron).toHaveBeenCalledWith({ personaId: ESTUDIANTE.id }, expect.any(Date));
+    expect(cerrarLasQueSePasaron.mock.invocationCallOrder[0]).toBeLessThan(asignacionesDe.mock.invocationCallOrder[0]!);
+  });
+
   // Mutación que la mata: no llamar a estaFueraDePlazo, o compararlo al revés.
   it("marca el que se pasó de plazo", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
@@ -197,7 +287,7 @@ describe("Inicio del estudiante", () => {
   });
 
   // Mutación que la mata: pedir las asignaciones también para el profesor y
-  // pintarle tarjetas vacías en su portada.
+  // pintarle tarjetas vacías en su portada, o barrer sus pruebas (no tiene).
   it("al profesor no se le piden asignaciones", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
@@ -205,5 +295,6 @@ describe("Inicio del estudiante", () => {
     await html();
 
     expect(asignacionesDe).not.toHaveBeenCalled();
+    expect(cerrarLasQueSePasaron).not.toHaveBeenCalled();
   });
 });

@@ -1,15 +1,34 @@
 import Link from "next/link";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
-import { asignacionesDe } from "@/lib/examen/asignar";
+import { asignacionesDe, type AsignacionDelEstudiante, type EstadoDeUnaPrueba } from "@/lib/examen/asignar";
+import { cerrarLasQueSePasaron } from "@/lib/examen/hacer";
+import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
 import { NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { estaFueraDePlazo, fechaEnPalabras } from "@/lib/tiempo/madrid";
+
+// Solo las dos pruebas de hoy tienen fila aquí: la 3d y la 3e traerán las
+// otras dos, y no antes de que tengan pantalla propia (PRUEBAS_QUE_SE_HACEN).
+const NOMBRE_CORTO: Record<string, string> = { CE: "Lectura", CO: "Auditiva" };
+
+function textoDelBoton(estado: EstadoDeUnaPrueba | undefined): string {
+  if (!estado) return "Practicar"; // modo libre: sin intento, sin estado que mentir.
+  if (estado.estado.estado === "SIN_EMPEZAR") return "Empezar";
+  if (estado.estado.estado === "HACIENDO") return "Seguir";
+  return "Ver resultado";
+}
 
 export default async function Portada() {
   const persona = await personaDeLaPeticion();
   const esProfesor = persona?.papel === "PROFESOR";
-  // Solo se piden si hacen falta: al profesor no se le pinta ninguna tarjeta.
-  const asignaciones = persona && !esProfesor ? await asignacionesDe(persona.id) : [];
   const ahora = new Date();
+  // Solo se piden si hacen falta: al profesor no se le pinta ninguna tarjeta.
+  let asignaciones: AsignacionDelEstudiante[] = [];
+  if (persona && !esProfesor) {
+    // Antes de leer: si no, quien cerró el portátil a medio examen se vería
+    // "a medias" para siempre y sin nota.
+    await cerrarLasQueSePasaron({ personaId: persona.id }, ahora);
+    asignaciones = await asignacionesDe(persona.id);
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
@@ -38,9 +57,26 @@ export default async function Portada() {
                         ? `Se pasó el plazo el ${fechaEnPalabras(a.fechaTope)}.`
                         : `Para el ${fechaEnPalabras(a.fechaTope)}.`}
                     </p>
-                    {/* El botón de empezar llega con la 3c: hasta entonces se dice, no se
-                        enseña un botón que no lleva a ninguna parte. */}
-                    <p className="text-sm text-tinta-suave">Todavía no puedes empezarlo. Te avisaré cuando se abra.</p>
+                    <ul className="flex flex-col gap-2 border-t border-tinta-suave/10 pt-3">
+                      {PRUEBAS_QUE_SE_HACEN.map((prueba) => {
+                        const deLaPrueba = a.pruebas.find((p) => p.prueba === prueba);
+                        return (
+                          <li key={prueba} className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-bold">{NOMBRE_CORTO[prueba]}</span>
+                            {deLaPrueba && <span className="text-sm text-tinta-suave">{deLaPrueba.texto}</span>}
+                            {/* Nunca cambia nada: solo lleva a la pantalla de la prueba, así que
+                                enlace está bien. Un botón que cambia algo sí tendría que ser un
+                                formulario, porque Next precarga los enlaces en cuanto se pintan. */}
+                            <Link
+                              href={`/examen/${a.examenId}/${prueba}`}
+                              className="rounded-2xl bg-hp-400 px-4 py-2 text-sm font-bold text-white"
+                            >
+                              {textoDelBoton(deLaPrueba)}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </li>
                 ))}
               </ul>

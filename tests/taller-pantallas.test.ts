@@ -17,6 +17,7 @@ const dobles = vi.hoisted(() => ({
   listarCuadernillos: vi.fn(),
   estudiantesParaAsignar: vi.fn(),
   asignacionesDelExamen: vi.fn(),
+  cerrarLasQueSePasaron: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -36,6 +37,7 @@ vi.mock("@/lib/examen/asignar", () => ({
   asignacionesDelExamen: dobles.asignacionesDelExamen,
   estudiantesParaAsignar: dobles.estudiantesParaAsignar,
 }));
+vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron }));
 // Cada acción que importan las pantallas o sus componentes tiene que existir en
 // el doble: Vitest revienta al leer una exportación que el doble no define.
 vi.mock("@/app/examenes/acciones", () => ({
@@ -357,14 +359,20 @@ describe("la caja de quién hace el examen", () => {
     return renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
   };
 
+  const SIN_EMPEZAR = { estado: "SIN_EMPEZAR" as const, aciertos: null, total: null, porTiempo: false };
+  const dosSinEmpezar = () => [
+    { prueba: "CE" as const, estado: SIN_EMPEZAR, texto: "Sin empezar" },
+    { prueba: "CO" as const, estado: SIN_EMPEZAR, texto: "Sin empezar" },
+  ];
+
   beforeEach(() => {
     dobles.estudiantesParaAsignar.mockResolvedValue([{ id: "e1", nombre: "Ana", correo: "ana@ejemplo.com" }]);
     dobles.asignacionesDelExamen.mockResolvedValue([
-      { personaId: "e1", nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
+      { personaId: "e1", nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z"), pruebas: dosSinEmpezar() },
       // A las 23:30 UTC del 20 ya son las 01:30 del 21 en Madrid (CEST, +2):
       // esta fecha sí discrepa entre pintar con huso o sin él (la de Ana cae
       // el mismo día se aplique el huso o no, y por sí sola no distinguiría).
-      { personaId: "e2", nombre: "Luis", fechaTope: new Date("2026-10-20T23:30:00.000Z") },
+      { personaId: "e2", nombre: "Luis", fechaTope: new Date("2026-10-20T23:30:00.000Z"), pruebas: dosSinEmpezar() },
     ]);
   });
 
@@ -381,6 +389,9 @@ describe("la caja de quién hace el examen", () => {
     expect(marcado).toContain("Publícalo primero: un examen en construcción todavía no se asigna.");
     expect(marcado).not.toContain("Marcar todos");
     expect(marcado).toContain("Archivar");
+    // Mutación que la mata: barrer también cuando no está publicado. No hay
+    // nada que asignar todavía, así que no hay nada que cerrar.
+    expect(dobles.cerrarLasQueSePasaron).not.toHaveBeenCalled();
   });
 
   // Mutación que la mata: no pintar la fecha de quien ya lo tiene, o pintarla
@@ -396,6 +407,79 @@ describe("la caja de quién hace el examen", () => {
     expect(marcado).toContain("martes, 20 de octubre de 2026");
     expect(marcado).toContain("Luis");
     expect(marcado).toContain("miércoles, 21 de octubre de 2026");
+  });
+
+  // Mutación que la mata: no pasar `pruebas` a QuienLoHace, o no pintar
+  // `p.texto` junto a cada nombre. Sin esto el profesor no sabe, sin entrar en
+  // cada examen, quién ya lo entregó ni con qué nota.
+  it("junto a cada nombre, el estado y la nota de las dos pruebas", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      {
+        personaId: "e1",
+        nombre: "Ana",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "CE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 19, total: 25, porTiempo: false }, texto: "Entregada, 19 de 25" },
+          { prueba: "CO" as const, estado: { estado: "HACIENDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "A medias" },
+        ],
+      },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain("Ana");
+    expect(marcado).toContain("Entregada, 19 de 25");
+    expect(marcado).toContain("A medias");
+  });
+
+  // El cálculo del retraso vive en asignar.ts y se prueba aparte, contra la
+  // base, en tests/base/asignaciones.test.ts. Aquí solo se comprueba que la
+  // pantalla PINTA el texto que le llega, entero.
+  // Mutación que la mata: no pintar `p.texto` tal cual (cortarlo, o no pasar
+  // `pruebas` a QuienLoHace).
+  it("quien entregó fuera de plazo lo lleva escrito", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      {
+        personaId: "e2",
+        nombre: "Luis",
+        fechaTope: new Date("2026-10-20T23:30:00.000Z"),
+        pruebas: [
+          { prueba: "CE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 10, total: 25, porTiempo: false }, texto: "Entregada, 10 de 25 — 2 días tarde" },
+          { prueba: "CO" as const, estado: SIN_EMPEZAR, texto: "Sin empezar" },
+        ],
+      },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain("Luis");
+    expect(marcado).toContain("2 días tarde");
+  });
+
+  // Mutación que la mata: pintar un estado vacío o «Sin empezar» cuando
+  // `pruebas` llega vacío (modo libre: ahí no hay intento nunca, y un estado
+  // sería mentira).
+  it("en modo libre, sin pruebas, no pinta ningún estado", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      { personaId: "e3", nombre: "Marta", fechaTope: new Date("2026-10-20T21:59:59.999Z"), pruebas: [] },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain("Marta");
+    expect(marcado).not.toContain("Sin empezar");
+  });
+
+  // Mutación que la mata: no barrer antes de leer, o barrer sin ámbito (toda
+  // la base en vez de este examen). El profesor vería «a medias» eterno de
+  // quien cerró el portátil.
+  it("antes de leer quién lo hace, cierra las pruebas de ESTE examen que se pasaron de hora", async () => {
+    await pintar("PUBLICADO");
+
+    expect(dobles.cerrarLasQueSePasaron).toHaveBeenCalledWith({ examenId: "x1" }, expect.any(Date));
+    expect(dobles.cerrarLasQueSePasaron.mock.invocationCallOrder[0]).toBeLessThan(
+      dobles.asignacionesDelExamen.mock.invocationCallOrder[0]!,
+    );
   });
 
   // Quitárselo cambia algo: tiene que ser un formulario POST, nunca un enlace

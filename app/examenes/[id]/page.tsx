@@ -6,6 +6,7 @@ import { examenParaElTaller } from "@/lib/taller/examenes";
 import { textoDelGasto } from "@/lib/taller/ia/coste";
 import { listarCuadernillos } from "@/lib/taller/cuadernillos";
 import { asignacionesDelExamen, estudiantesParaAsignar } from "@/lib/examen/asignar";
+import { cerrarLasQueSePasaron } from "@/lib/examen/hacer";
 import {
   archivarExamenAccion,
   publicarExamenAccion,
@@ -49,6 +50,11 @@ export default async function PantallaDelExamen({
   const motivos = examen.motivosParaPublicar;
   // Solo se piden si hace falta: en construcción o archivado serían dos
   // consultas de más en cada visita al taller.
+  if (publicado) {
+    // Antes de leer quién lo hace: si no, quien cerró el portátil a medio
+    // examen se vería "a medias" para siempre y sin nota en esta lista.
+    await cerrarLasQueSePasaron({ examenId: id }, new Date());
+  }
   const [estudiantes, asignaciones] = publicado
     ? await Promise.all([estudiantesParaAsignar(), asignacionesDelExamen(id)])
     : [[], []];

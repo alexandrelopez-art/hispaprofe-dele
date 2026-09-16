@@ -179,13 +179,75 @@ describe("quitar y listar", () => {
   // Lo que viaja al navegador del estudiante se construye campo a campo.
   it("lo del estudiante trae lo justo para pintar", async () => {
     await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    const sinEmpezar = { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false };
 
     expect(await asignacionesDe(ana.id)).toEqual([
-      { examenId: examen.id, titulo: "Examen 1", nivel: "A2_B1_ESCOLAR", modo: "COMPLETO", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
+      {
+        examenId: examen.id,
+        titulo: "Examen 1",
+        nivel: "A2_B1_ESCOLAR",
+        modo: "COMPLETO",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "CE", estado: sinEmpezar, texto: "Sin empezar" },
+          { prueba: "CO", estado: sinEmpezar, texto: "Sin empezar" },
+        ],
+      },
     ]);
     expect(await asignacionesDelExamen(examen.id)).toEqual([
-      { personaId: ana.id, nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
+      {
+        personaId: ana.id,
+        nombre: "Ana",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "CE", estado: sinEmpezar, texto: "Sin empezar" },
+          { prueba: "CO", estado: sinEmpezar, texto: "Sin empezar" },
+        ],
+      },
     ]);
+  });
+
+  // Mutación que la mata: seguir devolviendo un estado (SIN_EMPEZAR u otro)
+  // cuando el modo es LIBRE. Ahí no hay intento nunca (corregirEnLibre
+  // corrige al vuelo y no deja rastro): un estado sería mentira.
+  it("en modo libre no hay pruebas: las dos funciones lo dicen con la lista vacía", async () => {
+    await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE, modo: "LIBRE" } });
+
+    expect((await asignacionesDe(ana.id))[0]!.pruebas).toEqual([]);
+    expect((await asignacionesDelExamen(examen.id))[0]!.pruebas).toEqual([]);
+  });
+
+  // Mutación que la mata: no leer la nota del intento (dejarla en null), o no
+  // marcar la prueba como ENTREGADA cuando ya la tiene.
+  it("una prueba entregada trae su estado y su nota en las dos listas", async () => {
+    const asignacion = await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
+    await prisma.intento.create({
+      data: { asignacionId: asignacion.id, prueba: "CE", entregadaEn: new Date("2026-10-19T10:00:00Z"), aciertos: 19, total: 25 },
+    });
+
+    const deLaDe = (await asignacionesDe(ana.id))[0]!.pruebas.find((p) => p.prueba === "CE")!;
+    const delExamen = (await asignacionesDelExamen(examen.id))[0]!.pruebas.find((p) => p.prueba === "CE")!;
+    expect(deLaDe.estado).toEqual({ estado: "ENTREGADA", aciertos: 19, total: 25, porTiempo: false });
+    expect(deLaDe.texto).toBe("Entregada, 19 de 25");
+    expect(delExamen.estado).toEqual({ estado: "ENTREGADA", aciertos: 19, total: 25, porTiempo: false });
+    expect(delExamen.texto).toBe("Entregada, 19 de 25");
+  });
+
+  // Mutación que la mata: no comparar la entrega con el tope (dejar el texto
+  // tal cual textoDelEstado lo devuelve), o ponerlo también en asignacionesDe.
+  // El profesor ve el retraso porque es la razón de ser de un tope blando; al
+  // estudiante no se le cuenta lo suyo aparte.
+  it("quien entrega tarde lo lleva escrito solo en la lista del profesor", async () => {
+    const asignacion = await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
+    // El tope es "2026-10-20T21:59:59.999Z": dos días justos después.
+    await prisma.intento.create({
+      data: { asignacionId: asignacion.id, prueba: "CE", entregadaEn: new Date("2026-10-22T21:59:59.999Z"), aciertos: 19, total: 25 },
+    });
+
+    const deLaDe = (await asignacionesDe(ana.id))[0]!.pruebas.find((p) => p.prueba === "CE")!;
+    const delExamen = (await asignacionesDelExamen(examen.id))[0]!.pruebas.find((p) => p.prueba === "CE")!;
+    expect(deLaDe.texto).toBe("Entregada, 19 de 25");
+    expect(delExamen.texto).toBe("Entregada, 19 de 25 — 2 días tarde");
   });
 
   // Mutación que la mata: quitar la comprobación del intento. La asignación cae en
