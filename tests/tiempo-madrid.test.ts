@@ -28,12 +28,15 @@ describe("el fin del día en Madrid", () => {
 });
 
 describe("pintar la fecha", () => {
-  // Mutación que la mata: pintar sin timeZone (el servidor de Vercel va en UTC:
-  // las 23:59:59.999 de Madrid caen en el día anterior, y la tarjeta enseñaría
-  // el 19 en vez del 20).
+  // Mutación que la mata: quitar timeZone: HUSO de fechaEnPalabras. Sin él,
+  // la suite en UTC vería el día anterior (la tarjeta enseñaría el día incorrecto).
   it("la fecha en palabras sale en hora de Madrid", () => {
     const tope = finDelDiaEnMadrid("2026-10-20")!;
     expect(fechaEnPalabras(tope)).toBe("martes, 20 de octubre de 2026");
+    // Prueba aparte con un instante donde el día en Madrid diferente del de UTC.
+    // 2026-06-20T22:30:00Z son las 00:30 del 21 en Madrid (UTC+2) pero el 20 en UTC.
+    const diferenteDia = new Date("2026-06-20T22:30:00Z");
+    expect(fechaEnPalabras(diferenteDia)).toBe("domingo, 21 de junio de 2026");
   });
 });
 
