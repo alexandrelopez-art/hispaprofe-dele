@@ -97,23 +97,30 @@ describe("qué trozo toca", () => {
 });
 
 describe("de dónde a dónde suena un trozo", () => {
-  // Mutación que la mata: cortar el último trozo en `duracion`. La duración que
-  // declara el <audio> de un MP3 del libro sobra unos segundos (cabecera sin Xing
-  // fiable), así que cortar por ahí se comería el final de la última noticia.
+  // Mutación que la mata: cambiar las ramas del ternario de `hasta` (poner
+  // `cortes[trozo - 1]` en el último y `null` en los demás): el último
+  // devolvería `cortes[2]`, fuera de rango, en vez de `null`.
   it("el último suena hasta el final del fichero", () => {
     expect(limitesDelTrozo([113, 195], 3)).toEqual({ desde: 195, hasta: null });
   });
 
+  // Mutación que la mata: quitar el caso especial `trozo === 1` y calcular
+  // igual que los demás (`cortes[trozo - 2]`): sería `cortes[-1]`, `undefined`,
+  // en vez de `0`.
   it("el primero empieza en cero", () => {
     expect(limitesDelTrozo([113, 195], 1)).toEqual({ desde: 0, hasta: 113 });
   });
 
-  // Mutación que la mata: confundir el índice con el número de trozo (el clásico
-  // fallo de uno): el trozo 2 sonaría desde el principio.
+  // Mutación que la mata: confundir el índice con el número de trozo
+  // (`cortes[trozo - 1]` en vez de `cortes[trozo - 2]`): el trozo 2 empezaría
+  // en 195, la marca siguiente, no en 113.
   it("los de en medio van de marca a marca", () => {
     expect(limitesDelTrozo([113, 195], 2)).toEqual({ desde: 113, hasta: 195 });
   });
 
+  // Mutación que la mata: comparar con `cortes.length` en vez de
+  // `cortes.length + 1` para decidir si es el último. Con cero marcas eso
+  // daría `esElUltimo = false` y el trozo único no llegaría a sonar hasta el final.
   it("una tarea sin marcas es un solo trozo, la pista entera", () => {
     expect(limitesDelTrozo([], 1)).toEqual({ desde: 0, hasta: null });
   });

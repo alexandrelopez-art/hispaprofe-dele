@@ -27,6 +27,16 @@ type Estado =
   | { tipo: "error" };
 
 /**
+ * Los límites que llegaron son de fiar: ni `desde` ni `hasta` son
+ * `undefined`. Solo puede pasar si `cortes` no cuadra con `trozos` (un
+ * formulario mal guardado) — esta pantalla no puede arreglar esos datos,
+ * solo negarse a poner `el.currentTime = undefined` y reventar en silencio.
+ */
+function limitesValidos(l: { desde: number; hasta: number | null }): boolean {
+  return Number.isFinite(l.desde) && (l.hasta === null || Number.isFinite(l.hasta));
+}
+
+/**
  * La cinta de una tarea de auditiva: un trozo cada vez, apuntado en el
  * servidor antes de sonar (salvo cuando `racionada` es `false`), con una
  * pausa entre trozos para contestar.
@@ -37,6 +47,7 @@ export function Cinta({
   trozos,
   oidos,
   racionada,
+  entregada = false,
   alSonar,
 }: {
   ficheroId: string;
@@ -52,12 +63,24 @@ export function Cinta({
    * `false` a la vez sin ser el mismo concepto.
    */
   racionada: boolean;
+  /**
+   * La prueba ya se entregó: el intento está cerrado y CUALQUIER intento de
+   * marcar un trozo fallaría en el servidor (`YA_ENTREGADA`), así que aquí no
+   * hay clic que pueda salir bien. Se pinta agotada de entrada, sin botón, y
+   * sin tocar `alSonar` ni el `<audio>` — «Vuelve a entrar» no es un consejo
+   * que se pueda seguir en una prueba ya entregada.
+   */
+  entregada?: boolean;
   /** Apunta el trozo en el servidor ANTES de que suene. Si falla, no suena. */
   alSonar: (trozo: number) => Promise<{ error?: string }>;
 }) {
   const reproductor = useRef<HTMLAudioElement>(null);
   const hasta = useRef<number | null>(null);
-  const [oidosState, setOidosState] = useState<number[]>(oidos);
+  // Solo se siembra desde el servidor cuando raciona: en modo libre nunca se
+  // escribe nada (hoy `oidos` ya llega vacío en ese caso), pero sembrar igual
+  // desde `oidos` sería, si eso cambiara alguna vez, resucitar el racionamiento
+  // que el modo libre existe para no tener.
+  const [oidosState, setOidosState] = useState<number[]>(racionada ? oidos : []);
   const [estado, setEstado] = useState<Estado>(() =>
     siguienteTrozo(oidos, trozos) === null && racionada ? { tipo: "agotado" } : { tipo: "listo" },
   );
@@ -79,9 +102,18 @@ export function Cinta({
     const el = reproductor.current;
     if (!el) return;
     const limites = limitesDelTrozo(cortes, n);
+    // El trozo ya quedó marcado arriba: si los límites no cuadran (`cortes`
+    // desajustado de `trozos`), no se calla — se avisa, aunque ya esté escrito.
+    if (!limitesValidos(limites)) {
+      setEstado({ tipo: "error" });
+      return;
+    }
     hasta.current = limites.hasta;
     el.currentTime = limites.desde;
-    void el.play();
+    // Autoplay rechazado, fichero que da 404, decodificación que falla: el
+    // trozo ya está marcado, así que un rechazo silencioso lo quemaría sin
+    // que sonara y sin ningún botón para reintentar. Se avisa en vez de callar.
+    el.play().catch(() => setEstado({ tipo: "error" }));
   }
 
   // Se llama tanto al pulsar «Escuchar el audio» / «Sigue» como al acabarse
@@ -109,7 +141,13 @@ export function Cinta({
   }
 
   // La cuenta atrás de la pausa entre trozos: un segundo por vuelta, y al
-  // llegar a cero sigue sola sin que nadie tenga que tocar «Sigue».
+  // llegar a cero sigue sola sin que nadie tenga que tocar «Sigue». Solo
+  // depende de `estado`, no de `avanzar` (ni de lo que `avanzar` cierra por
+  // encima: `racionada`, `oidosState`, `trozos`, `cortes`, `alSonar`): es
+  // correcto hoy porque `estado` cambia en CADA vuelta del segundero, así que
+  // el efecto se desmonta y se vuelve a montar cada segundo y cierra sobre
+  // los valores más recientes de camino — no porque listar solo `estado` sea
+  // en general válido.
   useEffect(() => {
     if (estado.tipo !== "pausa") return;
     const id = setTimeout(() => {
@@ -119,6 +157,27 @@ export function Cinta({
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
+
+  // Al desmontar (cambiar de tarea, salir de la pantalla) el audio se para a
+  // mano: quitar el `<audio>` del DOM ya lo pararía solo, pero no conviene
+  // depender de eso.
+  useEffect(() => {
+    const el = reproductor.current;
+    return () => {
+      el?.pause();
+    };
+  }, []);
+
+  if (entregada) {
+    // Agotada de entrada, sin importar lo que digan `oidos` o `trozos`: un
+    // estudiante puede entregar sin haber oído las cuatro tareas, y aquí no
+    // hay ningún clic que el servidor vaya a aceptar.
+    return (
+      <section data-cinta className={CAJA}>
+        <p>Este audio ya ha sonado.</p>
+      </section>
+    );
+  }
 
   return (
     <section data-cinta className={CAJA}>
@@ -133,6 +192,7 @@ export function Cinta({
           }
         }}
         onEnded={trozoTerminado}
+        onError={() => setEstado({ tipo: "error" })}
       />
       {estado.tipo === "error" && <p role="alert" className={AVISO_DE_ERROR}>No se pudo preparar el audio. Vuelve a entrar.</p>}
       {estado.tipo === "agotado" && <p>Este audio ya ha sonado.</p>}

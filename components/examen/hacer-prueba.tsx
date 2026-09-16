@@ -36,14 +36,26 @@ function totalDePreguntas(tareas: TareaParaHacer[]): number {
  * racionar): la decide el armazón según el modo, no la propia cinta. No se
  * llama `bloqueada` a propósito: en `PruebaHaciendo` esa palabra ya significa
  * «no se puede contestar», y aquí significaría otra cosa distinta a la vez.
+ * `entregada` la pinta agotada sin más, sin importar lo que digan `oidos` o
+ * `trozos`: en la prueba ya entregada, marcar un trozo siempre fallaría.
+ *
+ * En las TRES llamadas de abajo va con `key={tarea.numero}`: sin esa key,
+ * cambiar de pestaña de tarea no remonta esta cinta (sigue en el mismo sitio
+ * del árbol, solo le cambian las props), y sus dos `useState` — los que
+ * siembran `oidos` y calculan si ya está agotada — no se vuelven a ejecutar.
+ * Una sola cinta serviría entonces a las cuatro tareas con el estado de la
+ * primera: la tarea 2 aparecería «ya sonada» sin haber sonado nunca, y el
+ * botón de la tarea 4 podría marcar el trozo de la tarea 3. La key parece
+ * de sobra — no lo es.
  */
 function CintaDeLaTarea({
-  examenId, prueba, tarea, racionada,
+  examenId, prueba, tarea, racionada, entregada,
 }: {
   examenId: string;
   prueba: Prueba;
   tarea: TareaParaHacer;
   racionada: boolean;
+  entregada?: boolean;
 }) {
   const audio = tarea.formulario.medios.audio;
   if (tarea.trozos <= 0 || !audio) return null;
@@ -54,6 +66,7 @@ function CintaDeLaTarea({
       trozos={tarea.trozos}
       oidos={tarea.oidos}
       racionada={racionada}
+      entregada={entregada}
       alSonar={marcarTrozoAccion.bind(null, examenId, prueba, tarea.numero)}
     />
   );
@@ -229,7 +242,9 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
-          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada />
+          {/* key: load-bearing, ver el comentario de CintaDeLaTarea — sin ella,
+              cambiar de pestaña reutiliza la cinta de la tarea anterior. */}
+          <CintaDeLaTarea key={tarea.numero} examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada />
           <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={null} bloqueada={bloqueadaPorError} alMarcar={alMarcar} />
         </>
       )}
@@ -255,7 +270,9 @@ function PruebaEntregada({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
-          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada />
+          {/* key: load-bearing, ver el comentario de CintaDeLaTarea. `entregada`
+              la pinta agotada sin más: aquí ningún clic va a salir bien. */}
+          <CintaDeLaTarea key={tarea.numero} examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada entregada />
           <TareaDelEstudiante tarea={tarea} marcadas={prueba.respuestas} fallos={prueba.fallos} bloqueada alMarcar={() => {}} />
         </>
       )}
@@ -312,7 +329,9 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
-          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada={false} />
+          {/* key: load-bearing, ver el comentario de CintaDeLaTarea — sin ella,
+              cambiar de pestaña reutiliza la cinta de la tarea anterior. */}
+          <CintaDeLaTarea key={tarea.numero} examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada={false} />
           <TareaDelEstudiante
             tarea={tarea}
             marcadas={marcadas}
