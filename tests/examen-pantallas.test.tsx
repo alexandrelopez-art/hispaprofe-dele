@@ -78,15 +78,71 @@ function auditivaUnoConFotos(): TareaParaHacer {
   });
 }
 
+// CE-3: OPCIONES con un texto largo (regla.textos: 1). Es el único camino sin
+// foto por el que `dosColumnas` puede salir true de verdad.
+function lecturaTres(): TareaParaHacer {
+  const regla = reglaDe("A2_B1_ESCOLAR", "CE", 3)!;
+  return tareaDe(3, regla, (f) => {
+    if (f.forma !== "OPCIONES") throw new Error("regla equivocada");
+    f.consigna = "Lee el texto y elige la opción correcta.";
+    f.textos = [{ etiqueta: "Texto", texto: "Un texto largo de la lectura 3." }];
+    f.actividad.preguntas = f.actividad.preguntas.map((p) => ({
+      ...p,
+      enunciado: `Enunciado ${p.numero}`,
+      opciones: p.opciones.map((o) => ({ ...o, texto: `Opción ${o.letra} de la ${p.numero}` })),
+    }));
+  });
+}
+
+// CO-4: OPCIONES agrupadas en tres noticias de dos preguntas cada una
+// (primero: 20, items: 6, grupos: 3): 20-21 → Noticia 1, 22-23 → Noticia 2,
+// 24-25 → Noticia 3.
+function auditivaCuatro(): TareaParaHacer {
+  const regla = reglaDe("A2_B1_ESCOLAR", "CO", 4)!;
+  return tareaDe(4, regla, (f) => {
+    if (f.forma !== "OPCIONES") throw new Error("regla equivocada");
+    f.consigna = "Escucha las tres noticias y contesta.";
+    f.actividad.preguntas = f.actividad.preguntas.map((p) => ({
+      ...p,
+      enunciado: `Enunciado ${p.numero}`,
+      opciones: p.opciones.map((o) => ({ ...o, texto: `Opción ${o.letra} de la ${p.numero}` })),
+    }));
+  });
+}
+
+// CE-4: HUECOS, siete huecos (primero: 19, items: 7) en un texto con título y
+// fuente.
+function lecturaCuatro(): TareaParaHacer {
+  const regla = reglaDe("A2_B1_ESCOLAR", "CE", 4)!;
+  return tareaDe(4, regla, (f) => {
+    if (f.forma !== "HUECOS") throw new Error("regla equivocada");
+    f.consigna = "Completa el texto con la opción correcta en cada hueco.";
+    f.actividad.titulo = "Título del texto";
+    f.actividad.texto = "Un texto con el hueco [19] y también el [20], hasta el [25].";
+    f.actividad.fuente = "Adaptado de una revista escolar.";
+    f.actividad.huecos = f.actividad.huecos.map((h) => ({
+      ...h,
+      opciones: h.opciones.map((o) => ({ ...o, texto: `Opción ${o.letra} del hueco ${h.numero}` })),
+    }));
+  });
+}
+
+/** Extrae el `<input>` de una letra en una pregunta, sin depender de en qué
+ * orden React sirva sus atributos (`checked` sale siempre antes que `value`,
+ * pero eso es un detalle de serialización, no algo que la prueba deba fijar). */
+function radioDe(html: string, nombrePregunta: string, letra: string): string {
+  const patron = new RegExp(`<input[^>]*name="${nombrePregunta}"[^>]*value="${letra}"[^>]*/>`);
+  return html.match(patron)?.[0] ?? "";
+}
+
 describe("TareaDelEstudiante", () => {
   // Mutación que la mata: pintar `datos` tal cual sin el estado marcado. El
   // estudiante recargaría y se encontraría el examen en blanco.
-  // El orden real que emite React para un <input> es `checked` antes que
-  // `value` (lo reordena siempre así, sin importar el orden de las props en
-  // el JSX): se comprueba tal cual sale, no como se escribió.
   it("enseña marcada la letra que ya eligió", () => {
     const html = pintar(lecturaDos(), { marcadas: { "8": "B" } });
-    expect(html).toContain('checked="" value="B"');
+    const radio = radioDe(html, "pregunta-8", "B");
+    expect(radio).not.toBe(""); // que el radio exista de verdad, no que un `toContain` vacío pase solo
+    expect(radio).toContain('checked=""');
   });
 
   // Mutación que la mata: dejar los radios vivos en una prueba entregada.
@@ -96,8 +152,13 @@ describe("TareaDelEstudiante", () => {
     expect(html).toContain("Pregunta 8");
   });
 
-  // Mutación que la mata: enseñar la letra correcta al corregir. Es la decisión
-  // del profesor: ve su fallo, no la solución.
+  // Mutación que la mata (el data-fallo): dejar de marcar la pregunta
+  // fallada al corregir. El `not.toContain` de la frase, en cambio, no mata
+  // ninguna mutación de lógica: ningún camino de este fichero conoce la
+  // letra correcta (`TareaParaHacer` no la trae), así que lo único que esa
+  // línea puede cazar es que alguien pegue la frase literal en la pantalla.
+  // La garantía real —que la letra correcta ni siquiera llega aquí— vive en
+  // lib/examen/paraHacer.ts, que nunca selecciona la clave.
   it("al corregir marca el fallo y NO dice cuál era la buena", () => {
     const tarea = lecturaDos();
     const html = pintar(tarea, { marcadas: { "8": "B" }, fallos: [8] });
@@ -128,5 +189,75 @@ describe("TareaDelEstudiante", () => {
     const html = pintar(lecturaDos(), {});
     expect(html).toContain("Texto 1");
     expect(html).toContain("Texto 3");
+  });
+
+  // Mutación que la mata: quitar el `aria-label` del <select> de relacionar.
+  // Sin él, un lector de pantalla (VoiceOver, habitual en el colegio) anuncia
+  // un combobox sin nombre: la única pista visual es la cabecera de arriba,
+  // que no está asociada al control.
+  it("relacionar: el desplegable lleva su propia etiqueta accesible", () => {
+    const html = pintar(lecturaUnoConEjemploEnB(), {});
+    expect(html).toContain('aria-label="Pregunta 1"');
+  });
+
+  // Mutación que la mata: quitar `f.textos.length > 0` de la condición de
+  // `dosColumnas` (o invertirla). La foto de la auditiva 1 no tiene textos
+  // sueltos, así que sin esta prueba el camino de las dos columnas en
+  // OPCIONES nunca se ejecuta.
+  it("opciones con texto largo (lectura 3): el texto se pinta y entra en dos columnas", () => {
+    const html = pintar(lecturaTres(), {});
+    expect(html).toContain("Un texto largo de la lectura 3.");
+    expect(html).toContain("md:grid-cols-2");
+  });
+
+  // Mutación que la mata: cualquier desliz de índice en la condición que
+  // decide cuándo pintar «Noticia N» (comparar con `a.preguntas[i]` en vez de
+  // `a.preguntas[i - 1]`, o quedarse solo con `i === 0`). El primer grupo que
+  // no empieza en el índice 0 (Noticia 2, en la pregunta 22) es justo donde
+  // un error de uno en uno se escondería.
+  it("opciones agrupadas (auditiva 4): las noticias caen justo en la pregunta que abre cada grupo", () => {
+    const html = pintar(auditivaCuatro(), {});
+    const orden = [...html.matchAll(/Noticia \d|Pregunta \d+/g)].map((m) => m[0]);
+    expect(orden).toEqual([
+      "Noticia 1", "Pregunta 20", "Pregunta 21",
+      "Noticia 2", "Pregunta 22", "Pregunta 23",
+      "Noticia 3", "Pregunta 24", "Pregunta 25",
+    ]);
+  });
+
+  // Mutación que la mata: no pintar el título, el texto o la fuente de
+  // HUECOS, o quedarse con menos de los siete huecos. Ni RELACIONAR, ni
+  // LISTA_COMUN, ni OPCIONES pasan por `TextoHuecos` ni por `ActividadHuecos`:
+  // sin esta prueba, ambas funciones no las cubre nada.
+  it("huecos: el texto largo con su título y su fuente se pinta entero, con los siete huecos", () => {
+    const html = pintar(lecturaCuatro(), {});
+    expect(html).toContain("Título del texto");
+    expect(html).toContain("Adaptado de una revista escolar.");
+    expect(html).toContain("Opción A del hueco 19");
+    expect(html).toContain("Opción A del hueco 25");
+  });
+
+  // Mutación que la mata: pintar `datos` tal cual sin el estado marcado en
+  // los radios de HUECOS.
+  it("huecos: el hueco marcado sale marcado", () => {
+    const html = pintar(lecturaCuatro(), { marcadas: { "19": "B" } });
+    const radio = radioDe(html, "pregunta-19", "B");
+    expect(radio).not.toBe("");
+    expect(radio).toContain('checked=""');
+  });
+
+  // Mutación que la mata: quitar `disabled={bloqueada}` de los radios de
+  // HUECOS.
+  it("huecos: entregado no se toca", () => {
+    const html = pintar(lecturaCuatro(), { bloqueada: true });
+    expect(html).toContain("Hueco 19");
+    expect(html).toContain("disabled");
+  });
+
+  // Mutación que la mata: no marcar `data-fallo` en el hueco fallado.
+  it("huecos: al corregir, el hueco fallado lleva data-fallo", () => {
+    const html = pintar(lecturaCuatro(), { fallos: [20] });
+    expect(html).not.toBe("");
+    expect(html).toContain('data-fallo="20"');
   });
 });

@@ -65,6 +65,7 @@ function ActividadRelacionar({
             <h3 className="font-bold">Pregunta {e.numero}</h3>
             {conTexto && <p className="whitespace-pre-wrap">{e.texto}</p>}
             <select
+              aria-label={`Pregunta ${e.numero}`}
               value={marcadas[String(e.numero)] ?? ""}
               disabled={bloqueada}
               onChange={(ev) => alMarcar(e.numero, ev.target.value)}
