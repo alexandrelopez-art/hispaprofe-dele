@@ -500,6 +500,21 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).not.toContain("<audio");
   });
 
+  // Mutación que la mata: pintar las opciones con foto en columna, como las de
+  // texto (que es como estaban: tres cintas de ancho completo con la foto
+  // pequeña dentro, «feas y alargadas» en palabras del profesor). En la
+  // auditiva 1 la respuesta ES la foto: las tres tienen que verse a la vez y
+  // compararse de un vistazo.
+  it("las opciones con foto van una al lado de otra, las de texto en columna", () => {
+    const conFotos = pintar(auditivaUnoConFotos(), {});
+    expect(conFotos).toContain("grid grid-cols-3");
+    expect(conFotos).toContain('src="/api/ficheros/foto-1-A"');
+    // La auditiva 4 no lleva fotos: sus opciones siguen una debajo de otra.
+    const sinFotos = pintar(auditivaCuatro(), {});
+    expect(sinFotos).not.toBe("");
+    expect(sinFotos).not.toContain("grid grid-cols-3");
+  });
+
   // Mutación que la mata: volver a juntar consulta y preguntas en una sola
   // columna (el `hayConsulta` que solo mira HUECOS y los textos sueltos, como
   // estaba). Relacionar son diez anuncios y seis personas: leídos uno detrás de

@@ -184,19 +184,40 @@ function OpcionRadio({
   disabled: boolean;
   onChange: () => void;
 }) {
-  return (
-    <label className={`flex items-center gap-3 rounded-xl border p-2 ${seleccionada ? "border-hp-400" : "border-tinta-suave/30"}`}>
-      <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} />
-      {conImagen ? (
-        // eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de 5 minutos
-        <img src={`/api/ficheros/${ficheroId}`} alt={`Opción ${letra}`} className="max-h-32 w-auto max-w-full rounded-lg" />
-      ) : (
-        <span>
-          {letra}. {texto}
+  const borde = seleccionada ? "border-hp-400" : "border-tinta-suave/30";
+  // Con foto, la foto manda: ocupa la caja entera y la letra va debajo, al lado
+  // del botón. Antes iba en una fila de ancho completo con la foto pequeña a un
+  // lado, y quedaban tres cintas alargadas y casi vacías: en esta tarea la
+  // respuesta ES la foto, así que tiene que ser lo que se ve.
+  if (conImagen) {
+    return (
+      <label className={`flex min-w-0 cursor-pointer flex-col gap-2 rounded-xl border p-2 ${borde}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de vida corta */}
+        <img src={`/api/ficheros/${ficheroId}`} alt={`Opción ${letra}`} className="aspect-4/3 w-full max-w-full rounded-lg object-contain" />
+        <span className="flex items-center gap-2 font-bold">
+          <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} />
+          {letra}
         </span>
-      )}
+      </label>
+    );
+  }
+  return (
+    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-2 ${borde}`}>
+      <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} />
+      <span>
+        {letra}. {texto}
+      </span>
     </label>
   );
+}
+
+/**
+ * Cómo se reparten las opciones de una pregunta: las de foto, una al lado de
+ * otra (caben tres en una fila incluso en un móvil estrecho, y así se comparan
+ * de un vistazo, que es lo que pide la tarea); las de texto, una debajo de otra.
+ */
+function filaDeOpciones(conImagen: boolean): string {
+  return conImagen ? "grid grid-cols-3 gap-2" : "flex flex-col gap-2";
 }
 
 function ActividadOpciones({
@@ -215,7 +236,7 @@ function ActividadOpciones({
         <section className={CAJA}>
           <h3 className="font-bold">Ejemplo (0)</h3>
           <p>{a.ejemplo.enunciado}</p>
-          <div className="flex flex-col gap-2">
+          <div className={filaDeOpciones(a.ejemplo.opciones.some((o) => o.conImagen))}>
             {a.ejemplo.opciones.map((o) => (
               <OpcionRadio
                 key={o.letra}
@@ -241,7 +262,7 @@ function ActividadOpciones({
             )}
             <h3 className="font-bold">Pregunta {p.numero}</h3>
             <p>{p.enunciado}</p>
-            <div className="flex flex-col gap-2">
+            <div className={filaDeOpciones(p.opciones.some((o) => o.conImagen))}>
               {p.opciones.map((o) => (
                 <OpcionRadio
                   key={o.letra}
