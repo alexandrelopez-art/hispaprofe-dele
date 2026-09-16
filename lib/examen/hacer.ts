@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
+import type { Prueba } from "@/lib/generated/prisma";
 import { minutosDePrueba } from "@/lib/dele/estructura";
 import { notaDePrueba, seAcaboElTiempo, type Nota } from "./motor";
 
@@ -14,9 +14,17 @@ const SE_ACABO = "Se acabó el tiempo.";
 // la conozca puede llamarla. Una excepción ahí es un 500 sin explicación para
 // una pestaña vieja; esto es un error como los otros cinco, no un fallo.
 const NO_EMPEZADA = "Todavía no has empezado esta prueba.";
+// El séptimo: el candado de `corregirEnLibre`. Sin él, esa función es un
+// oráculo de la clave para cualquier asignación en modo COMPLETO.
+const NO_LIBRE = "Este examen no es de práctica libre.";
 
-type IntentoAbierto = { id: string; empezadaEn: Date; entregadaEn: Date | null };
-type AsignacionAbierta = { id: string; modo: ModoDeExamen; examen: { nivel: Nivel } };
+type IntentoAbierto = {
+  id: string;
+  empezadaEn: Date;
+  entregadaEn: Date | null;
+  respuestas: { numero: number; letra: string }[];
+};
+type AsignacionAbierta = { id: string };
 
 /**
  * La clave de una prueba entera: la unión de las `Clave` de todas las tareas
@@ -43,20 +51,31 @@ async function claveDeLaPrueba(examenId: string, prueba: Prueba): Promise<Record
 }
 
 /**
- * Calcula la nota con la clave y las respuestas guardadas HASTA ESTE MOMENTO,
- * y la escribe junto con `entregadaEn` en la misma llamada a `update`: es la
- * única vez que se calcula. Después de esto, nada vuelve a mirar la `Clave`
- * para este intento.
+ * Calcula la nota con la clave y las respuestas que ya se cargaron (quien
+ * llama las trae: no hay una segunda vuelta a la base a buscarlas), y la
+ * escribe junto con `entregadaEn` en la misma llamada — es la única vez que
+ * se calcula. Después de esto, nada vuelve a mirar la `Clave` para este
+ * intento.
+ *
+ * La escritura lleva `entregadaEn: null` en el propio `where`: es un
+ * `updateMany` condicional, no un `update` a ciegas. Dos entregas a la vez
+ * (un doble clic, o una entrega que corre con el cierre automático de la
+ * guarda) pueden ver las dos `entregadaEn` en null, pero solo la primera en
+ * llegar encuentra la fila y escribe; la segunda no toca nada.
  */
-async function congelarNota(examenId: string, prueba: Prueba, intentoId: string, ahora: Date, porTiempo: boolean): Promise<void> {
-  const [clave, intento] = await Promise.all([
-    claveDeLaPrueba(examenId, prueba),
-    prisma.intento.findUniqueOrThrow({ where: { id: intentoId }, include: { respuestas: true } }),
-  ]);
-  const respuestas = Object.fromEntries(intento.respuestas.map((r) => [String(r.numero), r.letra]));
-  const nota = notaDePrueba(clave, respuestas);
-  await prisma.intento.update({
-    where: { id: intentoId },
+async function congelarNota(
+  examenId: string,
+  prueba: Prueba,
+  intentoId: string,
+  respuestas: readonly { numero: number; letra: string }[],
+  ahora: Date,
+  porTiempo: boolean,
+): Promise<void> {
+  const clave = await claveDeLaPrueba(examenId, prueba);
+  const respuestasPorNumero = Object.fromEntries(respuestas.map((r) => [String(r.numero), r.letra]));
+  const nota = notaDePrueba(clave, respuestasPorNumero);
+  await prisma.intento.updateMany({
+    where: { id: intentoId, entregadaEn: null },
     data: {
       entregadaEn: ahora,
       porTiempo,
@@ -68,11 +87,13 @@ async function congelarNota(examenId: string, prueba: Prueba, intentoId: string,
 }
 
 /**
- * La única guarda de las cinco escrituras que tocan un intento. Comprueba,
- * EN ESTE ORDEN: que la prueba es CE o CO, que hay asignación, que el examen
- * está publicado, que el intento no está entregado y que no se acabó el
- * tiempo. Si se acabó, cierra la prueba (la entrega con `porTiempo`) antes de
- * devolver el error: el error y el cierre son la misma noticia.
+ * La única guarda de las cuatro escrituras que tocan un intento
+ * (`corregirEnLibre` no pasa por aquí: no hay intento en modo libre, y hace
+ * su propia comprobación). Comprueba, EN ESTE ORDEN: que la prueba es CE o
+ * CO, que hay asignación, que el examen está publicado, que el intento no
+ * está entregado y que no se acabó el tiempo. Si se acabó, cierra la prueba
+ * (la entrega con `porTiempo`) antes de devolver el error: el error y el
+ * cierre son la misma noticia.
  *
  * `exigirEmpezada: false` (solo lo usa `empezarPrueba`) deja pasar sin
  * intento: es la única función a la que le toca crearlo. Las demás piden
@@ -95,7 +116,15 @@ async function abrirLaPrueba(
     where: { examenId_personaId: { examenId, personaId } },
     include: {
       examen: { select: { nivel: true, estado: true } },
-      intentos: { where: { prueba }, select: { id: true, empezadaEn: true, entregadaEn: true } },
+      intentos: {
+        where: { prueba },
+        select: {
+          id: true,
+          empezadaEn: true,
+          entregadaEn: true,
+          respuestas: { select: { numero: true, letra: true } },
+        },
+      },
     },
   });
   if (!asignacion) return { error: NO_ES_TUYO };
@@ -108,12 +137,12 @@ async function abrirLaPrueba(
   if (intento) {
     const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
     if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-      await congelarNota(examenId, prueba, intento.id, ahora, true);
+      await congelarNota(examenId, prueba, intento.id, intento.respuestas, ahora, true);
       return { error: SE_ACABO };
     }
   }
 
-  return { asignacion: { id: asignacion.id, modo: asignacion.modo, examen: asignacion.examen }, intento };
+  return { asignacion: { id: asignacion.id }, intento };
 }
 
 /**
@@ -184,7 +213,7 @@ export async function entregarPrueba(
   const abierta = await abrirLaPrueba(examenId, prueba, personaId, ahora, { exigirEmpezada: true });
   if ("error" in abierta) return abierta;
 
-  await congelarNota(examenId, prueba, abierta.intento!.id, ahora, porTiempo);
+  await congelarNota(examenId, prueba, abierta.intento!.id, abierta.intento!.respuestas, ahora, porTiempo);
   return {};
 }
 
@@ -192,7 +221,10 @@ export async function entregarPrueba(
  * Para las pantallas que solo leen: cierra, con `porTiempo`, los intentos de
  * ese ámbito a los que ya se les acabó el tiempo. Idempotente — solo mira los
  * que siguen sin `entregadaEn`, así que la segunda llamada no encuentra nada
- * que cerrar.
+ * que cerrar. Pasa las respuestas que ya cargó aquí a `congelarNota`: en la
+ * pantalla del profesor esto corre sobre una clase entera, y no hay que
+ * volver a la base por cada intento — ni arriesgarse a que uno borrado entre
+ * medias (cascada de la asignación) tire abajo una pantalla que solo lee.
  */
 export async function cerrarLasQueSePasaron(donde: { personaId: string } | { examenId: string }, ahora: Date): Promise<void> {
   const intentos = await prisma.intento.findMany({
@@ -201,13 +233,14 @@ export async function cerrarLasQueSePasaron(donde: { personaId: string } | { exa
       id: true,
       prueba: true,
       empezadaEn: true,
+      respuestas: { select: { numero: true, letra: true } },
       asignacion: { select: { examenId: true, examen: { select: { nivel: true } } } },
     },
   });
   for (const intento of intentos) {
     const minutos = minutosDePrueba(intento.asignacion.examen.nivel, intento.prueba);
     if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-      await congelarNota(intento.asignacion.examenId, intento.prueba, intento.id, ahora, true);
+      await congelarNota(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true);
     }
   }
 }
@@ -231,7 +264,7 @@ export async function corregirEnLibre(
   });
   if (!asignacion) return { error: NO_ES_TUYO };
   if (asignacion.examen.estado !== "PUBLICADO") return { error: NO_DISPONIBLE };
-  if (asignacion.modo !== "LIBRE") return { error: "Esta asignación no es de modo libre." };
+  if (asignacion.modo !== "LIBRE") return { error: NO_LIBRE };
 
   const clave = await claveDeLaPrueba(examenId, prueba);
   return notaDePrueba(clave, respuestas);

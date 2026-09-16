@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import type { Asignacion, Examen, Persona } from "@/lib/generated/prisma";
 import { empezarPrueba, guardarRespuesta, marcarTrozo, entregarPrueba, cerrarLasQueSePasaron, corregirEnLibre } from "@/lib/examen/hacer";
+import { pruebaParaHacer } from "@/lib/examen/paraHacer";
 import { crearExamenDePruebas, CLAVE_INVENTADA } from "../ayudas/examen-de-pruebas";
 
 const AHORA = new Date("2026-09-20T09:00:00Z");
@@ -149,6 +150,9 @@ describe("hacer la prueba", () => {
 
   // Mutación que la mata: calcular la nota al leer el resultado en vez de al
   // entregar. Corregir una tarea después no puede cambiarle la nota a nadie.
+  // La segunda lectura pasa por la puerta de verdad (`pruebaParaHacer`), no
+  // por una segunda fila de la misma tabla: una fila sola solo puede repetir
+  // lo que ya decía, así que eso no mataría "recalcular al leer".
   it("la nota y los fallos se congelan al entregar", async () => {
     await empezarPrueba(examen.id, "CE", ana.id, AHORA);
     await guardarRespuesta(examen.id, "CE", ana.id, 7, CLAVE_INVENTADA["7"], AHORA);
@@ -161,8 +165,9 @@ describe("hacer la prueba", () => {
     expect(antes.fallos).toEqual([8, 9, 10, 11, 12]);
 
     await prisma.clave.deleteMany();
-    const despues = await prisma.intento.findFirstOrThrow();
-    expect(despues.aciertos).toBe(1);
+    const despues = (await pruebaParaHacer(examen.id, "CE", ana.id, AHORA))!;
+    expect(despues.estado.aciertos).toBe(1);
+    expect(despues.estado.total).toBe(6);
     expect(despues.fallos).toEqual([8, 9, 10, 11, 12]);
   });
 
@@ -184,6 +189,24 @@ describe("hacer la prueba", () => {
     expect((await prisma.intento.findFirstOrThrow()).entregadaEn).toBeNull();
   });
 
+  // Mutación que la mata: quitar EL FILTRO `entregadaEn: null` de esta consulta
+  // Y la condición homónima del `updateMany` de `congelarNota` (la doble
+  // protección de la corrección de la ronda 1). Hoy hacen falta las dos juntas:
+  // cualquiera de las dos sola ya no revive la fecha, porque la otra la sigue
+  // cubriendo; solo juntas volverían a sellar la entrega (y a recalcular la
+  // nota) en cada carga de pantalla, no solo la primera vez que se pasa de hora.
+  it("cerrar las pasadas de hora dos veces no cambia nada la segunda vez", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    await cerrarLasQueSePasaron({ personaId: ana.id }, new Date(AHORA.getTime() + 51 * 60_000));
+    const primera = await prisma.intento.findFirstOrThrow();
+
+    await cerrarLasQueSePasaron({ personaId: ana.id }, new Date(AHORA.getTime() + 90 * 60_000));
+    const segunda = await prisma.intento.findFirstOrThrow();
+
+    expect(segunda.entregadaEn?.toISOString()).toBe(primera.entregadaEn!.toISOString());
+    expect(segunda.porTiempo).toBe(primera.porTiempo);
+  });
+
   // Mutación que la mata: guardar algo en modo libre, o devolver la letra buena.
   it("corregir en libre no guarda nada y no dice la buena", async () => {
     await prisma.asignacion.updateMany({ where: { personaId: ana.id }, data: { modo: "LIBRE" } });
@@ -191,5 +214,19 @@ describe("hacer la prueba", () => {
     expect(nota).toMatchObject({ aciertos: 1, total: 6 });
     expect(JSON.stringify(nota)).not.toContain(CLAVE_INVENTADA["8"]);
     expect(await prisma.intento.count()).toBe(0);
+  });
+
+  // Mutación que la mata: quitar el candado de modo. Sin él, `corregirEnLibre`
+  // es un oráculo de la clave para cualquier asignación en modo COMPLETO: todo
+  // A, todo B, todo C, leer la nota cada vez, y la clave sale entera antes de
+  // sentarse a hacer el examen de verdad.
+  it("corregir en libre no funciona en una asignación en modo completo", async () => {
+    const resultado = await corregirEnLibre(examen.id, "CE", ana.id, {
+      "7": "A", "8": "A", "9": "A", "10": "A", "11": "A", "12": "A",
+    });
+    expect(resultado).toEqual({ error: "Este examen no es de práctica libre." });
+    const texto = JSON.stringify(resultado);
+    expect(texto).not.toContain("aciertos");
+    for (const letra of Object.values(CLAVE_INVENTADA)) expect(texto).not.toContain(letra);
   });
 });

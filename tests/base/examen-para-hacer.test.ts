@@ -33,9 +33,14 @@ describe("leer una prueba para hacerla", () => {
     };
     mirar(leido, "prueba");
     expect(prohibidos).toEqual([]);
-    // Y las claves existen de verdad en la base (la de CE y la de CO del
-    // montaje): si no, esta prueba no probaría nada.
-    expect(await prisma.clave.count()).toBe(2);
+    // Y las claves existen de verdad en la base, de ESTE examen (la de CE y la
+    // de CO del montaje): si no, esta prueba no probaría nada. Contadas por su
+    // examen, no la tabla entera: que otra fixture cambie cuántas Clave hay en
+    // total no puede colar esta prueba en verde por accidente.
+    const clavesDelExamen = await prisma.clave.count({
+      where: { actividad: { pieza: { tarea: { examenId: examen.id } } } },
+    });
+    expect(clavesDelExamen).toBe(2);
   });
 
   // Mutación que la mata: dejar de filtrar por asignación. Cualquiera con sesión
