@@ -10,6 +10,10 @@ const NO_ES_TUYO = "Este examen no es tuyo.";
 const NO_DISPONIBLE = "Este examen ya no está disponible.";
 const YA_ENTREGADA = "Esta prueba ya está entregada.";
 const SE_ACABO = "Se acabó el tiempo.";
+// El sexto mensaje: una server action es una dirección pública, cualquiera que
+// la conozca puede llamarla. Una excepción ahí es un 500 sin explicación para
+// una pestaña vieja; esto es un error como los otros cinco, no un fallo.
+const NO_EMPEZADA = "Todavía no has empezado esta prueba.";
 
 type IntentoAbierto = { id: string; empezadaEn: Date; entregadaEn: Date | null };
 type AsignacionAbierta = { id: string; modo: ModoDeExamen; examen: { nivel: Nivel } };
@@ -72,9 +76,11 @@ async function congelarNota(examenId: string, prueba: Prueba, intentoId: string,
  *
  * `exigirEmpezada: false` (solo lo usa `empezarPrueba`) deja pasar sin
  * intento: es la única función a la que le toca crearlo. Las demás piden
- * `true`: si llegan aquí sin un intento ya empezado es un error de quien
- * llama (la pantalla siempre empieza la prueba antes de dejar escribir en
- * ella), así que se avisa alto en vez de fingir un intento que no existe.
+ * `true`; si llegan aquí sin un intento ya empezado, devuelven el error —
+ * NUNCA lo crean solas. Una server action es una dirección pública: cualquiera
+ * que la conozca puede llamarla, y crear el intento aquí dejaría a un
+ * estudiante con una pestaña vieja empezar la prueba sin el aviso y sin saber
+ * que el reloj ya corre.
  */
 async function abrirLaPrueba(
   examenId: string,
@@ -96,9 +102,7 @@ async function abrirLaPrueba(
   if (asignacion.examen.estado !== "PUBLICADO") return { error: NO_DISPONIBLE };
 
   const intento = asignacion.intentos[0] ?? null;
-  if (!intento && opciones.exigirEmpezada) {
-    throw new Error(`Se pidió ${prueba} de ${examenId} para ${personaId} sin haberla empezado.`);
-  }
+  if (!intento && opciones.exigirEmpezada) return { error: NO_EMPEZADA };
   if (intento?.entregadaEn) return { error: YA_ENTREGADA };
 
   if (intento) {

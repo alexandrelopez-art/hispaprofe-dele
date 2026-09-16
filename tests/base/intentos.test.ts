@@ -92,6 +92,20 @@ describe("hacer la prueba", () => {
     expect(await prisma.intento.count()).toBe(0);
   });
 
+  // Mutación que la mata: que la guarda cree el intento sobre la marcha en vez
+  // de negarse. Es la versión peligrosa: dejaría a un estudiante con una
+  // pestaña vieja saltarse el aviso y arrancar el reloj sin saberlo — en la
+  // lectura, minutos que nunca vio pasar.
+  it("guardar, marcar un trozo o entregar sin haber empezado se niega, y no escribe nada", async () => {
+    expect(await guardarRespuesta(examen.id, "CE", ana.id, 7, "A", AHORA)).toEqual({ error: "Todavía no has empezado esta prueba." });
+    expect(await marcarTrozo(examen.id, "CO", ana.id, 3, 1, AHORA)).toEqual({ error: "Todavía no has empezado esta prueba." });
+    expect(await entregarPrueba(examen.id, "CE", ana.id, AHORA, false)).toEqual({ error: "Todavía no has empezado esta prueba." });
+
+    expect(await prisma.intento.count()).toBe(0);
+    expect(await prisma.respuestaDeIntento.count()).toBe(0);
+    expect(await prisma.trozoOido.count()).toBe(0);
+  });
+
   // Mutación que la mata: guardar sin mirar el reloj del servidor. El navegador
   // no es de fiar: es el sitio donde el estudiante puede tocar la hora.
   it("una respuesta tardía no se guarda y cierra la prueba", async () => {
