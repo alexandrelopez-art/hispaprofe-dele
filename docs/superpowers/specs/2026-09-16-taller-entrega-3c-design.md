@@ -370,8 +370,10 @@ Con el examen 1 («Libro, examen 1») y la cuenta de estudiante de prueba. **El 
 hace antes que nada**, porque afecta a lo que se oye:
 
 1. **Arreglar la marca mal puesta de la auditiva 4** desde el taller: hoy hay una marca en
-   4:35, que cae entre las dos audiciones de la noticia 2. Las fronteras buenas son 3:08 y
-   5:54 (medidas con ffmpeg el 16 sept).
+   4:35, que cae entre las dos audiciones de la noticia 2. Las fronteras buenas son 3:08 y el
+   silencio que va de 5:54 a 6:04 (medido con ffmpeg el 16 sept); vale cualquier punto dentro
+   de ese hueco, y de ahí que en las notas aparezca a veces como 5:54 y a veces como 5:57. Lo
+   que no vale es 4:35.
 2. Asignar el examen 1 a la cuenta de prueba, en modo completo.
 3. **Lectura**: empezar, ver el reloj, contestar las 25. A mitad, **recargar la página**:
    las respuestas siguen marcadas y el reloj ha seguido corriendo. Entregar y comparar la
