@@ -348,6 +348,8 @@ function pruebaDePrueba(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
     segundosQueQuedan: null,
     respuestas: {},
     fallos: [],
+    // Por defecto, la otra prueba sin empezar: es lo normal al terminar la primera.
+    otras: [{ prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } }],
     ...extra,
   };
 }
@@ -410,12 +412,18 @@ function entregadaAuditivaConCinta(): PruebaParaHacer {
 // CE-2 tiene 6 preguntas (7-12); sumadas a CE-1 (6) + CE-3 (6) + CE-4 (7) da
 // los 25 de la prueba completa. Aquí solo hace falta que la nota del
 // `estado` (no las tareas) diga 19 de 25.
-function entregadaCon19De25(): PruebaParaHacer {
+// Entregada con dos fallos DENTRO de la lectura 2 (preguntas 7-12), para que la
+// nota por tarea sea 4 de 6 y no cuadre por casualidad con el 19 de 25 global.
+function entregadaCon19De25(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
   return pruebaDePrueba({
     tareas: [lecturaDos()],
     estado: { estado: "ENTREGADA", aciertos: 19, total: 25, porTiempo: false },
     respuestas: { "8": "B" },
-    fallos: [8],
+    // El 20 es de OTRA tarea (la lectura 4 va de la 19 a la 25). Está aquí a
+    // propósito: sin él, filtrar los fallos por la tarea o no filtrarlos daría
+    // el mismo número, y la prueba de «4 de 6» no distinguiría nada.
+    fallos: [8, 11, 20],
+    ...extra,
   });
 }
 
@@ -568,6 +576,53 @@ describe("la pantalla que hace el estudiante", () => {
     const html = await pintarPagina(entregadaCon19De25());
     expect(html).toContain("19 de 25");
     expect(html).not.toContain("La respuesta correcta");
+  });
+
+  // Mutación que la mata: volver a la línea suelta de antes («Entregada, 19 de
+  // 25» y nada más). El profesor dijo que así no se entendía: no decía de qué
+  // prueba era, ni dónde se perdían los puntos, ni qué era el rojo, ni qué
+  // quedaba por hacer.
+  it("el resultado dice de qué prueba es, qué sacó en cada tarea y qué significa el rojo", async () => {
+    const html = await pintarPagina(entregadaCon19De25());
+    expect(html).toContain("comprensión de lectura");
+    expect(html).toContain("Examen 1");
+    expect(html).toContain("Tarea 2");
+    expect(html).toContain("En rojo, las que fallaste");
+    expect(html).toContain("vuelve al texto y búscala");
+  });
+
+  // Mutación que la mata: contar los fallos de TODA la prueba en cada tarea, o
+  // no restarlos. La lectura 2 tiene seis preguntas (7-12) y el fixture falla
+  // dos de ellas: son 4 de 6, y ese 4 es lo que dice dónde mirar.
+  it("la nota de cada tarea sale de SUS preguntas", async () => {
+    const html = await pintarPagina(entregadaCon19De25());
+    expect(html).toContain("4 de 6");
+  });
+
+  // Mutación que la mata: enseñar siempre «te queda la otra» aunque esté
+  // entregada, o no enseñarlo nunca. Es lo que dice al estudiante que aún no ha
+  // terminado.
+  it("dice si queda otra prueba por hacer, y si no, que ya está", async () => {
+    const queda = await pintarPagina(entregadaCon19De25());
+    expect(queda).toContain("Te queda");
+    expect(queda).toContain("comprensión auditiva");
+
+    const terminadas = await pintarPagina(
+      entregadaCon19De25({
+        otras: [{ prueba: "CO", estado: { estado: "ENTREGADA", aciertos: 21, total: 25, porTiempo: false } }],
+      }),
+    );
+    expect(terminadas).toContain("Ya has terminado las dos pruebas");
+    expect(terminadas).not.toContain("Te queda");
+  });
+
+  // Mutación que la mata: no decir que la entregó el reloj. Para el estudiante
+  // no es lo mismo un 12 de 25 contestando que un 12 de 25 porque se le acabó.
+  it("si la entregó el reloj, lo dice", async () => {
+    const html = await pintarPagina(
+      entregadaCon19De25({ estado: { estado: "ENTREGADA", aciertos: 12, total: 25, porTiempo: true } }),
+    );
+    expect(html).toContain("Se entregó sola");
   });
 
   // Mutación que la mata: quitar <VolverAInicio> del armazón, que es como salió

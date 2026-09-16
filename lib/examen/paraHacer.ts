@@ -24,6 +24,8 @@ export type PruebaParaHacer = {
   segundosQueQuedan: number | null;
   respuestas: Record<string, string>;
   fallos: number[];
+  /** Cómo van las DEMÁS pruebas de este examen: la pantalla de resultado dice qué queda por hacer. */
+  otras: { prueba: Prueba; estado: EstadoDePrueba }[];
 };
 
 /** Las únicas dos pruebas que el estudiante puede hacer hoy. La 3d y la 3e traerán las otras. */
@@ -63,12 +65,12 @@ export async function pruebaParaHacer(
           },
         },
       },
-      intentos: { where: { prueba }, include: { respuestas: true, trozosOidos: true } },
+      intentos: { include: { respuestas: true, trozosOidos: true } },
     },
   });
   if (!asignacion || asignacion.examen.estado !== "PUBLICADO") return null;
 
-  const intento = asignacion.intentos[0] ?? null;
+  const intento = asignacion.intentos.find((i) => i.prueba === prueba) ?? null;
   const oidosDe = (numero: number) =>
     (intento?.trozosOidos ?? []).filter((t) => t.tarea === numero).map((t) => t.trozo).sort((a, b) => a - b);
 
@@ -91,5 +93,9 @@ export async function pruebaParaHacer(
     segundosQueQuedan: intento && !intento.entregadaEn ? segundosQueQuedan(intento.empezadaEn, minutos, ahora) : null,
     respuestas: Object.fromEntries((intento?.respuestas ?? []).map((r) => [String(r.numero), r.letra])),
     fallos: intento?.fallos ?? [],
+    otras: PRUEBAS_QUE_SE_HACEN.filter((otra) => otra !== prueba).map((otra) => ({
+      prueba: otra,
+      estado: estadoDePrueba(asignacion.intentos.find((i) => i.prueba === otra) ?? null),
+    })),
   };
 }

@@ -294,13 +294,71 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
 }
 
 /** Entregada: se ve, no se toca. La nota arriba, y los fallos marcados en cada tarea. */
+/** Lo que sacó en cada tarea: sus preguntas menos las que falló. */
+function notaDeCadaTarea(prueba: PruebaParaHacer): { numero: number; aciertos: number; total: number }[] {
+  return prueba.tareas.map((t) => {
+    const numeros = itemsDelFormulario(t.formulario);
+    const fallos = numeros.filter((n) => prueba.fallos.includes(n)).length;
+    return { numero: t.numero, aciertos: numeros.length - fallos, total: numeros.length };
+  });
+}
+
+/**
+ * La cabecera del resultado. Antes era una línea suelta —«Entregada, 19 de
+ * 25»— y el profesor dijo que no se entendía: no decía de qué prueba era, ni
+ * dónde se habían perdido los puntos, ni qué significaba el rojo de abajo, ni
+ * qué quedaba por hacer. Todo eso ya lo sabemos, solo había que decirlo.
+ */
+function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
+  const porTarea = notaDeCadaTarea(prueba);
+  const queda = prueba.otras.filter((o) => o.estado.estado !== "ENTREGADA");
+  return (
+    <section className={CAJA}>
+      <p className="text-tinta-suave">
+        {NOMBRE_DE_PRUEBA[prueba.prueba]} · {prueba.examen.titulo}
+      </p>
+      <p className="text-3xl font-extrabold">
+        {prueba.estado.aciertos} de {prueba.estado.total}
+      </p>
+      {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
+
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-1">
+        {porTarea.map((t) => (
+          <li key={t.numero} className="flex justify-between gap-2">
+            <span>Tarea {t.numero}</span>
+            <span className="font-bold">
+              {t.aciertos} de {t.total}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="text-tinta-suave">
+        En rojo, las que fallaste. No se dice cuál era la buena: vuelve al texto y búscala.
+      </p>
+
+      {queda.length > 0 ? (
+        <p>
+          Te queda {queda.map((o) => NOMBRE_DE_PRUEBA[o.prueba]).join(" y ")}.{" "}
+          <Link href="/" className="text-hp-600 underline">
+            Ir a hacerla
+          </Link>
+        </p>
+      ) : (
+        <p className="font-bold">Ya has terminado las dos pruebas.</p>
+      )}
+    </section>
+  );
+}
+
 function PruebaEntregada({ prueba }: { prueba: PruebaParaHacer }) {
   const examenId = prueba.examen.id;
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
   const tarea = prueba.tareas.find((t) => t.numero === tareaAbierta) ?? prueba.tareas[0];
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xl font-bold">{textoDelEstado(prueba.estado)}</p>
+      <Resultado prueba={prueba} />
+      <p className="font-bold">Repasa tus respuestas:</p>
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
