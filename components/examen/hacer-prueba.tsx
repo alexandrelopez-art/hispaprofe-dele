@@ -12,7 +12,9 @@ import {
   empezarPruebaAccion,
   entregarPruebaAccion,
   guardarRespuestaAccion,
+  marcarTrozoAccion,
 } from "@/app/examen/acciones";
+import { Cinta } from "@/components/examen/cinta";
 import { Reloj } from "@/components/examen/reloj";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 
@@ -25,6 +27,34 @@ const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
 
 function totalDePreguntas(tareas: TareaParaHacer[]): number {
   return tareas.reduce((n, t) => n + (t.regla.items ?? 0), 0);
+}
+
+/**
+ * La cinta de una tarea, colgada por encima de la actividad cuando la tarea
+ * lleva audio. `bloqueada` decide si suena racionado (la prueba de verdad,
+ * un trozo cada vez, apuntado en el servidor) o libre (práctica, sin
+ * racionar): la decide el armazón según el modo, no la propia cinta.
+ */
+function CintaDeLaTarea({
+  examenId, prueba, tarea, bloqueada,
+}: {
+  examenId: string;
+  prueba: Prueba;
+  tarea: TareaParaHacer;
+  bloqueada: boolean;
+}) {
+  const audio = tarea.formulario.medios.audio;
+  if (tarea.trozos <= 0 || !audio) return null;
+  return (
+    <Cinta
+      ficheroId={audio.fichero}
+      cortes={audio.cortes}
+      trozos={tarea.trozos}
+      oidos={tarea.oidos}
+      bloqueada={bloqueada}
+      alSonar={marcarTrozoAccion.bind(null, examenId, prueba, tarea.numero)}
+    />
+  );
 }
 
 /** Cuántas de las marcadas tienen de verdad una letra (una cadena vacía guardada no cuenta como contestada). */
@@ -196,7 +226,10 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
-        <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={null} bloqueada={bloqueadaPorError} alMarcar={alMarcar} />
+        <>
+          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} bloqueada />
+          <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={null} bloqueada={bloqueadaPorError} alMarcar={alMarcar} />
+        </>
       )}
       {/* Sin bloqueadaPorError aquí a propósito: un fallo al guardar UNA
           respuesta bloquea las respuestas, no la salida. Sin esto, la
@@ -211,6 +244,7 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
 
 /** Entregada: se ve, no se toca. La nota arriba, y los fallos marcados en cada tarea. */
 function PruebaEntregada({ prueba }: { prueba: PruebaParaHacer }) {
+  const examenId = prueba.examen.id;
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
   const tarea = prueba.tareas.find((t) => t.numero === tareaAbierta) ?? prueba.tareas[0];
   return (
@@ -218,7 +252,10 @@ function PruebaEntregada({ prueba }: { prueba: PruebaParaHacer }) {
       <p className="text-xl font-bold">{textoDelEstado(prueba.estado)}</p>
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
-        <TareaDelEstudiante tarea={tarea} marcadas={prueba.respuestas} fallos={prueba.fallos} bloqueada alMarcar={() => {}} />
+        <>
+          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} bloqueada />
+          <TareaDelEstudiante tarea={tarea} marcadas={prueba.respuestas} fallos={prueba.fallos} bloqueada alMarcar={() => {}} />
+        </>
       )}
     </div>
   );
@@ -273,6 +310,7 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
+          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} bloqueada={false} />
           <TareaDelEstudiante
             tarea={tarea}
             marcadas={marcadas}

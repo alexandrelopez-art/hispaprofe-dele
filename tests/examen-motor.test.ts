@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { minutosDePrueba } from "@/lib/dele/estructura";
 import {
   estadoDePrueba,
+  limitesDelTrozo,
   notaDePrueba,
   seAcaboElTiempo,
   segundosQueQuedan,
@@ -92,6 +93,29 @@ describe("qué trozo toca", () => {
   it("una tarea que no se corta es un solo trozo", () => {
     expect(siguienteTrozo([], 1)).toBe(1);
     expect(siguienteTrozo([1], 1)).toBeNull();
+  });
+});
+
+describe("de dónde a dónde suena un trozo", () => {
+  // Mutación que la mata: cortar el último trozo en `duracion`. La duración que
+  // declara el <audio> de un MP3 del libro sobra unos segundos (cabecera sin Xing
+  // fiable), así que cortar por ahí se comería el final de la última noticia.
+  it("el último suena hasta el final del fichero", () => {
+    expect(limitesDelTrozo([113, 195], 3)).toEqual({ desde: 195, hasta: null });
+  });
+
+  it("el primero empieza en cero", () => {
+    expect(limitesDelTrozo([113, 195], 1)).toEqual({ desde: 0, hasta: 113 });
+  });
+
+  // Mutación que la mata: confundir el índice con el número de trozo (el clásico
+  // fallo de uno): el trozo 2 sonaría desde el principio.
+  it("los de en medio van de marca a marca", () => {
+    expect(limitesDelTrozo([113, 195], 2)).toEqual({ desde: 113, hasta: 195 });
+  });
+
+  it("una tarea sin marcas es un solo trozo, la pista entera", () => {
+    expect(limitesDelTrozo([], 1)).toEqual({ desde: 0, hasta: null });
   });
 });
 

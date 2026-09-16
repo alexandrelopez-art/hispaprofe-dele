@@ -58,6 +58,18 @@ export function siguienteTrozo(oidos: readonly number[], trozos: number): number
   return null;
 }
 
+/**
+ * De dónde a dónde suena un trozo. `trozo` es 1-indexado; `cortes` trae las
+ * marcas en segundos sobre la pista entera, una menos que trozos. El último
+ * trozo suena hasta `null` (el final real del fichero), NUNCA hasta una
+ * duración calculada: los MP3 del libro declaran una duración que sobra unos
+ * segundos, y cortar ahí se comería el final de la última noticia.
+ */
+export function limitesDelTrozo(cortes: readonly number[], trozo: number): { desde: number; hasta: number | null } {
+  const esElUltimo = trozo === cortes.length + 1;
+  return { desde: trozo === 1 ? 0 : cortes[trozo - 2], hasta: esElUltimo ? null : cortes[trozo - 1] };
+}
+
 export function estadoDePrueba(
   intento: { entregadaEn: Date | null; aciertos: number | null; total: number | null; porTiempo: boolean } | null,
 ): EstadoDePrueba {
