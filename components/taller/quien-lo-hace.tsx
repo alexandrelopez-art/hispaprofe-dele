@@ -60,6 +60,21 @@ export function QuienLoHace({
           <span className="text-sm font-bold text-tinta-suave">Fecha tope</span>
           <input type="date" name="dia" required className="rounded-xl border border-tinta-suave/30 p-2" />
         </label>
+        {/* El modo de la tanda. Nace en completo: el examen de verdad es lo
+            normal, y la práctica libre abre los cuatro ficheros y no deja
+            ningún registro. Sin estas dos casillas, «LIBRE» no lo escribía
+            nadie en toda la aplicación. */}
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-sm font-bold text-tinta-suave">Cómo lo hace</legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="modo" value="COMPLETO" defaultChecked />
+            <span>Completo: con reloj, cada audio una vez, y queda la nota.</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="modo" value="LIBRE" />
+            <span>Práctica libre: sin reloj, audios repetibles, se corrige tarea a tarea y no queda nota.</span>
+          </label>
+        </fieldset>
         <button type="submit" className="self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white">Asignar</button>
       </form>
 

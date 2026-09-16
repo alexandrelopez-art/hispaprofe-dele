@@ -51,10 +51,16 @@ export async function marcarTrozoAccion(examenId: string, prueba: Prueba, tarea:
   return r;
 }
 
-export async function entregarPruebaAccion(examenId: string, prueba: Prueba, porTiempo: boolean): Promise<{ error?: string }> {
+/**
+ * Sin `porTiempo`: quién entregó por reloj lo decide el servidor
+ * (`entregarPrueba`), no quien llama. Con el argumento puesto, cualquiera que
+ * conociera esta dirección podía dejarle al profesor un «Entregada por tiempo»
+ * en una prueba entregada con toda la calma.
+ */
+export async function entregarPruebaAccion(examenId: string, prueba: Prueba): Promise<{ error?: string }> {
   const persona = await exigirPersona();
   if (!pruebaValida(prueba)) return { error: NO_SE_HACE };
-  const r = await entregarPrueba(examenId, prueba, persona.id, new Date(), porTiempo);
+  const r = await entregarPrueba(examenId, prueba, persona.id, new Date());
   revalidatePath(pantallaDeLaPrueba(examenId, prueba));
   return r;
 }

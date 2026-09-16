@@ -9,6 +9,7 @@ import { archivarExamen, crearExamen, guardarTarea, publicarExamen, recuperarExa
 import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 import { elegirCuadernillo, guardarCuadernillo } from "@/lib/taller/cuadernillos";
 import type { EstadoDeTarea } from "@/lib/taller/estado";
+import type { ModoDeExamen } from "@/lib/generated/prisma";
 import { rellenarTarea, type ResultadoDeRelleno } from "@/lib/taller/ia/rellenar";
 import { asignarExamen, quitarAsignacion } from "@/lib/examen/asignar";
 import { listaDeNombres } from "@/lib/examen/nombres";
@@ -131,8 +132,14 @@ export async function asignarExamenAccion(examenId: string, formulario: FormData
   const profesor = await exigirProfesor();
   const personaIds = formulario.getAll("estudiante").map(String);
   const dia = String(formulario.get("dia") ?? "");
+  // Del formulario solo se acepta el «LIBRE» exacto; cualquier otra cosa
+  // (nada marcado, un valor inventado) es completo. Es una decisión sin
+  // mensaje de error a propósito: el modo no es un dato que el profesor
+  // escriba, son dos casillas, y lo prudente cuando no se entiende lo que
+  // llega es el examen de verdad, no la práctica que abre los cuatro ficheros.
+  const modo: ModoDeExamen = formulario.get("modo") === "LIBRE" ? "LIBRE" : "COMPLETO";
   const base = direccionDelSitio(await headers());
-  const r = await asignarExamen(examenId, personaIds, dia, profesor.id, mandarPorSmtp, base, new Date());
+  const r = await asignarExamen(examenId, personaIds, dia, modo, profesor.id, mandarPorSmtp, base, new Date());
   revalidatePath(pantallaDelExamen(examenId));
   if ("error" in r) redirect(`${pantallaDelExamen(examenId)}?error=${encodeURIComponent(r.error)}`);
   const aviso =

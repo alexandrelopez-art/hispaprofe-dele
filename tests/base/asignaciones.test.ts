@@ -57,7 +57,7 @@ describe("asignar un examen", () => {
   // UTC, o no mandar el correo.
   it("guarda la fecha tope de Madrid y avisa a cada uno", async () => {
     const enviados: Mensaje[] = [];
-    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async (m) => { enviados.push(m); }, "https://sitio", ANTES);
+    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async (m) => { enviados.push(m); }, "https://sitio", ANTES);
 
     expect(r).toEqual({ asignados: 1, sinAviso: [] });
     const guardada = await prisma.asignacion.findFirstOrThrow();
@@ -81,6 +81,7 @@ describe("asignar un examen", () => {
       examen.id,
       [ana.id, luis.id],
       "2026-10-20",
+      "COMPLETO",
       profesor.id,
       async (m) => { enviados.push(m); },
       "https://sitio",
@@ -102,6 +103,7 @@ describe("asignar un examen", () => {
       examen.id,
       [ana.id, luis.id],
       "2026-10-20",
+      "COMPLETO",
       profesor.id,
       async (m) => { if (m.a === "ana@ejemplo.com") throw new Error("SMTP caído"); },
       "https://sitio",
@@ -115,17 +117,42 @@ describe("asignar un examen", () => {
   // Mutación que la mata: usar create en vez de upsert.
   it("asignárselo otra vez le cambia la fecha y no duplica", async () => {
     const nada = async () => {};
-    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, nada, "https://sitio", ANTES);
-    await asignarExamen(examen.id, [ana.id], "2026-11-05", profesor.id, nada, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, nada, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [ana.id], "2026-11-05", "COMPLETO", profesor.id, nada, "https://sitio", ANTES);
 
     expect(await prisma.asignacion.count()).toBe(1);
     expect((await prisma.asignacion.findFirstOrThrow()).fechaTope.toISOString()).toBe("2026-11-05T22:59:59.999Z");
   });
 
+  // El modo es lo que eligió el profesor en la caja «Quién lo hace». Hasta
+  // ahora no lo escribía nadie en toda la aplicación, y con él fuera de
+  // alcance quedaban también la pantalla de práctica libre, `corregirEnLibre`,
+  // su candado NO_LIBRE y la rama de los ficheros que abre las cuatro pruebas.
+  // Mutación que la mata: quitar `modo` del `create` del upsert (todas nacerían
+  // COMPLETO, que es el valor por defecto de la columna), o quitarlo del
+  // `update` (cambiarle el modo a quien ya lo tiene no haría nada y tampoco lo
+  // diría).
+  it("guarda el modo con el que se asigna, y volver a asignar lo cambia", async () => {
+    const nada = async () => {};
+    const modoDe = async (persona: Persona) =>
+      (await prisma.asignacion.findFirstOrThrow({ where: { personaId: persona.id } })).modo;
+
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, nada, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [luis.id], "2026-10-20", "LIBRE", profesor.id, nada, "https://sitio", ANTES);
+    expect(await modoDe(ana)).toBe("COMPLETO");
+    expect(await modoDe(luis)).toBe("LIBRE");
+
+    // La misma pareja examen-persona otra vez, en el otro modo: el upsert entra
+    // por el `update`, y es la única forma que tiene el profesor de cambiarlo.
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", "LIBRE", profesor.id, nada, "https://sitio", ANTES);
+    expect(await modoDe(ana)).toBe("LIBRE");
+    expect(await prisma.asignacion.count()).toBe(2);
+  });
+
   // Mutación que la mata: mandar el correo DENTRO de la transacción, o deshacerla
   // si falla. Un correo que rebota dejaría a los otros once sin examen.
   it("si el correo falla, la asignación se queda y dice a quién no le llegó", async () => {
-    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => { throw new Error("SMTP caído"); }, "https://sitio", ANTES);
+    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => { throw new Error("SMTP caído"); }, "https://sitio", ANTES);
 
     expect(r).toEqual({ asignados: 1, sinAviso: ["Ana"] });
     expect(await prisma.asignacion.count()).toBe(1);
@@ -135,7 +162,7 @@ describe("asignar un examen", () => {
   // construcción manda a doce personas a un examen que aún cambia.
   it("un examen que no está publicado no se asigna", async () => {
     await prisma.examen.update({ where: { id: examen.id }, data: { estado: "EN_CONSTRUCCION" } });
-    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
 
     expect(r).toEqual({ error: "Solo se asigna un examen publicado." });
     expect(await prisma.asignacion.count()).toBe(0);
@@ -143,7 +170,7 @@ describe("asignar un examen", () => {
 
   // Mutación que la mata: quitar cualquiera de las tres comprobaciones de entrada.
   it("sin nadie, sin fecha o con una fecha pasada no hace nada", async () => {
-    const llamar = (ids: string[], dia: string) => asignarExamen(examen.id, ids, dia, profesor.id, async () => {}, "https://sitio", ANTES);
+    const llamar = (ids: string[], dia: string) => asignarExamen(examen.id, ids, dia, "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
 
     expect(await llamar([], "2026-10-20")).toEqual({ error: "Marca al menos un estudiante." });
     expect(await llamar([ana.id], "")).toEqual({ error: "Falta la fecha, o no es una fecha." });
@@ -154,7 +181,7 @@ describe("asignar un examen", () => {
   // Mutación que la mata: no filtrar por papel ni por activa. El profesor se
   // asignaría el examen a sí mismo sin querer al pulsar «marcar todos».
   it("solo se asigna a estudiantes activos, y si uno no vale no se asigna ninguno", async () => {
-    const r = await asignarExamen(examen.id, [ana.id, profesor.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    const r = await asignarExamen(examen.id, [ana.id, profesor.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
 
     expect(r).toEqual({ error: "Esa lista de estudiantes no vale." });
     expect(await prisma.asignacion.count()).toBe(0);
@@ -167,8 +194,8 @@ describe("quitar y listar", () => {
   // examen, y se lleve por delante los demás exámenes de esa persona.
   it("quitar borra solo esa pareja", async () => {
     const otro = await prisma.examen.create({ data: { titulo: "Examen 2", nivel: "A2_B1_ESCOLAR", estado: "PUBLICADO" } });
-    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
-    await asignarExamen(otro.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
+    await asignarExamen(otro.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
 
     expect(await quitarAsignacion(examen.id, ana.id)).toEqual({});
     expect((await asignacionesDe(ana.id)).map((a) => a.examenId)).toEqual([otro.id]);
@@ -178,7 +205,7 @@ describe("quitar y listar", () => {
   // Mutación que la mata: devolver la fila entera de la base en asignacionesDe.
   // Lo que viaja al navegador del estudiante se construye campo a campo.
   it("lo del estudiante trae lo justo para pintar", async () => {
-    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
     const sinEmpezar = { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false };
 
     expect(await asignacionesDe(ana.id)).toEqual([
@@ -266,7 +293,7 @@ describe("retirar un examen que tiene gente dentro", () => {
   // mirar asignaciones). El estudiante se quedaría mirando un examen que cambia
   // debajo.
   it("no deja, dice los nombres, y el examen sigue publicado", async () => {
-    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
 
     expect(await retirarExamen(examen.id)).toEqual({
       error: "No se puede retirar: lo tienen asignado Ana. Quítaselo antes.",

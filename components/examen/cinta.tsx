@@ -49,6 +49,7 @@ export function Cinta({
   racionada,
   entregada = false,
   alSonar,
+  avisarSiSuena,
 }: {
   ficheroId: string;
   cortes: number[];
@@ -73,6 +74,14 @@ export function Cinta({
   entregada?: boolean;
   /** Apunta el trozo en el servidor ANTES de que suene. Si falla, no suena. */
   alSonar: (trozo: number) => Promise<{ error?: string }>;
+  /**
+   * Avisa al armazón de que HAY UN TROZO RACIONADO SONANDO: es el rato en el
+   * que desmontar esta cinta (cambiar de pestaña de tarea) quema el trozo sin
+   * devolverlo, porque ya quedó apuntado en el servidor antes de sonar. El
+   * armazón apaga con esto las pestañas. Solo es `true` si `racionada`: en
+   * modo libre el trozo se repite y no hay nada que quemar.
+   */
+  avisarSiSuena?: (sonando: boolean) => void;
 }) {
   const reproductor = useRef<HTMLAudioElement>(null);
   const hasta = useRef<number | null>(null);
@@ -157,6 +166,17 @@ export function Cinta({
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
+
+  // Mientras un trozo racionado suena, el armazón tiene que impedir que se
+  // cambie de tarea: el trozo ya está apuntado en el servidor y desmontar esta
+  // cinta lo quemaría sin haberlo oído. El aviso sale de aquí porque es aquí
+  // donde se sabe; la decisión de qué apagar es del armazón. El `false` de la
+  // limpieza cubre el desmontaje (salir de la pantalla) y se pisa en el acto
+  // con el valor nuevo cuando lo que cambió fue el estado.
+  useEffect(() => {
+    avisarSiSuena?.(racionada && estado.tipo === "sonando");
+    return () => avisarSiSuena?.(false);
+  }, [racionada, estado.tipo, avisarSiSuena]);
 
   // Al desmontar (cambiar de tarea, salir de la pantalla) el audio se para a
   // mano: quitar el `<audio>` del DOM ya lo pararía solo, pero no conviene

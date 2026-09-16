@@ -37,11 +37,17 @@ export function estudiantesParaAsignar(): Promise<{ id: string; nombre: string }
  * propósito: si el buzón de un menor rebota, los otros once tienen que quedarse
  * con su examen igual. Los que no reciben aviso vuelven por nombre para que el
  * profesor se lo diga a mano.
+ *
+ * `modo` es el mismo para toda la tanda: es lo que marcó el profesor en la
+ * caja «Quién lo hace». Sin él, `LIBRE` no lo escribía nadie en toda la
+ * aplicación y la práctica libre —pantalla, corrección al vuelo y candado de
+ * los ficheros— no se podía alcanzar.
  */
 export async function asignarExamen(
   examenId: string,
   personaIds: string[],
   dia: string,
+  modo: ModoDeExamen,
   profesorId: string,
   mandar: Mandar,
   base: string,
@@ -67,10 +73,16 @@ export async function asignarExamen(
     if (personas.length !== personaIds.length) return { error: "Esa lista de estudiantes no vale." };
 
     for (const persona of personas) {
+      // El `modo` va también en el `update`: volver a asignar es la única
+      // forma que tiene el profesor de cambiar de completo a libre o al revés,
+      // y si el update no lo tocara, el segundo intento no haría nada y no lo
+      // diría. Ojo con lo que eso significa cuando ya hay intento: pasar a
+      // libre no borra la nota (el intento sigue en la base), pero deja de
+      // enseñarla, porque en libre no hay estado que enseñar.
       await tx.asignacion.upsert({
         where: { examenId_personaId: { examenId, personaId: persona.id } },
-        create: { examenId, personaId: persona.id, fechaTope, asignadaPorId: profesorId },
-        update: { fechaTope, asignadaPorId: profesorId },
+        create: { examenId, personaId: persona.id, fechaTope, modo, asignadaPorId: profesorId },
+        update: { fechaTope, modo, asignadaPorId: profesorId },
       });
     }
     return { examen, personas };

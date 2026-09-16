@@ -43,8 +43,12 @@ describe("leer una prueba para hacerla", () => {
     expect(clavesDelExamen).toBe(2);
   });
 
-  // Mutación que la mata: dejar de filtrar por asignación. Cualquiera con sesión
-  // podría abrir el examen de otro escribiendo su identificador.
+  // Dos mutaciones, una por línea, porque la prueba comprueba las dos cosas:
+  // 1) dejar de filtrar por asignación — cualquiera con sesión podría abrir el
+  //    examen de otro escribiendo su identificador;
+  // 2) quitar la comprobación de `estado !== "PUBLICADO"` — un examen que el
+  //    profesor retiró para tocarlo se seguiría pudiendo hacer, cambiando por
+  //    debajo mientras alguien lo contesta.
   it("solo lo lee quien lo tiene asignado, y solo si está publicado", async () => {
     expect(await pruebaParaHacer(examen.id, "CE", luis.id, AHORA)).toBeNull();
     await prisma.examen.update({ where: { id: examen.id }, data: { estado: "EN_CONSTRUCCION" } });

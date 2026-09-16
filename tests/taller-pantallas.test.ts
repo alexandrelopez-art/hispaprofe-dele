@@ -503,10 +503,34 @@ describe("la caja de quién hace el examen", () => {
 
   // Mutación que la mata: dejar las casillas marcadas de quien ya lo tiene.
   // Asignárselo a uno nuevo le cambiaría la fecha a los demás sin pedirlo.
+  // Acotado a las casillas de estudiante (antes miraba el marcado entero): la
+  // caja tiene ahora otro control que SÍ nace marcado, el modo «Completo», y
+  // un `not.toContain("checked")` sobre todo el marcado confundiría las dos
+  // cosas y se pondría rojo por el motivo equivocado.
   it("las casillas nacen vacías aunque ya lo tengan", async () => {
     const marcado = await pintar("PUBLICADO");
-    expect(marcado).toContain("Ana"); // que la caja se pintó de verdad: si no, la ausencia de "checked" no dice nada
-    expect(marcado).not.toContain("checked");
+    const casillas = marcado.match(/<input[^>]*name="estudiante"[^>]*\/>/g) ?? [];
+    expect(casillas).toHaveLength(1); // la de Ana, pintada de verdad
+    expect(casillas.join("")).not.toContain("checked");
+  });
+
+  // Nada en toda la aplicación escribía `modo`: sin estas dos casillas, la
+  // práctica libre —su pantalla, su corrección al vuelo, su candado NO_LIBRE y
+  // la rama de los ficheros— no se podía alcanzar desde el sitio.
+  // Mutación que la mata: quitar las dos casillas del modo, o quitarles el
+  // `name="modo"` (la acción lee `formulario.get("modo")`, y sin nombre no
+  // viaja nada: todo el mundo saldría en completo).
+  it("el profesor elige entre completo y práctica libre, y nace en completo", async () => {
+    const marcado = await pintar("PUBLICADO");
+    const modos = marcado.match(/<input[^>]*name="modo"[^>]*\/>/g) ?? [];
+    expect(modos).toHaveLength(2);
+    expect(marcado).toContain("Práctica libre");
+    const completo = modos.filter((m) => m.includes('value="COMPLETO"'));
+    const libre = modos.filter((m) => m.includes('value="LIBRE"'));
+    expect(completo).toHaveLength(1);
+    expect(libre).toHaveLength(1);
+    expect(completo[0]).toContain('checked=""');
+    expect(libre[0]).not.toContain("checked");
   });
 
   // Mutación que la mata: quitar el botón. `renderToStaticMarkup` solo ve el

@@ -262,8 +262,30 @@ describe("lo que hace cada acción con el profesor", () => {
     form.append("estudiante", "e2");
 
     expect(await mensajeDelRechazo(asignarExamenAccion("x1", form))).toMatch(/^REDIRECT:/);
-    expect(dobles.asignarExamen.mock.calls[0]!.slice(0, 4)).toEqual(["x1", ["e1", "e2"], "2026-10-20", PROFESOR.id]);
+    expect(dobles.asignarExamen.mock.calls[0]!.slice(0, 5)).toEqual(["x1", ["e1", "e2"], "2026-10-20", "COMPLETO", PROFESOR.id]);
     expect(dobles.redirect.mock.calls[0]![0]).toContain("aviso=");
+  });
+
+  // El modo es el único campo del formulario que no es texto libre: son dos
+  // casillas, y lo que no sea el «LIBRE» exacto es completo. Prudente a
+  // propósito: lo que abre los cuatro ficheros y no deja nota es la práctica
+  // libre, así que ante lo que no se entiende se asigna el examen de verdad.
+  // Mutación que la mata: no leer `modo` del formulario (todos saldrían
+  // completo y la práctica libre seguiría sin poder alcanzarse), o darlo por
+  // bueno tal cual llegue (un valor inventado entraría hasta la base).
+  it("el modo sale del formulario, y lo que no sea LIBRE es completo", async () => {
+    dobles.asignarExamen.mockResolvedValue({ asignados: 1, sinAviso: [] });
+    const conModo = async (modo: string) => {
+      dobles.asignarExamen.mockClear();
+      const form = formulario({ dia: "2026-10-20", modo });
+      form.append("estudiante", "e1");
+      await mensajeDelRechazo(asignarExamenAccion("x1", form));
+      return dobles.asignarExamen.mock.calls[0]![3];
+    };
+
+    expect(await conModo("LIBRE")).toBe("LIBRE");
+    expect(await conModo("COMPLETO")).toBe("COMPLETO");
+    expect(await conModo("ROBADO")).toBe("COMPLETO");
   });
 
   // Mutación que la mata: construir siempre el aviso largo ("No salió el aviso

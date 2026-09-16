@@ -141,6 +141,12 @@ navegador entrega. Si para entonces no hay navegador —se fue la luz, cerró el
 la prueba queda entregada, con `porTiempo = true`, la primera vez que alguien la mira: el
 estudiante al volver a su Inicio, o el profesor al abrir su lista de asignados.
 
+**`porTiempo` lo decide el servidor, no el navegador.** Al entregar es verdad exactamente
+cuando no queda tiempo (`segundosQueQuedan === 0`), que es el caso de la entrega que manda
+el reloj del navegador y aterriza dentro de la gracia. No entra como argumento de la acción:
+una acción de servidor es una dirección pública, y «Entregada por tiempo» es la única señal
+que tiene el profesor de a quién se le acabó.
+
 Eso significa que dos pantallas de lectura escriben en la base, y conviene que esté dicho en
 voz alta: **`cerrarLasQueSePasaron(ahora)` se llama al pintar el Inicio del estudiante y la
 lista del profesor**, antes de leer los estados. Es una escritura idempotente —solo toca
@@ -291,6 +297,13 @@ En modo libre, las mismas dos filas sin estado y con el botón «Practicar».
 cada prueba y la nota. Quien entregó fuera de plazo lo lleva escrito al lado («2 días
 tarde»), que es para lo que sirve un tope blando.
 
+Y gana **el modo de la tanda**: dos casillas, «Completo» (marcada de entrada) y «Práctica
+libre», que viajan en el mismo formulario que la fecha tope. Hasta aquí el modo libre no lo
+escribía nadie —la 3b dejó la pantalla solo con completo hasta que esta entrega dijera qué
+es la práctica libre, y ya lo dice—, así que sin estas dos casillas la cuarta parte de la
+entrega era inalcanzable. Volver a asignar con el otro modo lo cambia; lo que no se marque
+como `LIBRE` exacto es completo.
+
 ## 9. Errores
 
 Todos con el mismo criterio de la casa: mensaje corto, en castellano, que dice qué hacer.
@@ -325,7 +338,8 @@ se pasa a mano, nunca `new Date()` dentro de una prueba.
    lo que marcó. Mutación: contar las no marcadas como acierto, o devolver `total` fijo a 25.
 2. **El reloj** (mismo fichero): a los 49 minutos quedan 60 segundos; a los 50 y 5 segundos
    todavía se puede guardar (gracia); a los 50 y 11, no. Con `minutos = null` no se acaba
-   nunca. Mutación: quitar la gracia o comparar con `>` en vez de `>=`.
+   nunca. Mutación: quitar la gracia o comparar con `>=` en vez de `>` (`seAcaboElTiempo`
+   compara con `>`: pedir `>` no mutaría nada).
 3. **Qué trozo toca** (mismo fichero): con los trozos 1 y 2 oídos de ocho, toca el 3; con
    los ocho, ninguno; con un hueco raro (oídos el 1 y el 3), toca el 2. Mutación: devolver
    `oidos.length + 1`, que es lo que parece pero falla con huecos.

@@ -49,13 +49,14 @@ function totalDePreguntas(tareas: TareaParaHacer[]): number {
  * de sobra — no lo es.
  */
 function CintaDeLaTarea({
-  examenId, prueba, tarea, racionada, entregada,
+  examenId, prueba, tarea, racionada, entregada, avisarSiSuena,
 }: {
   examenId: string;
   prueba: Prueba;
   tarea: TareaParaHacer;
   racionada: boolean;
   entregada?: boolean;
+  avisarSiSuena?: (sonando: boolean) => void;
 }) {
   const audio = tarea.formulario.medios.audio;
   if (tarea.trozos <= 0 || !audio) return null;
@@ -68,6 +69,7 @@ function CintaDeLaTarea({
       racionada={racionada}
       entregada={entregada}
       alSonar={marcarTrozoAccion.bind(null, examenId, prueba, tarea.numero)}
+      avisarSiSuena={avisarSiSuena}
     />
   );
 }
@@ -140,13 +142,26 @@ function AvisoPrevio({
   );
 }
 
-/** Las pestañas de las cuatro tareas. Cambiar de pestaña es solo estado local: no va al servidor. */
-function PestanasDeTarea({
-  tareas, abierta, alElegir,
+/**
+ * Las pestañas de las cuatro tareas. Cambiar de pestaña es solo estado local:
+ * no va al servidor.
+ *
+ * `bloqueadas` las apaga mientras suena un trozo racionado. Cambiar de tarea
+ * con el audio sonando desmonta la cinta (le cambia la `key`), y ese trozo ya
+ * está apuntado como oído en el servidor: se perdería sin haber sonado entero
+ * y sin ningún aviso. No se pregunta con un `confirm` a propósito: un cartel a
+ * mitad de una audición es justo lo que no puede pasar mientras se escucha.
+ *
+ * Exportada para poder pintarla sola en las pruebas: `renderToStaticMarkup`
+ * solo ve el estado inicial de `PruebaHaciendo`, donde nada suena todavía.
+ */
+export function PestanasDeTarea({
+  tareas, abierta, alElegir, bloqueadas = false,
 }: {
   tareas: TareaParaHacer[];
   abierta: number;
   alElegir: (numero: number) => void;
+  bloqueadas?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -155,8 +170,9 @@ function PestanasDeTarea({
           key={t.numero}
           type="button"
           aria-current={t.numero === abierta ? "true" : undefined}
+          disabled={bloqueadas}
           onClick={() => alElegir(t.numero)}
-          className={`rounded-full px-4 py-2 font-bold ${t.numero === abierta ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
+          className={`rounded-full px-4 py-2 font-bold disabled:opacity-50 ${t.numero === abierta ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
         >
           Tarea {t.numero}
         </button>
@@ -173,6 +189,9 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
   const [error, setError] = useState<string | null>(null);
   const [bloqueadaPorError, setBloqueadaPorError] = useState(false);
+  // Lo dice la cinta de la tarea abierta (ver PestanasDeTarea): mientras un
+  // trozo racionado suena, no se cambia de tarea.
+  const [cintaSonando, setCintaSonando] = useState(false);
   const [procesando, empezarTransicion] = useTransition();
   // Una sola entrega automática: sin esto, cada re-render (uno por cada
   // guardarRespuestaAccion en curso) le pasa a <Reloj> una alAcabarse con
@@ -202,17 +221,21 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const alAcabarse = useCallback(() => {
     if (entregadaPorTiempo.current) return;
     entregadaPorTiempo.current = true;
-    // El reloj avisó por su cuenta: se entrega con porTiempo y se refresca
-    // (esto no pasa por un formulario, así que Next no lo revalida solo).
+    // El reloj avisó por su cuenta: se entrega y se refresca (esto no pasa por
+    // un formulario, así que Next no lo revalida solo). Que la entrega quede
+    // «por tiempo» lo decide el servidor mirando su propio reloj, no este aviso.
     empezarTransicion(async () => {
-      const r = await entregarPruebaAccion(examenId, prueba.prueba, true);
-      if (r.error) {
-        // «Se entrega sola» solo es honesto si, cuando falla, alguien se
-        // entera: sin esto el estudiante se queda mirando 0:00 sin nota y
-        // sin aviso. «Entregar» sigue ahí para reintentar a mano.
-        setError(r.error);
-        return;
-      }
+      const r = await entregarPruebaAccion(examenId, prueba.prueba);
+      // Se refresca TAMBIÉN cuando hay error, y no es un descuido: los dos
+      // errores que pueden llegar aquí («Se acabó el tiempo.» y «Esta prueba
+      // ya está entregada.») significan lo mismo del lado del servidor —la
+      // prueba YA está entregada y con su nota puesta—, porque la guarda de
+      // abrirLaPrueba cierra el intento antes de devolverlos. Sin el refresco,
+      // el estudiante se quedaba con una nota calculada que no podía ver, el
+      // reloj no volvía a intentarlo (el pestillo ya está echado) y «Entregar»
+      // daba una y otra vez el mismo error. Se enseña el aviso por si el
+      // refresco no llega a llevarnos a ninguna parte.
+      if (r.error) setError(r.error);
       router.refresh();
     });
   }, [examenId, prueba.prueba, empezarTransicion, router]);
@@ -225,8 +248,11 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
       : "Entregar no se puede deshacer. ¿Entregar?";
     if (!window.confirm(pregunta)) return;
     empezarTransicion(async () => {
-      const r = await entregarPruebaAccion(examenId, prueba.prueba, false);
-      if (r.error) { setError(r.error); return; }
+      const r = await entregarPruebaAccion(examenId, prueba.prueba);
+      // Igual que en alAcabarse: el error que llega aquí ya lleva la prueba
+      // entregada por detrás, así que refrescar es lo que lleva a la pantalla
+      // del resultado en vez de a un callejón.
+      if (r.error) setError(r.error);
       router.refresh();
     });
   }
@@ -239,12 +265,19 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
         <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
       )}
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
-      <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
+      <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} bloqueadas={cintaSonando} />
       {tarea && (
         <>
           {/* key: load-bearing, ver el comentario de CintaDeLaTarea — sin ella,
               cambiar de pestaña reutiliza la cinta de la tarea anterior. */}
-          <CintaDeLaTarea key={tarea.numero} examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada />
+          <CintaDeLaTarea
+            key={tarea.numero}
+            examenId={examenId}
+            prueba={prueba.prueba}
+            tarea={tarea}
+            racionada
+            avisarSiSuena={setCintaSonando}
+          />
           <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={null} bloqueada={bloqueadaPorError} alMarcar={alMarcar} />
         </>
       )}

@@ -60,7 +60,7 @@ describe("las acciones del estudiante", () => {
     await expect(empezarPruebaAccion("ex1", "CE")).rejects.toThrow("REDIRECT:/entrar");
     await expect(guardarRespuestaAccion("ex1", "CE", 8, "B")).rejects.toThrow("REDIRECT:/entrar");
     await expect(marcarTrozoAccion("ex1", "CO", 1, 1)).rejects.toThrow("REDIRECT:/entrar");
-    await expect(entregarPruebaAccion("ex1", "CE", false)).rejects.toThrow("REDIRECT:/entrar");
+    await expect(entregarPruebaAccion("ex1", "CE")).rejects.toThrow("REDIRECT:/entrar");
     await expect(corregirEnLibreAccion("ex1", "CE", {})).rejects.toThrow("REDIRECT:/entrar");
     expect(dobles.empezarPrueba).not.toHaveBeenCalled();
   });
@@ -87,7 +87,7 @@ describe("las acciones del estudiante", () => {
   it("entregar refresca la pantalla del examen", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(ANA);
     dobles.entregarPrueba.mockResolvedValue({});
-    await entregarPruebaAccion("ex1", "CE", false);
+    await entregarPruebaAccion("ex1", "CE");
     expect(dobles.revalidatePath).toHaveBeenCalledWith("/examen/ex1/CE");
   });
 });
@@ -110,18 +110,29 @@ describe("lo que hace cada acción con la persona ya en sesión", () => {
     expect(dobles.marcarTrozo).toHaveBeenCalledWith("ex1", "CO", ANA.id, 2, 5, expect.any(Date));
   });
 
-  // Mutación que la mata: no pasar `porTiempo`, o pasarlo invertido.
-  it("entregar pasa porTiempo tal cual, y devuelve el error si lo hay", async () => {
+  // `porTiempo` no viaja desde el navegador: lo decide entregarPrueba con el
+  // reloj del servidor. Una acción de servidor es una dirección pública, y con
+  // el argumento puesto cualquiera podía dejarle al profesor un «Entregada por
+  // tiempo» en una prueba entregada con toda la calma — la única señal que
+  // tiene de a quién se le acabó el tiempo.
+  // Mutación que la mata: devolverle a entregarPrueba un quinto argumento
+  // tomado de quien llama (la firma de antes), o comerse el error.
+  it("entregar no le pasa al motor ningún porTiempo, y devuelve el error si lo hay", async () => {
     dobles.entregarPrueba.mockResolvedValue({ error: "Se acabó el tiempo." });
-    expect(await entregarPruebaAccion("ex1", "CE", true)).toEqual({ error: "Se acabó el tiempo." });
-    expect(dobles.entregarPrueba).toHaveBeenCalledWith("ex1", "CE", ANA.id, expect.any(Date), true);
+    expect(await entregarPruebaAccion("ex1", "CE")).toEqual({ error: "Se acabó el tiempo." });
+    expect(dobles.entregarPrueba).toHaveBeenCalledWith("ex1", "CE", ANA.id, expect.any(Date));
   });
 
   // Mutación que la mata: devolver `{}` fijo en vez de lo que corregirEnLibre
   // calcule, perdiendo la nota real.
+  // El doble devuelve un `Fallo` de verdad ({ numero, marcada }): `marcada` es
+  // LO QUE MARCÓ el estudiante, nunca la letra buena. Antes decía `letra`, que
+  // ni existe en el tipo (vi.fn() lo tipa como any y nadie se quejaba) ni
+  // significa lo mismo: un doble con esa forma da a entender que por aquí
+  // vuelve la respuesta correcta.
   it("corregir en libre devuelve la nota que calcule el motor, sin guardar nada", async () => {
-    dobles.corregirEnLibre.mockResolvedValue({ aciertos: 3, total: 5, fallos: [{ numero: 2, letra: "B" }] });
-    expect(await corregirEnLibreAccion("ex1", "CE", { "1": "A" })).toEqual({ aciertos: 3, total: 5, fallos: [{ numero: 2, letra: "B" }] });
+    dobles.corregirEnLibre.mockResolvedValue({ aciertos: 3, total: 5, fallos: [{ numero: 2, marcada: "B" }] });
+    expect(await corregirEnLibreAccion("ex1", "CE", { "1": "A" })).toEqual({ aciertos: 3, total: 5, fallos: [{ numero: 2, marcada: "B" }] });
     expect(dobles.corregirEnLibre).toHaveBeenCalledWith("ex1", "CE", ANA.id, { "1": "A" });
     expect(dobles.revalidatePath).not.toHaveBeenCalled();
   });
@@ -131,7 +142,7 @@ describe("lo que hace cada acción con la persona ya en sesión", () => {
   it("una prueba inventada rebota también en las otras cuatro", async () => {
     expect(await guardarRespuestaAccion("ex1", "XX" as Prueba, 1, "A")).toEqual({ error: "Esa prueba todavía no se puede hacer." });
     expect(await marcarTrozoAccion("ex1", "XX" as Prueba, 1, 1)).toEqual({ error: "Esa prueba todavía no se puede hacer." });
-    expect(await entregarPruebaAccion("ex1", "XX" as Prueba, false)).toEqual({ error: "Esa prueba todavía no se puede hacer." });
+    expect(await entregarPruebaAccion("ex1", "XX" as Prueba)).toEqual({ error: "Esa prueba todavía no se puede hacer." });
     expect(await corregirEnLibreAccion("ex1", "XX" as Prueba, {})).toEqual({ error: "Esa prueba todavía no se puede hacer." });
     expect(dobles.guardarRespuesta).not.toHaveBeenCalled();
     expect(dobles.marcarTrozo).not.toHaveBeenCalled();

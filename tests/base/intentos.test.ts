@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import type { Asignacion, Examen, Persona } from "@/lib/generated/prisma";
 import { empezarPrueba, guardarRespuesta, marcarTrozo, entregarPrueba, cerrarLasQueSePasaron, corregirEnLibre } from "@/lib/examen/hacer";
 import { pruebaParaHacer } from "@/lib/examen/paraHacer";
-import { crearExamenDePruebas, CLAVE_INVENTADA } from "../ayudas/examen-de-pruebas";
+import { crearExamenDePruebas, CLAVE_INVENTADA, CLAVE_INVENTADA_CO } from "../ayudas/examen-de-pruebas";
 
 const AHORA = new Date("2026-09-20T09:00:00Z");
 
@@ -100,7 +100,7 @@ describe("hacer la prueba", () => {
   it("guardar, marcar un trozo o entregar sin haber empezado se niega, y no escribe nada", async () => {
     expect(await guardarRespuesta(examen.id, "CE", ana.id, 7, "A", AHORA)).toEqual({ error: "Todavía no has empezado esta prueba." });
     expect(await marcarTrozo(examen.id, "CO", ana.id, 3, 1, AHORA)).toEqual({ error: "Todavía no has empezado esta prueba." });
-    expect(await entregarPrueba(examen.id, "CE", ana.id, AHORA, false)).toEqual({ error: "Todavía no has empezado esta prueba." });
+    expect(await entregarPrueba(examen.id, "CE", ana.id, AHORA)).toEqual({ error: "Todavía no has empezado esta prueba." });
 
     expect(await prisma.intento.count()).toBe(0);
     expect(await prisma.respuestaDeIntento.count()).toBe(0);
@@ -130,7 +130,7 @@ describe("hacer la prueba", () => {
   // Mutación que la mata: dejar escribir sobre una prueba entregada.
   it("una prueba entregada no admite ni una letra más", async () => {
     await empezarPrueba(examen.id, "CE", ana.id, AHORA);
-    await entregarPrueba(examen.id, "CE", ana.id, AHORA, false);
+    await entregarPrueba(examen.id, "CE", ana.id, AHORA);
     expect(await guardarRespuesta(examen.id, "CE", ana.id, 8, "B", AHORA)).toEqual({ error: "Esta prueba ya está entregada." });
     expect(await empezarPrueba(examen.id, "CE", ana.id, AHORA)).toEqual({ error: "Esta prueba ya está entregada." });
   });
@@ -157,7 +157,7 @@ describe("hacer la prueba", () => {
     await empezarPrueba(examen.id, "CE", ana.id, AHORA);
     await guardarRespuesta(examen.id, "CE", ana.id, 7, CLAVE_INVENTADA["7"], AHORA);
     await guardarRespuesta(examen.id, "CE", ana.id, 8, "Z", AHORA);
-    await entregarPrueba(examen.id, "CE", ana.id, AHORA, false);
+    await entregarPrueba(examen.id, "CE", ana.id, AHORA);
 
     const antes = await prisma.intento.findFirstOrThrow();
     expect(antes.aciertos).toBe(1);
@@ -169,6 +169,57 @@ describe("hacer la prueba", () => {
     expect(despues.estado.aciertos).toBe(1);
     expect(despues.estado.total).toBe(6);
     expect(despues.fallos).toEqual([8, 9, 10, 11, 12]);
+  });
+
+  // La auditiva no tenía ni una prueba que la corrigiera: todo el camino de la
+  // nota de CO se apoyaba en «CE funciona y el código es simétrico». La clave
+  // inventada de la auditiva 3 vive en otra prueba (CO) y en otras preguntas
+  // (14-19) que la de lectura, así que esto no puede pasar por accidente.
+  // Mutación que la mata: corregir siempre con la clave de CE (quitar el
+  // `prueba` de `claveDeLaPrueba`, o fijarlo a "CE"): las seis preguntas de la
+  // auditiva no estarían en esa clave y la nota saldría 1 de 6 con otros
+  // fallos, o 0 de 6.
+  it("la auditiva también da nota, con su propia clave", async () => {
+    await empezarPrueba(examen.id, "CO", ana.id, AHORA);
+    await guardarRespuesta(examen.id, "CO", ana.id, 14, CLAVE_INVENTADA_CO["14"]!, AHORA);
+    await guardarRespuesta(examen.id, "CO", ana.id, 15, "Z", AHORA);
+    await entregarPrueba(examen.id, "CO", ana.id, AHORA);
+
+    const intento = await prisma.intento.findFirstOrThrow();
+    expect(intento.aciertos).toBe(1);
+    expect(intento.total).toBe(6);
+    expect(intento.fallos).toEqual([15, 16, 17, 18, 19]);
+  });
+
+  // «Entregada por tiempo» es la única señal que tiene el profesor de a quién
+  // se le acabó el tiempo, y por eso no la dice el navegador: la decide el
+  // reloj del servidor al entregar.
+  // Mutación que la mata: escribir `porTiempo: true` fijo en `entregarPrueba`,
+  // o volver a tomarlo de un argumento de quien llama (que es lo que había, y
+  // desde una dirección pública valía cualquier cosa).
+  it("quien entrega con tiempo de sobra no queda «entregada por tiempo»", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    await entregarPrueba(examen.id, "CE", ana.id, new Date(AHORA.getTime() + 10 * 60_000));
+    expect((await prisma.intento.findFirstOrThrow()).porTiempo).toBe(false);
+  });
+
+  // Es el caso de verdad: el reloj del navegador llega a cero y entrega, y esa
+  // llamada aterriza dentro de los diez segundos de gracia (si llegara más
+  // tarde, la guarda ya la habría cerrado ella sola, también por tiempo).
+  // Mutación que la mata: escribir `porTiempo: false` fijo en `entregarPrueba`.
+  it("entregar sin un segundo ya en el reloj queda «entregada por tiempo»", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    await entregarPrueba(examen.id, "CE", ana.id, new Date(AHORA.getTime() + 50 * 60_000 + 5_000));
+    expect((await prisma.intento.findFirstOrThrow()).porTiempo).toBe(true);
+  });
+
+  // Mutación que la mata: tratar el «sin reloj» como cero segundos (un `?? 0`
+  // sobre lo que devuelve segundosQueQuedan). Toda la auditiva, que no lleva
+  // reloj y dura lo que duran las pistas, saldría «Entregada por tiempo».
+  it("la auditiva, que no lleva reloj, no se entrega nunca por tiempo", async () => {
+    await empezarPrueba(examen.id, "CO", ana.id, AHORA);
+    await entregarPrueba(examen.id, "CO", ana.id, new Date(AHORA.getTime() + 5 * 60 * 60_000));
+    expect((await prisma.intento.findFirstOrThrow()).porTiempo).toBe(false);
   });
 
   // Mutación que la mata: no cerrar las pasadas de hora al mirar. Quien cierre el

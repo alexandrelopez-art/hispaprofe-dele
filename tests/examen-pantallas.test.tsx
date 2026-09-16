@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
 import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
-import { corregirTareaEnLibre } from "@/components/examen/hacer-prueba";
+import { corregirTareaEnLibre, PestanasDeTarea } from "@/components/examen/hacer-prueba";
+import { Cinta } from "@/components/examen/cinta";
+import { Reloj, segundosHasta } from "@/components/examen/reloj";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -166,6 +169,16 @@ function auditivaCuatro(): TareaParaHacer {
       opciones: p.opciones.map((o) => ({ ...o, texto: `Opción ${o.letra} de la ${p.numero}` })),
     }));
   });
+}
+
+// CO-4 con su pista: tres trozos y dos marcas, como la de verdad. Es la única
+// fixture con audio de toda la suite, y sin ella `CintaDeLaTarea` no llega a
+// pintarse nunca dentro de la pantalla: `medios.audio` llega en null en todas
+// las demás y la cinta se rinde antes de pintar nada.
+function auditivaCuatroConAudio(): TareaParaHacer {
+  const tarea = auditivaCuatro();
+  tarea.formulario.medios.audio = { fichero: "audio-co-4", cortes: [113, 195] };
+  return tarea;
 }
 
 // CE-4: HUECOS, siete huecos (primero: 19, items: 7) en un texto con título y
@@ -362,6 +375,29 @@ function haciendoAuditiva(): PruebaParaHacer {
   });
 }
 
+// CO ya empezada y CON pista: la única fixture que pinta la cinta dentro de la
+// pantalla.
+function haciendoAuditivaConCinta(): PruebaParaHacer {
+  return pruebaDePrueba({
+    prueba: "CO",
+    minutos: null,
+    estado: { estado: "HACIENDO", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    tareas: [auditivaCuatroConAudio()],
+  });
+}
+
+// La misma, ya entregada: ahí la cinta se pinta agotada, sin reproductor.
+function entregadaAuditivaConCinta(): PruebaParaHacer {
+  return pruebaDePrueba({
+    prueba: "CO",
+    minutos: null,
+    estado: { estado: "ENTREGADA", aciertos: 3, total: 6, porTiempo: false },
+    segundosQueQuedan: null,
+    tareas: [auditivaCuatroConAudio()],
+  });
+}
+
 // CE-2 tiene 6 preguntas (7-12); sumadas a CE-1 (6) + CE-3 (6) + CE-4 (7) da
 // los 25 de la prueba completa. Aquí solo hace falta que la nota del
 // `estado` (no las tareas) diga 19 de 25.
@@ -429,6 +465,30 @@ describe("la pantalla que hace el estudiante", () => {
     const html = await pintarPagina(haciendoAuditiva());
     expect(html).toContain("Escucha y elige la foto que corresponde."); // que la tarea se pintó de verdad
     expect(html).not.toContain("Te quedan");
+  });
+
+  // La cinta, dentro de la pantalla. Hasta ahora ninguna fixture traía audio,
+  // así que `CintaDeLaTarea` se rendía antes de pintar nada y ni ella ni la
+  // `Cinta` de debajo se ejecutaban en toda la suite.
+  // Mutación que la mata: quitar `<CintaDeLaTarea>` de `PruebaHaciendo`, o
+  // invertir su guarda `tarea.trozos <= 0 || !audio`, o pintar el `<audio>` con
+  // la ruta de otro fichero.
+  it("empezada, la auditiva con pista pinta su cinta", async () => {
+    const html = await pintarPagina(haciendoAuditivaConCinta());
+    expect(html).toContain('src="/api/ficheros/audio-co-4"');
+    expect(html).toContain("Escuchar el audio");
+  });
+
+  // Mutación que la mata: no pasarle `entregada` a `CintaDeLaTarea` desde
+  // `PruebaEntregada`. La cinta volvería a ofrecer el botón en una prueba ya
+  // cerrada, donde ningún clic puede salir bien: el servidor contestaría
+  // «Esta prueba ya está entregada.» y el estudiante se quedaría con un
+  // reproductor que no reproduce.
+  it("entregada, la cinta sale agotada y sin reproductor", async () => {
+    const html = await pintarPagina(entregadaAuditivaConCinta());
+    expect(html).toContain("Este audio ya ha sonado.");
+    expect(html).not.toContain("Escuchar el audio");
+    expect(html).not.toContain("<audio");
   });
 
   // Mutación que la mata: no pintar el resultado, o pintar la letra buena.
@@ -520,5 +580,147 @@ describe("«Corregir» en modo libre corrige la prueba entera pero solo cuenta y
     const r = await corregirTareaEnLibre("x1", "CE", {}, tarea, accion);
 
     expect(r).toEqual({ error: "Este examen ya no está disponible." });
+  });
+});
+
+/**
+ * La cinta, pintada sola. Solo se puede probar lo que es puro: el estado
+ * INICIAL con el que nace y lo que sale del corto de `entregada`. Lo demás —el
+ * encadenado, la pausa con cuenta atrás, el trozo que se apunta antes de sonar—
+ * es estado de React movido por clics y por el `<audio>`, y sin jsdom no hay
+ * forma honesta de tocarlo: sigue siendo paseo a mano (spec §10 y §11).
+ *
+ * Lo que tampoco se puede probar aquí, y conviene que esté dicho en voz alta:
+ * la `key={tarea.numero}` de las tres llamadas a `CintaDeLaTarea`. Una `key`
+ * solo hace algo al RE-renderizar (decide si React remonta o reaprovecha), y
+ * `renderToStaticMarkup` monta una vez y se acaba: el marcado sale idéntico con
+ * key y sin ella. Dos cintas hermanas en un mismo render tampoco valen — son
+ * dos componentes distintos con estado propio, lleven key o no. Para fijarla
+ * haría falta un renderizador que sepa re-renderizar (react-test-renderer),
+ * que no está en el proyecto y que es justo lo que las reglas de esta suite
+ * descartan. Queda escrito aquí en vez de fingir una prueba que pasa siempre.
+ */
+describe("la cinta", () => {
+  function pintarCinta(extra: Partial<ComponentProps<typeof Cinta>> = {}): string {
+    return renderToStaticMarkup(
+      <Cinta
+        ficheroId="audio-co-4"
+        cortes={[113, 195]}
+        trozos={3}
+        oidos={[]}
+        racionada
+        alSonar={async () => ({})}
+        {...extra}
+      />,
+    );
+  }
+
+  // Mutación que la mata: pintar el `src` del `<audio>` con el identificador
+  // pelado (o con otra ruta): el único sitio que sirve ficheros, y con el
+  // candado puesto, es /api/ficheros/<id>.
+  it("sin nada oído, ofrece el botón y apunta a la ruta de ficheros", () => {
+    const html = pintarCinta();
+    expect(html).toContain('src="/api/ficheros/audio-co-4"');
+    expect(html).toContain("Escuchar el audio");
+    expect(html).not.toContain("Este audio ya ha sonado.");
+  });
+
+  // Mutación que la mata: quitar el `siguienteTrozo(oidos, trozos) === null`
+  // del estado inicial y nacer siempre «listo». Al recargar la página con la
+  // pista ya oída entera volvería a salir el botón, y pulsarlo marcaría otra
+  // vez un trozo gastado.
+  it("con todos los trozos oídos nace agotada", () => {
+    const html = pintarCinta({ oidos: [1, 2, 3] });
+    expect(html).toContain("Este audio ya ha sonado."); // que se pintó de verdad
+    expect(html).not.toContain("Escuchar el audio");
+  });
+
+  // Mutación que la mata: quitar el `&& racionada` del estado inicial. En
+  // práctica libre la cinta no se acaba nunca: nacer agotada porque `oidos`
+  // venga lleno dejaría al estudiante sin poder repetir, que es justo lo que
+  // el modo libre existe para poder hacer.
+  it("en modo libre no nace agotada aunque le lleguen trozos oídos", () => {
+    const html = pintarCinta({ racionada: false, oidos: [1, 2, 3] });
+    expect(html).toContain("Escuchar el audio");
+    expect(html).not.toContain("Este audio ya ha sonado.");
+  });
+
+  // Mutación que la mata: quitar el corto de `entregada` (el `if (entregada)`
+  // de antes del `<audio>`). En una prueba entregada el intento está cerrado y
+  // marcar un trozo siempre fallaría: no puede quedar ni botón ni reproductor.
+  it("entregada se pinta agotada, sin botón y sin reproductor", () => {
+    const html = pintarCinta({ entregada: true, oidos: [] });
+    expect(html).toContain("Este audio ya ha sonado."); // que se pintó de verdad
+    expect(html).not.toContain("Escuchar el audio");
+    expect(html).not.toContain("<audio");
+  });
+});
+
+describe("las pestañas de las tareas", () => {
+  const TAREAS = [lecturaDos(), lecturaTres()];
+
+  // Cambiar de tarea mientras suena un trozo racionado lo quema: la cinta se
+  // desmonta (le cambia la `key`), el audio se corta y el trozo ya quedó
+  // apuntado como oído en el servidor. Lo que esta prueba fija es la mitad que
+  // se puede pintar: que `bloqueadas` llega a los botones. La otra mitad —que
+  // ese `true` sale de la cinta cuando empieza a sonar— es estado de React y
+  // no se puede ver con un render estático; queda para el paseo a mano.
+  // Mutación que la mata: quitar el `disabled={bloqueadas}` de los botones.
+  it("se apagan cuando el armazón dice que hay un trozo sonando", () => {
+    const apagadas = renderToStaticMarkup(
+      <PestanasDeTarea tareas={TAREAS} abierta={2} alElegir={() => {}} bloqueadas />,
+    );
+    expect(apagadas).toContain("Tarea 2"); // que se pintaron de verdad
+    expect(apagadas.match(/disabled=""/g) ?? []).toHaveLength(2);
+  });
+
+  // Mutación que la mata: apagarlas siempre (dejar `disabled` fijo, o
+  // invertir `bloqueadas`). Con las pestañas muertas no se puede volver a una
+  // tarea anterior, que es lo normal en la lectura.
+  it("con la cinta callada se puede cambiar de tarea", () => {
+    const vivas = renderToStaticMarkup(<PestanasDeTarea tareas={TAREAS} abierta={2} alElegir={() => {}} />);
+    expect(vivas).toContain("Tarea 3"); // que se pintaron de verdad
+    // El atributo, no la palabra: la clase `disabled:opacity-50` lleva
+    // «disabled» dentro y un `not.toContain("disabled")` a secas no podría
+    // ponerse verde nunca.
+    expect(vivas).not.toContain('disabled=""');
+  });
+});
+
+describe("el reloj", () => {
+  // `segundosHasta` es la única parte del reloj que se puede probar: lo demás
+  // son temporizadores. Se le pasa el «ahora» a mano, como a todo lo que mira
+  // la hora en esta suite.
+  // Mutación que la mata: quitar el `Math.max(0, ...)`. Un móvil bloqueado
+  // suspende los temporizadores, y al volver pasada la hora la diferencia es
+  // negativa: la pantalla pintaría «Te quedan -2:-40».
+  it("nunca baja de cero, aunque se vuelva pasada la hora", () => {
+    expect(segundosHasta(1_000_000, 1_160_000)).toBe(0);
+  });
+
+  // Mutación que la mata: devolver la diferencia sin dividir por mil (pintaría
+  // los milisegundos), o no mirar `ahora` — que es lo que hacía el reloj
+  // viejo, que restaba de un contador y por eso una pestaña dormida le
+  // regalaba al estudiante todo el rato que hubiera estado apagada.
+  it("cuenta lo que falta para la hora de fin", () => {
+    const limite = 1_000_000;
+    expect(segundosHasta(limite, limite - 3_000)).toBe(3);
+    expect(segundosHasta(limite, limite - 300_000)).toBe(300);
+  });
+
+  // Mutación que la mata: pintar los segundos crudos («Te quedan 2945»), o
+  // perder el cero de relleno («Te quedan 49:5»).
+  it("pinta minutos y segundos con su cero delante", () => {
+    expect(renderToStaticMarkup(<Reloj segundos={2945} alAcabarse={() => {}} />)).toContain("Te quedan 49:05");
+  });
+
+  // Mutación que la mata: cambiar el `quedan <= 300` del aviso rojo (quitarlo,
+  // o ponerlo al revés). Los últimos cinco minutos se avisan; antes, no.
+  it("los últimos cinco minutos van en rojo, y el minuto anterior no", () => {
+    const cinco = renderToStaticMarkup(<Reloj segundos={300} alAcabarse={() => {}} />);
+    const seis = renderToStaticMarkup(<Reloj segundos={301} alAcabarse={() => {}} />);
+    expect(cinco).toContain("text-error-600");
+    expect(seis).toContain("Te quedan 5:01"); // que se pintó de verdad
+    expect(seis).not.toContain("text-error-600");
   });
 });

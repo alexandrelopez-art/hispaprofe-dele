@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prueba } from "@/lib/generated/prisma";
 import { minutosDePrueba } from "@/lib/dele/estructura";
-import { notaDePrueba, seAcaboElTiempo, type Nota } from "./motor";
+import { notaDePrueba, seAcaboElTiempo, segundosQueQuedan, type Nota } from "./motor";
 
 // Los mensajes de error, literales (spec §9). Otras pantallas y otras tareas
 // los comparan por texto: cambiar una coma aquí las rompe.
@@ -109,7 +109,7 @@ async function abrirLaPrueba(
   personaId: string,
   ahora: Date,
   opciones: { exigirEmpezada: boolean },
-): Promise<{ asignacion: AsignacionAbierta; intento: IntentoAbierto | null } | { error: string }> {
+): Promise<{ asignacion: AsignacionAbierta; intento: IntentoAbierto | null; minutos: number | null } | { error: string }> {
   if (prueba !== "CE" && prueba !== "CO") return { error: NO_SE_HACE };
 
   const asignacion = await prisma.asignacion.findUnique({
@@ -134,15 +134,16 @@ async function abrirLaPrueba(
   if (!intento && opciones.exigirEmpezada) return { error: NO_EMPEZADA };
   if (intento?.entregadaEn) return { error: YA_ENTREGADA };
 
-  if (intento) {
-    const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
-    if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-      await congelarNota(examenId, prueba, intento.id, intento.respuestas, ahora, true);
-      return { error: SE_ACABO };
-    }
+  // Los minutos salen de aquí, y no cada quien por su cuenta: es la única
+  // consulta que ya trae el nivel del examen. `entregarPrueba` los necesita
+  // para saber si la entrega la manda el reloj.
+  const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
+  if (intento && seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
+    await congelarNota(examenId, prueba, intento.id, intento.respuestas, ahora, true);
+    return { error: SE_ACABO };
   }
 
-  return { asignacion: { id: asignacion.id }, intento };
+  return { asignacion: { id: asignacion.id }, intento, minutos };
 }
 
 /**
@@ -202,18 +203,32 @@ export async function marcarTrozo(
   return {};
 }
 
-/** El botón «Entregar», o el cierre automático desde `abrirLaPrueba` con `porTiempo: true`. */
+/**
+ * El botón «Entregar». (El otro camino, el cierre automático, lo hace
+ * `abrirLaPrueba` llamando a `congelarNota` con `porTiempo: true`.)
+ *
+ * `porTiempo` NO lo dice el navegador: lo decide aquí el reloj del servidor.
+ * Antes entraba como argumento de la acción, y una acción de servidor es una
+ * dirección pública: cualquiera podía entregar tranquilo y dejar puesto
+ * «Entregada por tiempo», que es la única señal que tiene el profesor de a
+ * quién se le acabó. Es verdad exactamente cuando no queda tiempo: si el
+ * intento llega hasta aquí es porque la guarda no lo cerró, o sea que a lo
+ * sumo está dentro de los diez segundos de gracia — justo el caso de la
+ * entrega que manda el reloj del navegador. Sin reloj (la auditiva),
+ * `segundosQueQuedan` devuelve null y nunca es por tiempo.
+ */
 export async function entregarPrueba(
   examenId: string,
   prueba: Prueba,
   personaId: string,
   ahora: Date,
-  porTiempo: boolean,
 ): Promise<{ error?: string }> {
   const abierta = await abrirLaPrueba(examenId, prueba, personaId, ahora, { exigirEmpezada: true });
   if ("error" in abierta) return abierta;
 
-  await congelarNota(examenId, prueba, abierta.intento!.id, abierta.intento!.respuestas, ahora, porTiempo);
+  const intento = abierta.intento!;
+  const porTiempo = segundosQueQuedan(intento.empezadaEn, abierta.minutos, ahora) === 0;
+  await congelarNota(examenId, prueba, intento.id, intento.respuestas, ahora, porTiempo);
   return {};
 }
 

@@ -38,6 +38,17 @@ export async function GET(
   // intento: la práctica libre no guarda nada); modo COMPLETO abre solo las
   // pruebas con un intento ya empezado, entregado incluido, porque la
   // pantalla de resultados enseña las fotos de lo que falló.
+  //
+  // La pregunta obvia sobre la rama de LIBRE —«¿y un examen retirado cuya
+  // asignación en libre sigue abriendo los cuatro ficheros?»— no se puede dar
+  // hoy, y conviene saber por qué antes de tocar nada: mientras hay una
+  // asignación viva el examen NO se puede retirar (`retirarExamen` se niega y
+  // dice los nombres), archivar solo se llega desde construcción, y asignar
+  // exige que esté publicado. O sea: publicado con gente dentro, o sin gente
+  // dentro y entonces sin asignaciones que mirar. Quien algún día afloje la
+  // guarda de retirar es quien abre ese agujero, y este es el sitio donde va a
+  // estar de pie cuando lo haga: aquí habría que mirar también el estado del
+  // examen, no solo la asignación.
   const abiertas: PruebaAbierta[] =
     persona.papel === "PROFESOR"
       ? []

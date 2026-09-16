@@ -69,7 +69,9 @@ describe("el reloj", () => {
     expect(seAcaboElTiempo(EMPEZO, null, en(600))).toBe(false);
   });
 
-  // Mutación que la mata: quitar los diez segundos de gracia, o comparar con >.
+  // Mutación que la mata: quitar los diez segundos de gracia, o comparar con
+  // `>=` (la implementación compara con `>`, así que nombrar `>` no sería
+  // ninguna mutación: es lo que ya hay escrito).
   it("los diez segundos de gracia son diez, no cero y no veinte", () => {
     expect(seAcaboElTiempo(EMPEZO, 50, en(49, 59))).toBe(false);
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 5))).toBe(false);
