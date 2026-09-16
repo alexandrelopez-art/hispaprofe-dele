@@ -28,22 +28,30 @@ type Estado =
 
 /**
  * La cinta de una tarea de auditiva: un trozo cada vez, apuntado en el
- * servidor antes de sonar (salvo en modo libre, donde no se raciona), con
- * una pausa entre trozos para contestar.
+ * servidor antes de sonar (salvo cuando `racionada` es `false`), con una
+ * pausa entre trozos para contestar.
  */
 export function Cinta({
   ficheroId,
   cortes,
   trozos,
   oidos,
-  bloqueada,
+  racionada,
   alSonar,
 }: {
   ficheroId: string;
   cortes: number[];
   trozos: number;
   oidos: number[];
-  bloqueada: boolean;
+  /**
+   * `true`: la prueba de verdad — un trozo se marca en el servidor ANTES de
+   * sonar y no vuelve a sonar. `false`: modo libre — no se escribe nada y los
+   * trozos se repiten. Nombrarlo aparte de `bloqueada` (que en esta misma
+   * pantalla significa «no se puede contestar») es a propósito: los dos
+   * booleanos no dicen lo mismo, aunque en `PruebaHaciendo` valgan `true` y
+   * `false` a la vez sin ser el mismo concepto.
+   */
+  racionada: boolean;
   /** Apunta el trozo en el servidor ANTES de que suene. Si falla, no suena. */
   alSonar: (trozo: number) => Promise<{ error?: string }>;
 }) {
@@ -51,7 +59,7 @@ export function Cinta({
   const hasta = useRef<number | null>(null);
   const [oidosState, setOidosState] = useState<number[]>(oidos);
   const [estado, setEstado] = useState<Estado>(() =>
-    siguienteTrozo(oidos, trozos) === null && bloqueada ? { tipo: "agotado" } : { tipo: "listo" },
+    siguienteTrozo(oidos, trozos) === null && racionada ? { tipo: "agotado" } : { tipo: "listo" },
   );
 
   async function sonarTrozo(n: number) {
@@ -60,7 +68,7 @@ export function Cinta({
     // hasta que cambie el estado) dispararía sonarTrozo dos veces para el
     // mismo trozo.
     setEstado({ tipo: "sonando" });
-    if (bloqueada) {
+    if (racionada) {
       const r = await alSonar(n);
       if (r.error) {
         setEstado({ tipo: "error" });
@@ -91,7 +99,7 @@ export function Cinta({
     hasta.current = null;
     if (siguienteTrozo(oidosState, trozos) !== null) {
       setEstado({ tipo: "pausa", segundos: SEGUNDOS_DE_PAUSA });
-    } else if (bloqueada) {
+    } else if (racionada) {
       setEstado({ tipo: "agotado" });
     } else {
       // Modo libre: la cinta no se acaba nunca, vuelve a estar lista.

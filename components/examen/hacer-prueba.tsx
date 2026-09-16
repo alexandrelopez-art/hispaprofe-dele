@@ -31,17 +31,19 @@ function totalDePreguntas(tareas: TareaParaHacer[]): number {
 
 /**
  * La cinta de una tarea, colgada por encima de la actividad cuando la tarea
- * lleva audio. `bloqueada` decide si suena racionado (la prueba de verdad,
+ * lleva audio. `racionada` decide si suena racionado (la prueba de verdad,
  * un trozo cada vez, apuntado en el servidor) o libre (práctica, sin
- * racionar): la decide el armazón según el modo, no la propia cinta.
+ * racionar): la decide el armazón según el modo, no la propia cinta. No se
+ * llama `bloqueada` a propósito: en `PruebaHaciendo` esa palabra ya significa
+ * «no se puede contestar», y aquí significaría otra cosa distinta a la vez.
  */
 function CintaDeLaTarea({
-  examenId, prueba, tarea, bloqueada,
+  examenId, prueba, tarea, racionada,
 }: {
   examenId: string;
   prueba: Prueba;
   tarea: TareaParaHacer;
-  bloqueada: boolean;
+  racionada: boolean;
 }) {
   const audio = tarea.formulario.medios.audio;
   if (tarea.trozos <= 0 || !audio) return null;
@@ -51,7 +53,7 @@ function CintaDeLaTarea({
       cortes={audio.cortes}
       trozos={tarea.trozos}
       oidos={tarea.oidos}
-      bloqueada={bloqueada}
+      racionada={racionada}
       alSonar={marcarTrozoAccion.bind(null, examenId, prueba, tarea.numero)}
     />
   );
@@ -227,7 +229,7 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
-          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} bloqueada />
+          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada />
           <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={null} bloqueada={bloqueadaPorError} alMarcar={alMarcar} />
         </>
       )}
@@ -253,7 +255,7 @@ function PruebaEntregada({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
-          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} bloqueada />
+          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada />
           <TareaDelEstudiante tarea={tarea} marcadas={prueba.respuestas} fallos={prueba.fallos} bloqueada alMarcar={() => {}} />
         </>
       )}
@@ -310,7 +312,7 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
-          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} bloqueada={false} />
+          <CintaDeLaTarea examenId={examenId} prueba={prueba.prueba} tarea={tarea} racionada={false} />
           <TareaDelEstudiante
             tarea={tarea}
             marcadas={marcadas}
