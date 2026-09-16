@@ -1,7 +1,8 @@
 // tests/ayudas/examen-de-pruebas.ts
-// Un examen publicado, con una tarea guardada de verdad (por `guardarTarea`,
-// como hace el taller) y su clave. La comparten los tests de leer una prueba
-// (Task 3) y los de hacerla (Task 4): ambos necesitan el mismo montaje.
+// Un examen publicado, con dos tareas guardadas de verdad (por `guardarTarea`,
+// como hace el taller) y sus claves: una de lectura (CE) y una de auditiva
+// (CO). La comparten los tests de leer una prueba (Task 3) y los de hacerla
+// (Task 4): ambos necesitan el mismo montaje.
 import { prisma } from "@/lib/db";
 import type { Examen, Persona } from "@/lib/generated/prisma";
 import { finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
@@ -17,6 +18,13 @@ export const CLAVE_INVENTADA: Record<string, string> = {
   "7": "A", "8": "B", "9": "C", "10": "A", "11": "B", "12": "C",
 };
 
+// Clave INVENTADA de la auditiva 3 (preguntas 14-19), tan de mentira como la
+// de arriba. Vive en una prueba distinta (CO, no CE) a propósito: es lo que
+// hace que filtrar por `prueba` al leer las tareas del examen importe de verdad.
+export const CLAVE_INVENTADA_CO: Record<string, string> = {
+  "14": "A", "15": "B", "16": "C", "17": "A", "18": "B", "19": "C",
+};
+
 /** Una tarea de lectura 2 con sus seis preguntas y su clave inventada. */
 async function guardarLectura2(examenId: string): Promise<void> {
   const regla = reglaDe("A2_B1_ESCOLAR", "CE", 2)!;
@@ -29,18 +37,37 @@ async function guardarLectura2(examenId: string): Promise<void> {
   await guardarTarea(examenId, "CE", 2, f);
 }
 
+/**
+ * Una tarea de auditiva 3 (la LISTA_COMUN de la prueba oral), con sus seis
+ * preguntas y su clave inventada, un trozo de pista. La comparten los tests de
+ * `marcarTrozo` (Task 4, que necesitan una tarea de CO que exista de verdad) y
+ * la prueba de `pruebaParaHacer` que comprueba que filtra por prueba (Task 3).
+ */
+async function guardarAuditiva3(examenId: string): Promise<void> {
+  const regla = reglaDe("A2_B1_ESCOLAR", "CO", 3)!;
+  const f = formularioVacio(regla);
+  if (f.forma !== "LISTA_COMUN") throw new Error("la auditiva 3 es LISTA_COMUN");
+  f.consigna = "Escucha las conversaciones.";
+  f.actividad.comunes = f.actividad.comunes.map((c) => ({ ...c, texto: `Persona ${c.letra}` }));
+  f.actividad.preguntas = f.actividad.preguntas.map((p) => ({ ...p, enunciado: `Pregunta ${p.numero}` }));
+  await guardarTarea(examenId, "CO", 3, f);
+}
+
 export type ExamenDePruebas = { ana: Persona; luis: Persona; examen: Examen };
 
 /**
  * Limpia personas, exámenes y cuadernillos, y monta uno nuevo: Ana y Luis, un
- * cuadernillo inventado con `numeroEnCuadernillo: 1` y su clave, la lectura 2
- * guardada con `guardarTarea`, el examen publicado y asignado a Ana con fecha
- * tope. Se crea con `crearExamen`, igual que el taller: es lo que siembra las
- * 14 filas de Tarea vacías, sin las cuales `guardarTarea` no encuentra dónde
- * guardar. Sin cuadernillo y sin número, `guardarTarea` guarda la tarea SIN
- * clave: la clave se copia del cuadernillo en ese momento (Entrega 1). Sin
- * este montaje, comprobar que la clave existe de verdad es imposible, y la
- * nota de quien hace el examen saldría siempre 0 de 0.
+ * cuadernillo inventado con `numeroEnCuadernillo: 1` y sus dos claves, la
+ * lectura 2 y la auditiva 3 guardadas con `guardarTarea`, el examen publicado
+ * y asignado a Ana con fecha tope. Se crea con `crearExamen`, igual que el
+ * taller: es lo que siembra las 14 filas de Tarea vacías, sin las cuales
+ * `guardarTarea` no encuentra dónde guardar. Sin cuadernillo y sin número,
+ * `guardarTarea` guarda la tarea SIN clave: la clave se copia del cuadernillo
+ * en ese momento (Entrega 1). Sin este montaje, comprobar que la clave existe
+ * de verdad es imposible, y la nota de quien hace el examen saldría siempre 0
+ * de 0. Las dos tareas, en dos pruebas distintas (CE y CO), son también lo que
+ * hace que filtrar por `prueba` al leer las tareas del examen importe: con
+ * una sola tarea, quitar ese filtro no cambiaría el resultado.
  */
 export async function crearExamenDePruebas(): Promise<ExamenDePruebas> {
   await prisma.asignacion.deleteMany();
@@ -51,12 +78,13 @@ export async function crearExamenDePruebas(): Promise<ExamenDePruebas> {
   const ana = await prisma.persona.create({ data: { correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE" } });
   const luis = await prisma.persona.create({ data: { correo: "luis@ejemplo.com", nombre: "Luis", papel: "ESTUDIANTE" } });
   const cuadernillo = await prisma.cuadernillo.create({
-    data: { titulo: "Cuadernillo inventado", texto: "", soluciones: { "1": { CE: CLAVE_INVENTADA, CO: {} } } },
+    data: { titulo: "Cuadernillo inventado", texto: "", soluciones: { "1": { CE: CLAVE_INVENTADA, CO: CLAVE_INVENTADA_CO } } },
   });
   const creado = await crearExamen({ titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" });
   if ("error" in creado) throw new Error(creado.error);
   await prisma.examen.update({ where: { id: creado.id }, data: { cuadernilloId: cuadernillo.id, numeroEnCuadernillo: 1 } });
   await guardarLectura2(creado.id);
+  await guardarAuditiva3(creado.id);
   const examen = await prisma.examen.update({ where: { id: creado.id }, data: { estado: "PUBLICADO" } });
   await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
 

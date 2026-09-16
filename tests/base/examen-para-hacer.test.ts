@@ -33,8 +33,9 @@ describe("leer una prueba para hacerla", () => {
     };
     mirar(leido, "prueba");
     expect(prohibidos).toEqual([]);
-    // Y la clave existe de verdad en la base: si no, esta prueba no probaría nada.
-    expect(await prisma.clave.count()).toBe(1);
+    // Y las claves existen de verdad en la base (la de CE y la de CO del
+    // montaje): si no, esta prueba no probaría nada.
+    expect(await prisma.clave.count()).toBe(2);
   });
 
   // Mutación que la mata: dejar de filtrar por asignación. Cualquiera con sesión
@@ -90,5 +91,14 @@ describe("leer una prueba para hacerla", () => {
     await prisma.trozoOido.create({ data: { intentoId: intento.id, tarea: 2, trozo: 1 } });
     const leido = (await pruebaParaHacer(examen.id, "CE", ana.id, AHORA))!;
     expect(leido.tareas[0]!.oidos).toEqual([1]);
+  });
+
+  // Mutación que la mata: quitar `where: { prueba }` al leer las tareas del
+  // examen. El montaje guarda una tarea de lectura (CE, numero 2) y una de
+  // auditiva (CO, numero 3): sin el filtro, la auditiva se colaría en la
+  // lectura. Con una sola tarea guardada esto no se vería: hacen falta las dos.
+  it("no trae tareas de otra prueba", async () => {
+    const leido = (await pruebaParaHacer(examen.id, "CE", ana.id, AHORA))!;
+    expect(leido.tareas.map((t) => t.numero)).toEqual([2]);
   });
 });

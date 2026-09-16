@@ -187,6 +187,16 @@ describe("quitar y listar", () => {
       { personaId: ana.id, nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
     ]);
   });
+
+  // Mutación que la mata: quitar la comprobación del intento. La asignación cae en
+  // cascada sobre el intento: quitar a alguien de la lista le borraría la nota.
+  it("no se quita una asignación con un examen empezado", async () => {
+    const asignacion = await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
+    await prisma.intento.create({ data: { asignacionId: asignacion.id, prueba: "CE" } });
+    expect(await quitarAsignacion(examen.id, ana.id)).toEqual({ error: "Ana ya ha empezado este examen: no se le puede quitar." });
+    expect(await prisma.asignacion.count()).toBe(1);
+    expect(await prisma.intento.count()).toBe(1);
+  });
 });
 
 describe("retirar un examen que tiene gente dentro", () => {

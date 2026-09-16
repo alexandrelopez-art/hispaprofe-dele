@@ -94,9 +94,23 @@ export async function asignarExamen(
   return { asignados: guardado.personas.length, sinAviso };
 }
 
+/**
+ * La asignación cae en cascada sobre el intento (`onDelete: Cascade`): quitar
+ * a alguien de la lista sin mirar si ya empezó le borraría la nota entera.
+ * Por eso se comprueba antes de borrar, no después.
+ */
 export async function quitarAsignacion(examenId: string, personaId: string): Promise<{ error?: string }> {
-  const r = await prisma.asignacion.deleteMany({ where: { examenId, personaId } });
-  return r.count === 1 ? {} : { error: "Esa asignación ya no existe." };
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { examenId_personaId: { examenId, personaId } },
+    include: { persona: { select: { nombre: true } }, intentos: { select: { id: true }, take: 1 } },
+  });
+  if (!asignacion) return { error: "Esa asignación ya no existe." };
+  if (asignacion.intentos.length > 0) {
+    return { error: `${asignacion.persona.nombre} ya ha empezado este examen: no se le puede quitar.` };
+  }
+
+  await prisma.asignacion.delete({ where: { id: asignacion.id } });
+  return {};
 }
 
 export async function asignacionesDelExamen(examenId: string): Promise<{ personaId: string; nombre: string; fechaTope: Date }[]> {
