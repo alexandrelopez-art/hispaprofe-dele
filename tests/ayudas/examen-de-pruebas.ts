@@ -1,0 +1,64 @@
+// tests/ayudas/examen-de-pruebas.ts
+// Un examen publicado, con una tarea guardada de verdad (por `guardarTarea`,
+// como hace el taller) y su clave. La comparten los tests de leer una prueba
+// (Task 3) y los de hacerla (Task 4): ambos necesitan el mismo montaje.
+import { prisma } from "@/lib/db";
+import type { Examen, Persona } from "@/lib/generated/prisma";
+import { finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { reglaDe } from "@/lib/dele/estructura";
+import { formularioVacio } from "@/lib/taller/formas";
+import { crearExamen, guardarTarea } from "@/lib/taller/examenes";
+
+export const TOPE = finDelDiaEnMadrid("2026-10-20")!;
+
+// Clave INVENTADA de la lectura 2 (preguntas 7-12). El repositorio es público:
+// la del libro no entra aquí, se contrasta a mano en la aceptación.
+export const CLAVE_INVENTADA: Record<string, string> = {
+  "7": "A", "8": "B", "9": "C", "10": "A", "11": "B", "12": "C",
+};
+
+/** Una tarea de lectura 2 con sus seis preguntas y su clave inventada. */
+async function guardarLectura2(examenId: string): Promise<void> {
+  const regla = reglaDe("A2_B1_ESCOLAR", "CE", 2)!;
+  const f = formularioVacio(regla);
+  if (f.forma !== "LISTA_COMUN") throw new Error("la lectura 2 es LISTA_COMUN");
+  f.consigna = "Lee los textos.";
+  f.textos = f.textos.map((t, i) => ({ etiqueta: `Persona ${i + 1}`, texto: `Texto ${i + 1}` }));
+  f.actividad.comunes = f.actividad.comunes.map((c) => ({ ...c, texto: `Persona ${c.letra}` }));
+  f.actividad.preguntas = f.actividad.preguntas.map((p) => ({ ...p, enunciado: `Pregunta ${p.numero}` }));
+  await guardarTarea(examenId, "CE", 2, f);
+}
+
+export type ExamenDePruebas = { ana: Persona; luis: Persona; examen: Examen };
+
+/**
+ * Limpia personas, exámenes y cuadernillos, y monta uno nuevo: Ana y Luis, un
+ * cuadernillo inventado con `numeroEnCuadernillo: 1` y su clave, la lectura 2
+ * guardada con `guardarTarea`, el examen publicado y asignado a Ana con fecha
+ * tope. Se crea con `crearExamen`, igual que el taller: es lo que siembra las
+ * 14 filas de Tarea vacías, sin las cuales `guardarTarea` no encuentra dónde
+ * guardar. Sin cuadernillo y sin número, `guardarTarea` guarda la tarea SIN
+ * clave: la clave se copia del cuadernillo en ese momento (Entrega 1). Sin
+ * este montaje, comprobar que la clave existe de verdad es imposible, y la
+ * nota de quien hace el examen saldría siempre 0 de 0.
+ */
+export async function crearExamenDePruebas(): Promise<ExamenDePruebas> {
+  await prisma.asignacion.deleteMany();
+  await prisma.examen.deleteMany();
+  await prisma.persona.deleteMany();
+  await prisma.cuadernillo.deleteMany();
+
+  const ana = await prisma.persona.create({ data: { correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE" } });
+  const luis = await prisma.persona.create({ data: { correo: "luis@ejemplo.com", nombre: "Luis", papel: "ESTUDIANTE" } });
+  const cuadernillo = await prisma.cuadernillo.create({
+    data: { titulo: "Cuadernillo inventado", texto: "", soluciones: { "1": { CE: CLAVE_INVENTADA, CO: {} } } },
+  });
+  const creado = await crearExamen({ titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" });
+  if ("error" in creado) throw new Error(creado.error);
+  await prisma.examen.update({ where: { id: creado.id }, data: { cuadernilloId: cuadernillo.id, numeroEnCuadernillo: 1 } });
+  await guardarLectura2(creado.id);
+  const examen = await prisma.examen.update({ where: { id: creado.id }, data: { estado: "PUBLICADO" } });
+  await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
+
+  return { ana, luis, examen };
+}
