@@ -103,9 +103,30 @@ describe("los ficheros que un estudiante puede abrir", () => {
   // las fotos de la auditiva antes de empezarla.
   it("solo los de la prueba que ha empezado", async () => {
     await empezarLa("CE");
+    const conLaLectura = await ficherosDeLasPruebasAbiertas(ana.id);
+    expect(conLaLectura.has(fotoDeLaOpcion)).toBe(false);
+    expect(conLaLectura.has(pistaDeLaTarea)).toBe(false);
+
+    // Y ahora la auditiva, con el MISMO montaje: si los dos «false» de arriba
+    // salieran de que no hay nada que encontrar, esto también saldría vacío.
+    // Sale lleno, así que lo de arriba es el filtro haciendo su trabajo. En el
+    // DELE ninguna tarea de lectura lleva ficheros, y por eso hay que probarlo
+    // así y no poniéndole una foto a la lectura.
+    await empezarLa("CO");
+    const conLasDos = await ficherosDeLasPruebasAbiertas(ana.id);
+    expect(conLasDos.has(fotoDeLaOpcion)).toBe(true);
+    expect(conLasDos.has(pistaDeLaTarea)).toBe(true);
+  });
+
+  // Mutación que la mata: quitar `examen: { estado: "PUBLICADO" }` del filtro.
+  // Hoy no se puede llegar a esa situación por pantalla —retirar se niega con
+  // gente asignada—, así que la prueba fuerza el estado a mano: es un cinturón,
+  // y un cinturón sin prueba se cae solo el día que alguien afloje la otra guarda.
+  it("de un examen que ya no está publicado, nada", async () => {
+    await empezarLa("CO");
+    await prisma.examen.update({ where: { id: examen.id }, data: { estado: "ARCHIVADO" } });
     const abiertos = await ficherosDeLasPruebasAbiertas(ana.id);
-    expect(abiertos.has(fotoDeLaOpcion)).toBe(false);
-    expect(abiertos.has(pistaDeLaTarea)).toBe(false);
+    expect(abiertos.size).toBe(0);
   });
 
   // Mutación que la mata: dar por abiertos los ficheros de un examen asignado

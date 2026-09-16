@@ -191,7 +191,7 @@ function OpcionRadio({
   // respuesta ES la foto, así que tiene que ser lo que se ve.
   if (conImagen) {
     return (
-      <label className={`flex min-w-0 cursor-pointer flex-col gap-2 rounded-xl border p-2 ${borde}`}>
+      <label className={`flex min-w-0 cursor-pointer flex-col gap-1 rounded-xl border p-1 sm:gap-2 sm:p-2 ${borde}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de vida corta */}
         <img src={`/api/ficheros/${ficheroId}`} alt={`Opción ${letra}`} className="aspect-4/3 w-full max-w-full rounded-lg object-contain" />
         <span className="flex items-center gap-2 font-bold">
@@ -217,7 +217,7 @@ function OpcionRadio({
  * de un vistazo, que es lo que pide la tarea); las de texto, una debajo de otra.
  */
 function filaDeOpciones(conImagen: boolean): string {
-  return conImagen ? "grid grid-cols-3 gap-2" : "flex flex-col gap-2";
+  return conImagen ? "grid grid-cols-3 gap-1 sm:gap-2" : "flex flex-col gap-2";
 }
 
 function ActividadOpciones({
