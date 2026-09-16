@@ -1,6 +1,6 @@
 import type { Prisma } from "@/lib/generated/prisma";
 import { prisma } from "@/lib/db";
-import { ExamenPublicado, MENSAJE_PUBLICADO, exigirEditable } from "./publicado";
+import { ExamenNoEditable, exigirEditable } from "./publicado";
 import { TOPE_DE_TROZOS, leerSoluciones, textoDeTrozos, trozosSchema, type Soluciones } from "./soluciones";
 
 export async function guardarCuadernillo(datos: { titulo: string; trozos: unknown }): Promise<{ id: string } | { error: string }> {
@@ -38,7 +38,7 @@ async function escribirEnExamen(examenId: string, data: { cuadernilloId: string 
     });
     return {};
   } catch (error) {
-    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    if (error instanceof ExamenNoEditable) return { error: error.message };
     throw error;
   }
 }

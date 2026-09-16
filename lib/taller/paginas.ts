@@ -2,7 +2,7 @@ import { Prisma } from "@/lib/generated/prisma";
 import { prisma } from "@/lib/db";
 import { CARPETA_DE_MATERIAL, borrarDeVercel } from "@/lib/ficheros/vercel";
 import { etiquetasDeNivel } from "@/lib/dele/estructura";
-import { ExamenPublicado, MENSAJE_PUBLICADO, exigirEditable } from "./publicado";
+import { ExamenNoEditable, exigirEditable } from "./publicado";
 
 const MAXIMO_DE_PAGINAS = 200;
 
@@ -42,7 +42,7 @@ export async function registrarPaginas(examenId: string, ficheroIds: string[]): 
       });
     });
   } catch (error) {
-    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    if (error instanceof ExamenNoEditable) return { error: error.message };
     // Dos subidas a la vez pueden pasar las dos la comprobación de arriba (ninguna ha
     // escrito todavía) y chocar aquí contra @@unique([examenId, orden]): la que pierde
     // la carrera recibe el mismo error que si hubiera llegado tarde.
@@ -66,7 +66,7 @@ export async function etiquetarPagina(examenId: string, paginaId: string, etique
       });
     });
   } catch (error) {
-    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    if (error instanceof ExamenNoEditable) return { error: error.message };
     throw error;
   }
   return {};
@@ -108,7 +108,7 @@ export async function borrarPaginas(examenId: string): Promise<{ error?: string 
       await tx.paginaDeExamen.deleteMany({ where: { examenId } });
     });
   } catch (error) {
-    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    if (error instanceof ExamenNoEditable) return { error: error.message };
     throw error;
   }
   await limpiarSiHuerfanos(paginas.map((p) => p.fichero), new Set());
@@ -160,7 +160,7 @@ export async function sustituirPaginas(examenId: string, ficheroIds: string[]): 
       });
     });
   } catch (error) {
-    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    if (error instanceof ExamenNoEditable) return { error: error.message };
     if (esClaveDuplicada(error)) return { error: "Otra pestaña está subiendo páginas a este examen. Recarga la pantalla." };
     throw error;
   }

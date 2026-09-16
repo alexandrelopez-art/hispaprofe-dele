@@ -1,11 +1,12 @@
 import type { EstadoExamen, Prisma } from "@/lib/generated/prisma";
 
 export const MENSAJE_PUBLICADO = "El examen está publicado: retíralo para editarlo.";
+export const MENSAJE_ARCHIVADO = "El examen está archivado: recupéralo para editarlo.";
 
-/** Se lanza dentro de una transacción para deshacerla; quien la abrió la traduce a MENSAJE_PUBLICADO. */
-export class ExamenPublicado extends Error {
-  constructor() {
-    super(MENSAJE_PUBLICADO);
+/** Se lanza dentro de una transacción para deshacerla; quien la abrió devuelve su mensaje. */
+export class ExamenNoEditable extends Error {
+  constructor(estado: EstadoExamen) {
+    super(estado === "ARCHIVADO" ? MENSAJE_ARCHIVADO : MENSAJE_PUBLICADO);
   }
 }
 
@@ -20,7 +21,8 @@ export async function bloquearExamen(tx: Prisma.TransactionClient, examenId: str
   return filas[0]?.estado ?? null;
 }
 
-/** Para las escrituras: bloquea y, si está publicado, deshace la transacción. */
+/** Para las escrituras: bloquea y, si no se puede editar, deshace la transacción. */
 export async function exigirEditable(tx: Prisma.TransactionClient, examenId: string): Promise<void> {
-  if ((await bloquearExamen(tx, examenId)) === "PUBLICADO") throw new ExamenPublicado();
+  const estado = await bloquearExamen(tx, examenId);
+  if (estado === "PUBLICADO" || estado === "ARCHIVADO") throw new ExamenNoEditable(estado);
 }

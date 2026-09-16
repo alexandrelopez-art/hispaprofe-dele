@@ -14,7 +14,8 @@ import { crearExamen, examenParaElTaller, guardarTarea, publicarExamen, retirarE
 import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 import { elegirCuadernillo } from "@/lib/taller/cuadernillos";
 import { rellenarTarea } from "@/lib/taller/ia/rellenar";
-import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
+import { MENSAJE_PUBLICADO, MENSAJE_ARCHIVADO } from "@/lib/taller/publicado";
+import { archivarExamen } from "@/lib/taller/examenes";
 
 const ESCOLAR = ESTRUCTURAS.A2_B1_ESCOLAR!;
 
@@ -148,5 +149,35 @@ describe("un examen publicado no se escribe", () => {
     const r = await rellenarTarea(id, "CE", 3, { leer, descargar: vi.fn(), hayClave: () => true, reloj: () => 0, apuntar: vi.fn() });
     expect(r).toEqual({ error: MENSAJE_PUBLICADO });
     expect(leer).not.toHaveBeenCalled();
+  });
+});
+
+describe("un examen archivado tampoco se escribe", () => {
+  // Mutación que la mata: dejar exigirEditable mirando solo PUBLICADO. Es el
+  // agujero que abre Archivar: un examen fuera de circulación se podría seguir
+  // editando, y al recuperarlo nadie sabría qué cambió.
+  it("guardar una tarea o tocar las páginas se rechaza con el mensaje de archivado", async () => {
+    const id = await examenCompleto();
+    expect(await archivarExamen(id)).toEqual({});
+    const hoja = await fichero("image/jpeg");
+
+    const co1 = formularioVacio(reglaDe("A2_B1_ESCOLAR", "CO", 1)!);
+    expect(await guardarTarea(id, "CO", 1, co1)).toEqual({ error: MENSAJE_ARCHIVADO });
+    expect(await registrarPaginas(id, [hoja.id])).toEqual({ error: MENSAJE_ARCHIVADO });
+    expect(await elegirCuadernillo(id, null, null)).toEqual({ error: MENSAJE_ARCHIVADO });
+    // Sin deps.hayClave forzado a true, esto fallaría antes con «Falta la clave
+    // de la IA.»: no hay ANTHROPIC_API_KEY en el entorno de pruebas.
+    const leer = vi.fn();
+    expect(await rellenarTarea(id, "CO", 1, { leer, descargar: vi.fn(), hayClave: () => true, reloj: () => 0, apuntar: vi.fn() })).toEqual({
+      error: MENSAJE_ARCHIVADO,
+    });
+    expect(leer).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: dejar que publicarExamen publique un archivado.
+  it("y no se publica", async () => {
+    const id = await examenCompleto();
+    await archivarExamen(id);
+    expect(await publicarExamen(id)).toEqual({ error: "Un examen archivado no se publica." });
   });
 });

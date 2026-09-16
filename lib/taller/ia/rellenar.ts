@@ -10,7 +10,7 @@ import { imponerEstructura } from "./estructura";
 import { descargarHoja } from "./hojas";
 import { MODELO, hayClaveDeIA, leerConClaude, type LeerHojas, type RespuestaDeLaIA } from "./llamar";
 import { apuntarLlamada } from "./registro";
-import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
+import { MENSAJE_ARCHIVADO, MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 
 export type ResultadoDeRelleno = { formulario: Formulario; dudas: Duda[] } | { error: string };
 
@@ -93,6 +93,7 @@ export async function rellenarTarea(examenId: string, prueba: Prueba, numero: nu
   const regla = examen ? reglaDe(examen.nivel, prueba, numero) : null;
   if (!examen || !regla) return { error: "Esa tarea no existe." };
   if (examen.estado === "PUBLICADO") return { error: MENSAJE_PUBLICADO };
+  if (examen.estado === "ARCHIVADO") return { error: MENSAJE_ARCHIVADO };
 
   const etiqueta = etiquetaDeTarea(prueba, numero);
   const paginas = examen.paginas.filter((p) => p.etiquetas.includes(etiqueta));

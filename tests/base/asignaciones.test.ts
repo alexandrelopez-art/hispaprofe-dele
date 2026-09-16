@@ -4,6 +4,7 @@ import type { Examen, Persona } from "@/lib/generated/prisma";
 import { finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
 import { asignacionesDe, asignacionesDelExamen, asignarExamen, estudiantesParaAsignar, quitarAsignacion } from "@/lib/examen/asignar";
 import type { Mensaje } from "@/lib/correo/mensaje";
+import { archivarExamen, recuperarExamen, retirarExamen } from "@/lib/taller/examenes";
 
 const TOPE = finDelDiaEnMadrid("2026-10-20")!;
 
@@ -139,5 +140,46 @@ describe("quitar y listar", () => {
     expect(await asignacionesDelExamen(examen.id)).toEqual([
       { personaId: ana.id, nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
     ]);
+  });
+});
+
+describe("retirar un examen que tiene gente dentro", () => {
+  // Mutación que la mata: dejar retirarExamen como estaba (un updateMany sin
+  // mirar asignaciones). El estudiante se quedaría mirando un examen que cambia
+  // debajo.
+  it("no deja, dice los nombres, y el examen sigue publicado", async () => {
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+
+    expect(await retirarExamen(examen.id)).toEqual({
+      error: "No se puede retirar: lo tienen asignado Ana. Quítaselo antes.",
+    });
+    expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("PUBLICADO");
+  });
+
+  // Mutación que la mata: comprobar las asignaciones fuera de la transacción que
+  // bloquea el examen.
+  it("sin nadie dentro retira como siempre", async () => {
+    expect(await retirarExamen(examen.id)).toEqual({});
+    expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("EN_CONSTRUCCION");
+  });
+});
+
+describe("archivar", () => {
+  // Mutación que la mata: dejar archivar desde publicado. Se saltaría la
+  // comprobación de asignaciones, que solo vive en retirar.
+  it("un examen publicado hay que retirarlo primero", async () => {
+    expect(await archivarExamen(examen.id)).toEqual({ error: "Retíralo antes de archivarlo." });
+    expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("PUBLICADO");
+  });
+
+  // Mutación que la mata: que archivar dos veces dé error (publicar lo ya
+  // publicado tampoco lo da) o que recuperar no vuelva a construcción.
+  it("desde construcción archiva, y recuperar lo devuelve", async () => {
+    await retirarExamen(examen.id);
+    expect(await archivarExamen(examen.id)).toEqual({});
+    expect(await archivarExamen(examen.id)).toEqual({});
+    expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("ARCHIVADO");
+    expect(await recuperarExamen(examen.id)).toEqual({});
+    expect((await prisma.examen.findUniqueOrThrow({ where: { id: examen.id } })).estado).toBe("EN_CONSTRUCCION");
   });
 });

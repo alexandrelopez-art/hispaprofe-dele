@@ -13,7 +13,8 @@ import { esquemaDelFormulario, formularioVacio, type Formulario } from "./formas
 import { gastoDelExamen } from "./ia/registro";
 import { formularioDePiezas, piezasDelFormulario, type PiezaLeida } from "./piezas";
 import { claveDelFormulario, estadoDeTarea, itemsDelFormulario, type EstadoDeTarea } from "./estado";
-import { ExamenPublicado, MENSAJE_PUBLICADO, bloquearExamen, exigirEditable } from "./publicado";
+import { listaDeNombres } from "@/lib/examen/nombres";
+import { ExamenNoEditable, bloquearExamen, exigirEditable } from "./publicado";
 import { resumenDeSoluciones, type RespuestasDeUnaPrueba, type ResumenDeExamen, type Soluciones } from "./soluciones";
 
 export async function crearExamen(datos: { titulo: string; nivel: string }): Promise<{ id: string } | { error: string }> {
@@ -265,7 +266,7 @@ export async function guardarTarea(
       }
     });
   } catch (error) {
-    if (error instanceof ExamenPublicado) return { error: MENSAJE_PUBLICADO };
+    if (error instanceof ExamenNoEditable) return { error: error.message };
     throw error;
   }
 
@@ -287,8 +288,42 @@ export async function publicarExamen(examenId: string): Promise<{ error?: string
   });
 }
 
-/** Devuelve un examen publicado a construcción. */
+/** Devuelve un examen publicado a construcción. No deja si alguien lo tiene asignado. */
 export async function retirarExamen(examenId: string): Promise<{ error?: string }> {
-  const r = await prisma.examen.updateMany({ where: { id: examenId, estado: "PUBLICADO" }, data: { estado: "EN_CONSTRUCCION" } });
-  return r.count === 1 ? {} : { error: "Ese examen no está publicado." };
+  return prisma.$transaction(async (tx) => {
+    const estado = await bloquearExamen(tx, examenId);
+    if (estado !== "PUBLICADO") return { error: "Ese examen no está publicado." };
+    // Dentro de la transacción que bloquea el examen: si no, una asignación que
+    // entra a la vez se quedaría apuntando a un examen en construcción.
+    const asignadas = await tx.asignacion.findMany({
+      where: { examenId },
+      include: { persona: { select: { nombre: true } } },
+      orderBy: { persona: { nombre: "asc" } },
+    });
+    if (asignadas.length > 0) {
+      return { error: `No se puede retirar: lo tienen asignado ${listaDeNombres(asignadas.map((a) => a.persona.nombre))}. Quítaselo antes.` };
+    }
+    await tx.examen.update({ where: { id: examenId }, data: { estado: "EN_CONSTRUCCION" } });
+    return {};
+  });
+}
+
+/**
+ * Saca un examen de circulación. Solo desde construcción: así la comprobación de
+ * asignaciones vive en un único sitio (retirar) y no hay que repetirla aquí.
+ */
+export async function archivarExamen(examenId: string): Promise<{ error?: string }> {
+  return prisma.$transaction(async (tx) => {
+    const estado = await bloquearExamen(tx, examenId);
+    if (estado === null) return { error: "Ese examen no existe." };
+    if (estado === "ARCHIVADO") return {};
+    if (estado === "PUBLICADO") return { error: "Retíralo antes de archivarlo." };
+    await tx.examen.update({ where: { id: examenId }, data: { estado: "ARCHIVADO" } });
+    return {};
+  });
+}
+
+export async function recuperarExamen(examenId: string): Promise<{ error?: string }> {
+  const r = await prisma.examen.updateMany({ where: { id: examenId, estado: "ARCHIVADO" }, data: { estado: "EN_CONSTRUCCION" } });
+  return r.count === 1 ? {} : { error: "Ese examen no está archivado." };
 }
