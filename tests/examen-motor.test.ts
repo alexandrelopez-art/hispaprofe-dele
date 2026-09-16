@@ -41,12 +41,14 @@ describe("la nota", () => {
     expect(nota.fallos.some((f) => f.numero === 99)).toBe(false);
   });
 
+  // Mutación que la mata: sacar el total de las respuestas del estudiante en vez de la clave: sin clave daría total 1.
   it("sin clave no hay nota que dar", () => {
     expect(notaDePrueba({}, { "1": "A" })).toEqual({ aciertos: 0, total: 0, fallos: [] });
   });
 });
 
 const EMPEZO = new Date("2026-09-20T09:00:00Z");
+const ENTREGADA = new Date("2026-09-20T09:40:00Z");
 const en = (minutos: number, segundos = 0) => new Date(EMPEZO.getTime() + minutos * 60_000 + segundos * 1_000);
 
 describe("el reloj", () => {
@@ -55,6 +57,8 @@ describe("el reloj", () => {
     expect(segundosQueQuedan(EMPEZO, 50, EMPEZO)).toBe(3000);
     expect(segundosQueQuedan(EMPEZO, 50, en(49))).toBe(60);
     expect(segundosQueQuedan(EMPEZO, 50, en(51))).toBe(0);
+    // Medio segundo: con Math.ceil esto daría 60, y por eso la mutación muere aquí.
+    expect(segundosQueQuedan(EMPEZO, 50, new Date(EMPEZO.getTime() + 2_940_500))).toBe(59);
   });
 
   // Mutación que la mata: devolver 0 en vez de null; la auditiva pintaría un
@@ -69,6 +73,8 @@ describe("el reloj", () => {
     expect(seAcaboElTiempo(EMPEZO, 50, en(49, 59))).toBe(false);
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 5))).toBe(false);
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 11))).toBe(true);
+    // Justo en el límite: con >= esto daría true, y por eso la mutación muere aquí.
+    expect(seAcaboElTiempo(EMPEZO, 50, en(50, 10))).toBe(false);
   });
 });
 
@@ -82,6 +88,7 @@ describe("qué trozo toca", () => {
     expect(siguienteTrozo([1, 2, 3, 4, 5, 6, 7, 8], 8)).toBeNull();
   });
 
+  // Mutación que la mata: tratar trozos = 1 como «sin trozos» y devolver siempre null: la auditiva 3 no sonaría nunca.
   it("una tarea que no se corta es un solo trozo", () => {
     expect(siguienteTrozo([], 1)).toBe(1);
     expect(siguienteTrozo([1], 1)).toBeNull();
@@ -94,7 +101,7 @@ describe("cómo se llama lo que ha hecho", () => {
     expect(textoDelEstado(estadoDePrueba(null))).toBe("Sin empezar");
     expect(textoDelEstado(estadoDePrueba({ entregadaEn: null, aciertos: null, total: null, porTiempo: false }))).toBe("A medias");
     expect(
-      textoDelEstado(estadoDePrueba({ entregadaEn: new Date(), aciertos: 19, total: 25, porTiempo: false })),
+      textoDelEstado(estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: 19, total: 25, porTiempo: false })),
     ).toBe("Entregada, 19 de 25");
   });
 
@@ -102,7 +109,7 @@ describe("cómo se llama lo que ha hecho", () => {
   // tiene que poder ver que ese 12 de 25 es de alguien a quien se le acabó.
   it("dice cuándo la entregó el reloj", () => {
     expect(
-      textoDelEstado(estadoDePrueba({ entregadaEn: new Date(), aciertos: 12, total: 25, porTiempo: true })),
+      textoDelEstado(estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: 12, total: 25, porTiempo: true })),
     ).toBe("Entregada por tiempo, 12 de 25");
   });
 });
@@ -115,6 +122,7 @@ describe("los minutos de cada prueba", () => {
     expect(minutosDePrueba("A2_B1_ESCOLAR", "CO")).toBeNull();
   });
 
+  // Mutación que la mata: devolver 50 por defecto para cualquier nivel: un examen de B2 saldría con reloj sin que nadie lo haya decidido.
   it("un nivel sin números no inventa minutos", () => {
     expect(minutosDePrueba("B2", "CE")).toBeNull();
   });
