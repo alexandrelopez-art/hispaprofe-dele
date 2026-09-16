@@ -276,7 +276,59 @@ model Asignacion {
   asignadaEn    DateTime     @default(now())
   asignadaPor   Persona?     @relation("hechas", fields: [asignadaPorId], references: [id], onDelete: SetNull)
   asignadaPorId String?
+  intentos      Intento[]
 
   @@unique([examenId, personaId])
   @@index([personaId])
+}
+
+/// Una prueba de un examen asignado, hecha por una persona. Una sola por pareja:
+/// una prueba entregada no se reabre y no se repite.
+model Intento {
+  id           String     @id @default(cuid())
+  asignacion   Asignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  asignacionId String
+  prueba       Prueba
+  empezadaEn   DateTime   @default(now())
+  entregadaEn  DateTime?
+  /// true si la entregó el reloj, no el estudiante.
+  porTiempo    Boolean    @default(false)
+  /// La nota, congelada al entregar. null mientras se hace.
+  aciertos     Int?
+  total        Int?
+  /// Los números que falló, congelados también. Sin esto, la pantalla de
+  /// resultados tendría que volver a mirar la Clave para pintar los fallos, y
+  /// la clave no vuelve a salir de su tabla después de entregar.
+  fallos       Int[]      @default([])
+
+  respuestas  RespuestaDeIntento[]
+  trozosOidos TrozoOido[]
+
+  @@unique([asignacionId, prueba])
+  @@index([asignacionId])
+}
+
+/// Una letra marcada. El número es el del libro: en la lectura 1-25 y en la
+/// auditiva TAMBIÉN 1-25, y no chocan porque cada intento es de una prueba.
+model RespuestaDeIntento {
+  id        String   @id @default(cuid())
+  intento   Intento  @relation(fields: [intentoId], references: [id], onDelete: Cascade)
+  intentoId String
+  numero    Int
+  letra     String
+  marcadaEn DateTime @updatedAt
+
+  @@unique([intentoId, numero])
+}
+
+/// Un trozo de pista que ya ha sonado. Su existencia es lo que impide repetirlo.
+model TrozoOido {
+  id        String   @id @default(cuid())
+  intento   Intento  @relation(fields: [intentoId], references: [id], onDelete: Cascade)
+  intentoId String
+  tarea     Int
+  trozo     Int
+  oidoEn    DateTime @default(now())
+
+  @@unique([intentoId, tarea, trozo])
 }
