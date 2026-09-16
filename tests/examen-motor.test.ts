@@ -58,7 +58,7 @@ describe("el reloj", () => {
     expect(segundosQueQuedan(EMPEZO, 50, en(49))).toBe(60);
     expect(segundosQueQuedan(EMPEZO, 50, en(51))).toBe(0);
     // Medio segundo: con Math.ceil esto daría 60, y por eso la mutación muere aquí.
-    expect(segundosQueQuedan(EMPEZO, 50, new Date(EMPEZO.getTime() + 2_940_500))).toBe(59);
+    expect(segundosQueQuedan(EMPEZO, 50, en(49, 0.5))).toBe(59);
   });
 
   // Mutación que la mata: devolver 0 en vez de null; la auditiva pintaría un
