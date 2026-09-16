@@ -283,7 +283,7 @@ describe("GET /api/ficheros/[id]", () => {
   });
 
   it("un fichero de Vercel, 307 al enlace de lectura, sin caché", async () => {
-    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    personaDeLaPeticion.mockResolvedValue(PROFESOR);
     fichero.findUnique.mockResolvedValue({ id: "f3", almacen: "VERCEL", ruta: "material/a-x.jpg" });
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
@@ -292,5 +292,40 @@ describe("GET /api/ficheros/[id]", () => {
     expect(respuesta.status).toBe(307);
     expect(respuesta.headers.get("location")).toBe("https://blob.vercel-storage.com/lectura");
     expect(respuesta.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  // Mutación que la mata: quitar el `puedeVerFichero(...)` del `if` de la ruta. La
+  // regla suelta seguiría probada en tests/ficheros-permisos.test.ts y todo estaría
+  // verde con el candado en el suelo: probar la regla y no el sitio donde se aplica
+  // ya nos pilló tres veces.
+  it("un estudiante que pide una página de examen recibe el MISMO 404 que si no existiera", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    fichero.findUnique.mockResolvedValue({ id: "f4", almacen: "VERCEL", ruta: "material/examen-1-01.jpg", subidoPorId: PROFESOR.id });
+
+    const respuesta = await peticionDeLectura("f4");
+
+    expect(respuesta.status).toBe(404);
+    // Un 403 confirmaría que ese id existe: el cuerpo tiene que ser idéntico al de
+    // «no existe», que es el de la prueba de arriba.
+    expect(await respuesta.json()).toEqual({ error: "No encontrado." });
+    expect(enlaceDeLectura).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: invertir la comparación de papel.
+  it("el profesor sí recibe el enlace de esa misma página", async () => {
+    personaDeLaPeticion.mockResolvedValue(PROFESOR);
+    fichero.findUnique.mockResolvedValue({ id: "f4", almacen: "VERCEL", ruta: "material/examen-1-01.jpg", subidoPorId: PROFESOR.id });
+    enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
+
+    expect((await peticionDeLectura("f4")).status).toBe(307);
+  });
+
+  // Mutación que la mata: mirar el dueño solo cuando es profesor, o no mirarlo.
+  it("un estudiante sí abre lo que subió él", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    fichero.findUnique.mockResolvedValue({ id: "f5", almacen: "VERCEL", ruta: "material/suyo.jpg", subidoPorId: ESTUDIANTE.id });
+    enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
+
+    expect((await peticionDeLectura("f5")).status).toBe(307);
   });
 });

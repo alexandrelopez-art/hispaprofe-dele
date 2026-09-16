@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
 import { enlaceDeLectura } from "@/lib/ficheros/vercel";
+import { puedeVerFichero } from "@/lib/ficheros/permisos";
 
 /**
  * Sirve un fichero del almacén de Vercel con un 307 a un enlace de lectura
@@ -18,7 +19,9 @@ export async function GET(
 
   const { id } = await params;
   const fichero = await prisma.fichero.findUnique({ where: { id } });
-  if (!fichero || fichero.almacen !== "VERCEL") {
+  // El mismo 404, con el mismo cuerpo, para «no existe» y para «no es tuyo»: un
+  // 403 le confirmaría a quien prueba identificadores que ese existe.
+  if (!fichero || fichero.almacen !== "VERCEL" || !puedeVerFichero(persona, fichero)) {
     return NextResponse.json({ error: "No encontrado." }, { status: 404 });
   }
 
