@@ -1,9 +1,66 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { Persona } from "@/lib/generated/prisma";
 import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
-import type { TareaParaHacer } from "@/lib/examen/paraHacer";
+import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
+
+// Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
+// (no un resumen de su lógica), doblando lo que toca la base y la sesión.
+const dobles = vi.hoisted(() => ({
+  cookiesGet: vi.fn(),
+  personaDeLaCookie: vi.fn(),
+  redirect: vi.fn(),
+  notFound: vi.fn(),
+  pruebaParaHacer: vi.fn(),
+  cerrarLasQueSePasaron: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
+vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie: dobles.personaDeLaCookie }));
+vi.mock("next/navigation", () => ({
+  redirect: dobles.redirect,
+  notFound: dobles.notFound,
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+// lib/examen/paraHacer.ts importa lib/db (prisma) al cargarse; sin este
+// doble, cargar el módulo real revienta por falta de DATABASE_URL (no hay
+// base en esta prueba). Con lib/db a salvo, se deja pasar el resto del
+// módulo real (PRUEBAS_QUE_SE_HACEN, la lista de verdad) y solo se dobla
+// pruebaParaHacer, que es la única que toca la base.
+vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/examen/paraHacer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/examen/paraHacer")>()),
+  pruebaParaHacer: dobles.pruebaParaHacer,
+}));
+vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron }));
+// Las cinco acciones: la pantalla las importa a través de HacerPrueba, y
+// Vitest revienta al leer una exportación que el doble no define.
+vi.mock("@/app/examen/acciones", () => ({
+  empezarPruebaAccion: vi.fn(),
+  guardarRespuestaAccion: vi.fn(),
+  marcarTrozoAccion: vi.fn(),
+  entregarPruebaAccion: vi.fn(),
+  corregirEnLibreAccion: vi.fn(),
+}));
+
+import PantallaDelPrueba from "@/app/examen/[id]/[prueba]/page";
+
+const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
+
+function como(persona: Persona) {
+  dobles.cookiesGet.mockReturnValue({ value: `cookie-de-${persona.id}` });
+  dobles.personaDeLaCookie.mockResolvedValue(persona);
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  dobles.redirect.mockImplementation((ruta: string) => { throw new Error(`REDIRECT:${ruta}`); });
+  dobles.notFound.mockImplementation(() => { throw new Error("NOT_FOUND"); });
+  dobles.cerrarLasQueSePasaron.mockResolvedValue(undefined);
+  como(ESTUDIANTE);
+});
 
 function tareaDe(numero: number, regla: ReglaTarea, rellenar: (f: Formulario) => void): TareaParaHacer {
   const formulario = formularioVacio(regla);
@@ -259,5 +316,121 @@ describe("TareaDelEstudiante", () => {
     const html = pintar(lecturaCuatro(), { fallos: [20] });
     expect(html).not.toBe("");
     expect(html).toContain('data-fallo="20"');
+  });
+});
+
+// La pantalla que hace el estudiante: app/examen/[id]/[prueba]/page.tsx con
+// HacerPrueba encima. Cada fixture es una PruebaParaHacer entera, tal como la
+// devuelve lib/examen/paraHacer.ts (aquí doblado).
+function pruebaDePrueba(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
+  return {
+    examen: { id: "x1", titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" },
+    prueba: "CE",
+    modo: "COMPLETO",
+    fechaTope: new Date("2026-10-20T00:00:00.000Z"),
+    minutos: 50,
+    tareas: [lecturaDos()],
+    estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    respuestas: {},
+    fallos: [],
+    ...extra,
+  };
+}
+
+// CE (lectura): con reloj, 50 minutos.
+function sinEmpezar(): PruebaParaHacer {
+  return pruebaDePrueba();
+}
+
+// CO (auditiva): sin reloj (minutos: null), aviso de audio.
+function sinEmpezarAuditiva(): PruebaParaHacer {
+  return pruebaDePrueba({ prueba: "CO", minutos: null, tareas: [auditivaUnoConFotos()] });
+}
+
+// CE-2 tiene 6 preguntas (7-12); sumadas a CE-1 (6) + CE-3 (6) + CE-4 (7) da
+// los 25 de la prueba completa. Aquí solo hace falta que la nota del
+// `estado` (no las tareas) diga 19 de 25.
+function entregadaCon19De25(): PruebaParaHacer {
+  return pruebaDePrueba({
+    tareas: [lecturaDos()],
+    estado: { estado: "ENTREGADA", aciertos: 19, total: 25, porTiempo: false },
+    respuestas: { "8": "B" },
+    fallos: [8],
+  });
+}
+
+// Modo LIBRE con minutos !== null y estado HACIENDO a propósito: si la
+// pantalla decidiera el reloj por `minutos`/`estado` en vez de por `modo`,
+// esta fixture lo pintaría igual que una prueba normal a medias.
+function enLibre(): PruebaParaHacer {
+  return pruebaDePrueba({
+    modo: "LIBRE",
+    minutos: 50,
+    estado: { estado: "HACIENDO", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: 1800,
+    tareas: [lecturaDos()],
+  });
+}
+
+async function pintarPagina(prueba: PruebaParaHacer): Promise<string> {
+  dobles.pruebaParaHacer.mockResolvedValue(prueba);
+  const elemento = await PantallaDelPrueba({
+    params: Promise.resolve({ id: prueba.examen.id, prueba: prueba.prueba }),
+  });
+  return renderToStaticMarkup(elemento);
+}
+
+/** Para las dos pruebas que solo miran el 404: no hay fixture que pasarle. */
+function pintarPaginaDe(prueba: string) {
+  return PantallaDelPrueba({ params: Promise.resolve({ id: "x1", prueba }) });
+}
+
+describe("la pantalla que hace el estudiante", () => {
+  // Mutación que la mata: enseñar el examen sin avisar. El aviso es lo que hace
+  // honesto el «no se puede repetir»: se dice ANTES, no después.
+  it("sin empezar enseña el aviso, no las preguntas", async () => {
+    const html = await pintarPagina(sinEmpezar());
+    expect(html).toContain("50 minutos");
+    expect(html).toContain("no se puede repetir");
+    expect(html).toContain("Empezar");
+    expect(html).not.toContain("Pregunta 8");
+  });
+
+  // Mutación que la mata: pintar el reloj también en la auditiva, que no lo lleva.
+  it("la auditiva avisa de que cada audio suena una vez, y no lleva reloj", async () => {
+    const html = await pintarPagina(sinEmpezarAuditiva());
+    expect(html).toContain("una sola vez");
+    expect(html).not.toContain("Te quedan");
+  });
+
+  // Mutación que la mata: no pintar el resultado, o pintar la letra buena.
+  it("entregada enseña la nota y los fallos", async () => {
+    const html = await pintarPagina(entregadaCon19De25());
+    expect(html).toContain("19 de 25");
+    expect(html).not.toContain("La respuesta correcta");
+  });
+
+  // Mutación que la mata: dejar el reloj en la pantalla del modo libre.
+  it("en libre no hay reloj ni entregar, y sí corregir", async () => {
+    const html = await pintarPagina(enLibre());
+    expect(html).not.toBe("");
+    expect(html).toContain("Corregir");
+    expect(html).not.toContain("Te quedan");
+    expect(html).not.toContain("Entregar");
+  });
+
+  // Mutación que la mata: quitar el `notFound()`. Sería una pantalla a medias de
+  // una prueba que no existe todavía.
+  it("la escrita y la oral contestan 404", async () => {
+    dobles.pruebaParaHacer.mockResolvedValue(null);
+    await expect(pintarPaginaDe("EE")).rejects.toThrow("NOT_FOUND");
+  });
+
+  // Mutación que la mata: no cerrar las pasadas de hora antes de pintar. Quien
+  // cerró el portátil vería «a medias» para siempre.
+  it("al abrir la pantalla se cierran las que se pasaron de hora", async () => {
+    await pintarPagina(sinEmpezar());
+    expect(dobles.cerrarLasQueSePasaron).toHaveBeenCalled();
   });
 });
