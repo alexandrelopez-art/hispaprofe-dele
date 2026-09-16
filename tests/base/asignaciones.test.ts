@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import type { Examen, Persona } from "@/lib/generated/prisma";
 import { finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { asignacionesDe, asignacionesDelExamen, asignarExamen, estudiantesParaAsignar, quitarAsignacion } from "@/lib/examen/asignar";
+import type { Mensaje } from "@/lib/correo/mensaje";
 
 const TOPE = finDelDiaEnMadrid("2026-10-20")!;
 
@@ -42,5 +44,100 @@ describe("la tabla de asignaciones", () => {
     await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
     await prisma.examen.delete({ where: { id: examen.id } });
     expect(await prisma.asignacion.count()).toBe(0);
+  });
+});
+
+const ANTES = new Date("2026-09-16T10:00:00Z");
+
+describe("asignar un examen", () => {
+  // Mutación que la mata: no llamar a finDelDiaEnMadrid y guardar la medianoche
+  // UTC, o no mandar el correo.
+  it("guarda la fecha tope de Madrid y avisa a cada uno", async () => {
+    const enviados: Mensaje[] = [];
+    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async (m) => { enviados.push(m); }, "https://sitio", ANTES);
+
+    expect(r).toEqual({ asignados: 1, sinAviso: [] });
+    const guardada = await prisma.asignacion.findFirstOrThrow();
+    expect(guardada.fechaTope.toISOString()).toBe("2026-10-20T21:59:59.999Z");
+    expect(guardada.asignadaPorId).toBe(profesor.id);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]!.a).toBe("ana@ejemplo.com");
+    expect(enviados[0]!.texto).toContain("martes, 20 de octubre de 2026");
+  });
+
+  // Mutación que la mata: usar create en vez de upsert.
+  it("asignárselo otra vez le cambia la fecha y no duplica", async () => {
+    const nada = async () => {};
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, nada, "https://sitio", ANTES);
+    await asignarExamen(examen.id, [ana.id], "2026-11-05", profesor.id, nada, "https://sitio", ANTES);
+
+    expect(await prisma.asignacion.count()).toBe(1);
+    expect((await prisma.asignacion.findFirstOrThrow()).fechaTope.toISOString()).toBe("2026-11-05T22:59:59.999Z");
+  });
+
+  // Mutación que la mata: mandar el correo DENTRO de la transacción, o deshacerla
+  // si falla. Un correo que rebota dejaría a los otros once sin examen.
+  it("si el correo falla, la asignación se queda y dice a quién no le llegó", async () => {
+    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => { throw new Error("SMTP caído"); }, "https://sitio", ANTES);
+
+    expect(r).toEqual({ asignados: 1, sinAviso: ["Ana"] });
+    expect(await prisma.asignacion.count()).toBe(1);
+  });
+
+  // Mutación que la mata: quitar la comprobación de estado. Asignar un examen en
+  // construcción manda a doce personas a un examen que aún cambia.
+  it("un examen que no está publicado no se asigna", async () => {
+    await prisma.examen.update({ where: { id: examen.id }, data: { estado: "EN_CONSTRUCCION" } });
+    const r = await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+
+    expect(r).toEqual({ error: "Solo se asigna un examen publicado." });
+    expect(await prisma.asignacion.count()).toBe(0);
+  });
+
+  // Mutación que la mata: quitar cualquiera de las tres comprobaciones de entrada.
+  it("sin nadie, sin fecha o con una fecha pasada no hace nada", async () => {
+    const llamar = (ids: string[], dia: string) => asignarExamen(examen.id, ids, dia, profesor.id, async () => {}, "https://sitio", ANTES);
+
+    expect(await llamar([], "2026-10-20")).toEqual({ error: "Marca al menos un estudiante." });
+    expect(await llamar([ana.id], "")).toEqual({ error: "Falta la fecha, o no es una fecha." });
+    expect(await llamar([ana.id], "2026-09-01")).toEqual({ error: "Esa fecha ya pasó." });
+    expect(await prisma.asignacion.count()).toBe(0);
+  });
+
+  // Mutación que la mata: no filtrar por papel ni por activa. El profesor se
+  // asignaría el examen a sí mismo sin querer al pulsar «marcar todos».
+  it("solo se asigna a estudiantes activos, y si uno no vale no se asigna ninguno", async () => {
+    const r = await asignarExamen(examen.id, [ana.id, profesor.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+
+    expect(r).toEqual({ error: "Esa lista de estudiantes no vale." });
+    expect(await prisma.asignacion.count()).toBe(0);
+    expect((await estudiantesParaAsignar()).map((e) => e.nombre)).toEqual(["Ana"]);
+  });
+});
+
+describe("quitar y listar", () => {
+  // Mutación que la mata: que quitarAsignacion borre por personaId sin mirar el
+  // examen, y se lleve por delante los demás exámenes de esa persona.
+  it("quitar borra solo esa pareja", async () => {
+    const otro = await prisma.examen.create({ data: { titulo: "Examen 2", nivel: "A2_B1_ESCOLAR", estado: "PUBLICADO" } });
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+    await asignarExamen(otro.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+
+    expect(await quitarAsignacion(examen.id, ana.id)).toEqual({});
+    expect((await asignacionesDe(ana.id)).map((a) => a.examenId)).toEqual([otro.id]);
+    expect(await quitarAsignacion(examen.id, ana.id)).toEqual({ error: "Esa asignación ya no existe." });
+  });
+
+  // Mutación que la mata: devolver la fila entera de la base en asignacionesDe.
+  // Lo que viaja al navegador del estudiante se construye campo a campo.
+  it("lo del estudiante trae lo justo para pintar", async () => {
+    await asignarExamen(examen.id, [ana.id], "2026-10-20", profesor.id, async () => {}, "https://sitio", ANTES);
+
+    expect(await asignacionesDe(ana.id)).toEqual([
+      { examenId: examen.id, titulo: "Examen 1", nivel: "A2_B1_ESCOLAR", modo: "COMPLETO", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
+    ]);
+    expect(await asignacionesDelExamen(examen.id)).toEqual([
+      { personaId: ana.id, nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") },
+    ]);
   });
 });
