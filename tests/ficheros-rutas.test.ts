@@ -267,6 +267,11 @@ describe("GET /api/ficheros/[id]", () => {
     const respuesta = await peticionDeLectura("f-que-no-existe");
 
     expect(respuesta.status).toBe(404);
+    // El mismo cuerpo que el 404 del candado (ver más abajo, "recibe el MISMO
+    // 404 que si no existiera"): las dos pruebas comparan contra este cuerpo
+    // exacto, así que si algún día alguien separa los dos `return` con
+    // mensajes distintos, una de las dos se pone roja.
+    expect(await respuesta.json()).toEqual({ error: "No encontrado." });
     expect(enlaceDeLectura).not.toHaveBeenCalled();
   });
 
