@@ -24,6 +24,15 @@ export function QuienLoHace({
   return (
     <div className="flex flex-col gap-4">
       <form action={asignarExamenAccion.bind(null, examenId)} className="flex flex-col gap-3">
+        {estudiantes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMarcados(marcados.length === estudiantes.length ? [] : estudiantes.map((e) => e.id))}
+            className="self-start text-hp-600 underline"
+          >
+            {marcados.length === estudiantes.length ? "Desmarcar todos" : "Marcar todos"}
+          </button>
+        )}
         <ul className="flex flex-col gap-1">
           {estudiantes.map((e) => (
             <li key={e.id}>

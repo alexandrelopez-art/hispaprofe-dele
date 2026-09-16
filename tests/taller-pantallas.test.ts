@@ -366,6 +366,17 @@ describe("la caja de quién hace el examen", () => {
   // Mutación que la mata: dejar las casillas marcadas de quien ya lo tiene.
   // Asignárselo a uno nuevo le cambiaría la fecha a los demás sin pedirlo.
   it("las casillas nacen vacías aunque ya lo tengan", async () => {
-    expect(await pintar("PUBLICADO")).not.toContain("checked");
+    const marcado = await pintar("PUBLICADO");
+    expect(marcado).toContain("Ana"); // que la caja se pintó de verdad: si no, la ausencia de "checked" no dice nada
+    expect(marcado).not.toContain("checked");
+  });
+
+  // Mutación que la mata: quitar el botón, o dejarlo fijo en un solo texto en
+  // vez de alternar según si ya está todo marcado.
+  it("el botón «marcar todos» aparece, y con las casillas vacías dice «Marcar todos»", async () => {
+    const marcado = await pintar("PUBLICADO");
+    expect(marcado).toContain("Ana"); // que la caja se pintó de verdad
+    expect(marcado).toContain("Marcar todos");
+    expect(marcado).not.toContain("Desmarcar todos");
   });
 });
