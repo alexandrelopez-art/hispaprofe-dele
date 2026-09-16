@@ -137,6 +137,12 @@ navegador entrega. Si para entonces no hay navegador —se fue la luz, cerró el
 la prueba queda entregada, con `porTiempo = true`, la primera vez que alguien la mira: el
 estudiante al volver a su Inicio, o el profesor al abrir su lista de asignados.
 
+Eso significa que dos pantallas de lectura escriben en la base, y conviene que esté dicho en
+voz alta: **`cerrarLasQueSePasaron(ahora)` se llama al pintar el Inicio del estudiante y la
+lista del profesor**, antes de leer los estados. Es una escritura idempotente —solo toca
+intentos sin entregar cuyo tiempo ya pasó— y deja el motor limpio: `estadoParaElProfesor` es
+una función pura sobre filas ya cerradas, no tiene que adivinar nada.
+
 ## 4. El motor, en piezas puras
 
 `lib/examen/motor.ts`, sin base de datos y sin `new Date()` dentro: todas las funciones
@@ -169,6 +175,9 @@ la clave a uno leído de la base. La `Clave` no se selecciona siquiera en la con
 Ruta `/examen/[id]/CE` (en singular, para no confundirla nunca con `/examenes`, que es del
 profesor). La misma ruta sirve tres estados: el aviso de antes de empezar, la prueba, y el
 resultado.
+
+**Solo valen CE y CO.** `/examen/[id]/EE` y `/examen/[id]/EO` contestan 404 hasta que las
+escriban la 3d y la 3e: una pantalla a medias sería peor que no tenerla.
 
 **El aviso** dice lo que va a pasar antes de que pase: cincuenta minutos, se entrega sola
 al acabarse, no se puede repetir. El botón «Empezar» es lo que fija `empezadaEn`.
@@ -242,9 +251,10 @@ La 3b dejó `puedeVerFichero` como lista blanca: profesor todo, estudiante solo 
 subió él. Ahora se le añade lo que faltaba:
 
 > Un estudiante puede ver un fichero **si cuelga de una pieza de una tarea de un examen que
-> tiene asignado y cuya prueba ya ha empezado**.
+> tiene asignado**, y o bien esa asignación es **en modo libre**, o bien **ya ha empezado esa
+> prueba**.
 
-Tres cosas de esa frase, las tres a propósito:
+Cuatro cosas de esa frase, las cuatro a propósito:
 
 - **De una pieza, nunca de una página.** Las hojas escaneadas del examen (`PaginaDeExamen`)
   no entran en la lista blanca de ningún estudiante, ni antes ni después: eso es regalarle
@@ -252,6 +262,9 @@ Tres cosas de esa frase, las tres a propósito:
 - **De la prueba que ha empezado.** Antes de pulsar «Empezar» no puede sacar la pista de la
   auditiva ni las fotos, aunque tenga el identificador. Después de entregar sí, porque la
   pantalla de resultados le enseña sus fallos con sus fotos.
+- **En modo libre no hay prueba que empezar**, porque no se guarda intento: ahí manda la
+  asignación sola. Sin esta rama, un estudiante en libre no vería ni una foto ni la pista, y
+  la pantalla estaría muda sin que nada diera error.
 - **La función sigue siendo pura.** La ruta carga el fichero con las tareas de sus piezas y
   los intentos empezados de esa persona, y se los pasa; decidir sigue siendo una función
   sin base de datos que se puede probar sola. Lo que no cambia nada: la respuesta al «no»
