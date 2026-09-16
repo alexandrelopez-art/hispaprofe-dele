@@ -3,11 +3,8 @@
 import { useState } from "react";
 import { asignarExamenAccion, quitarAsignacionAccion } from "@/app/examenes/acciones";
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
+import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";
-
-// Solo las dos pruebas de hoy tienen nombre corto aquí, como en la portada
-// del estudiante: la 3d y la 3e traerán las otras dos.
-const NOMBRE_CORTO: Record<string, string> = { CE: "Lectura", CO: "Auditiva" };
 
 type Estudiante = { id: string; nombre: string };
 type Asignada = { personaId: string; nombre: string; fechaTope: Date; pruebas: EstadoDeUnaPrueba[] };

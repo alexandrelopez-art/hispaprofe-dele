@@ -3,12 +3,8 @@ import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
 import { asignacionesDe, type AsignacionDelEstudiante, type EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { cerrarLasQueSePasaron } from "@/lib/examen/hacer";
 import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
-import { NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
+import { NOMBRE_CORTO, NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { estaFueraDePlazo, fechaEnPalabras } from "@/lib/tiempo/madrid";
-
-// Solo las dos pruebas de hoy tienen fila aquí: la 3d y la 3e traerán las
-// otras dos, y no antes de que tengan pantalla propia (PRUEBAS_QUE_SE_HACEN).
-const NOMBRE_CORTO: Record<string, string> = { CE: "Lectura", CO: "Auditiva" };
 
 function textoDelBoton(estado: EstadoDeUnaPrueba | undefined): string {
   if (!estado) return "Practicar"; // modo libre: sin intento, sin estado que mentir.

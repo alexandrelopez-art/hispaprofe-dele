@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { diasDeRetraso, estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
 
 describe("el fin del día en Madrid", () => {
   // Mutación que la mata: calcular en UTC (devolver Date.UTC(...23:59:59.999) sin
@@ -47,5 +47,50 @@ describe("fuera de plazo", () => {
     const tope = finDelDiaEnMadrid("2026-10-20")!;
     expect(estaFueraDePlazo(tope, new Date(tope.getTime()))).toBe(false);
     expect(estaFueraDePlazo(tope, new Date(tope.getTime() + 1))).toBe(true);
+  });
+});
+
+describe("días de retraso", () => {
+  // El tope de un día cualquiera de septiembre, con una entrega dos días de
+  // calendario después, sin cruzar ningún cambio de hora: el caso normal.
+  it("cuenta los días de calendario", () => {
+    const tope = finDelDiaEnMadrid("2026-09-10")!;
+    expect(diasDeRetraso(tope, new Date("2026-09-12T10:00:00Z"))).toBe(2);
+  });
+
+  // El último domingo de octubre de 2026 el reloj de Madrid se atrasa una
+  // hora (pasa de las 03:00 CEST a las 02:00 CET): ese domingo tiene 25 horas
+  // reales, no 24. Tope = fin del 24 de octubre en Madrid (finDelDiaEnMadrid
+  // ya lo prueba: "2026-10-24T21:59:59.999Z", con Madrid todavía en +02:00).
+  // Entrega = fin del 25 de octubre en Madrid, la misma hora del reloj un día
+  // de calendario después, pero con Madrid ya en +01:00: "2026-10-25T22:59:59.999Z".
+  // Entre las dos pasan 25 horas de reloj EXACTAS, no 24: dividir milisegundos
+  // entre 86 400 000 y redondear hacia arriba (la cuenta vieja) da
+  // ceil(25/24) = 2. Un solo día de calendario de Madrid separa el tope de la
+  // entrega, así que la cuenta correcta es 1.
+  // Mutación que la mata: volver a `Math.ceil((entregadaEn - fechaTope) / 86_400_000)`
+  // (milisegundos transcurridos) en vez de contar días del calendario de Madrid.
+  it("un día de retraso sigue siendo uno al cruzar el cambio de hora de octubre", () => {
+    const tope = new Date("2026-10-24T21:59:59.999Z"); // fin del 24 en Madrid, todavía CEST
+    const entrega = new Date("2026-10-25T22:59:59.999Z"); // fin del 25 en Madrid, ya CET
+    expect(diasDeRetraso(tope, entrega)).toBe(1);
+  });
+
+  // Mismo cambio de hora, pero con dos días de calendario de por medio: la
+  // cuenta vieja (milisegundos / 24 h, redondeando hacia arriba) daría 3.
+  it("dos días de retraso siguen siendo dos al cruzar el mismo cambio de hora", () => {
+    const tope = new Date("2026-10-24T21:59:59.999Z"); // fin del 24 en Madrid, todavía CEST
+    const entrega = new Date("2026-10-26T22:59:59.999Z"); // fin del 26 en Madrid, ya CET
+    expect(diasDeRetraso(tope, entrega)).toBe(2);
+  });
+
+  // Mutación que la mata: quitar el Math.max(1, ...). En el uso real el tope
+  // siempre es el final de un día en Madrid, así que una entrega posterior
+  // cae ya en el día siguiente; pero la función no depende de esa garantía
+  // para no devolver 0 o menos cuando las dos fechas caen el mismo día.
+  it("nunca menos de un día, aunque las dos fechas caigan el mismo día de Madrid", () => {
+    const tope = new Date("2026-09-10T10:00:00.000Z"); // 12:00 en Madrid, 10 de septiembre
+    const entrega = new Date("2026-09-10T11:00:00.000Z"); // 13:00 en Madrid, el mismo día
+    expect(diasDeRetraso(tope, entrega)).toBe(1);
   });
 });

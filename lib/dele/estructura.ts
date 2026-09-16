@@ -100,7 +100,7 @@ export const NOMBRE_DE_PRUEBA: Record<Prueba, string> = {
   EO: "expresión oral",
 };
 
-const NOMBRE_CORTO: Record<Prueba, string> = { CE: "Lectura", CO: "Auditiva", EE: "Escrita", EO: "Oral" };
+export const NOMBRE_CORTO: Record<Prueba, string> = { CE: "Lectura", CO: "Auditiva", EE: "Escrita", EO: "Oral" };
 
 export const NOMBRE_DE_NIVEL: Record<Nivel, string> = {
   A2_B1_ESCOLAR: "A2/B1 escolar",

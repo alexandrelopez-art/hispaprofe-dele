@@ -43,3 +43,31 @@ export function fechaEnPalabras(instante: Date): string {
 export function estaFueraDePlazo(fechaTope: Date, ahora: Date): boolean {
   return ahora.getTime() > fechaTope.getTime();
 }
+
+/** El día del calendario de Madrid en el que cae un instante, como {anio, mes, dia}. */
+function diaEnMadrid(instante: Date): { anio: number; mes: number; dia: number } {
+  const partes = new Intl.DateTimeFormat("en-US", { timeZone: HUSO, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(
+    instante,
+  );
+  const numero = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value);
+  return { anio: numero("year"), mes: numero("month"), dia: numero("day") };
+}
+
+/**
+ * Días enteros de retraso entre el tope y la entrega, contados como días del
+ * CALENDARIO de Madrid, no como milisegundos transcurridos divididos entre
+ * 24 horas. El último domingo de octubre el reloj se atrasa: ese día tiene 25 horas
+ * reales, y una entrega que cae un solo día de calendario después del tope
+ * (pero cruzando ese domingo) tarda 25 horas de reloj en pasar, no 24. Dividir
+ * milisegundos entre 86 400 000 y redondear hacia arriba contaría esa hora de
+ * más como un día entero, y cada año, en octubre, diría «2 días tarde» de un
+ * retraso de uno. Al menos 1: el tope ya es el final del día.
+ */
+export function diasDeRetraso(fechaTope: Date, entregadaEn: Date): number {
+  const tope = diaEnMadrid(fechaTope);
+  const entrega = diaEnMadrid(entregadaEn);
+  const dias = Math.round(
+    (Date.UTC(entrega.anio, entrega.mes - 1, entrega.dia) - Date.UTC(tope.anio, tope.mes - 1, tope.dia)) / 86_400_000,
+  );
+  return Math.max(1, dias);
+}

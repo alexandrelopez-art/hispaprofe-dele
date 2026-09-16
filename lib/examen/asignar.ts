@@ -4,7 +4,7 @@ import { mensajeDeAsignacion } from "@/lib/correo/mensaje";
 import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
 import { NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { bloquearExamen } from "@/lib/taller/publicado";
-import { estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { diasDeRetraso, estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
 import { estadoDePrueba, textoDelEstado, type EstadoDePrueba } from "./motor";
 import { PRUEBAS_QUE_SE_HACEN } from "./paraHacer";
 
@@ -136,11 +136,6 @@ function pruebasDeLaAsignacion(modo: ModoDeExamen, intentos: readonly IntentoPar
     const estado = estadoDePrueba(intentos.find((i) => i.prueba === prueba) ?? null);
     return { prueba, estado, texto: textoDelEstado(estado) };
   });
-}
-
-/** Días enteros de retraso entre el tope y la entrega. Al menos 1: el tope ya es el final del día. */
-function diasDeRetraso(fechaTope: Date, entregadaEn: Date): number {
-  return Math.max(1, Math.ceil((entregadaEn.getTime() - fechaTope.getTime()) / 86_400_000));
 }
 
 export async function asignacionesDelExamen(
