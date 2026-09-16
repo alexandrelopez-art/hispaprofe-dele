@@ -92,7 +92,7 @@ nueva:
   comentario para que nadie lo «arregle» con una librería.
 - `diaEnMadrid(instante: Date): string` — el camino de vuelta, para rellenar el campo de
   fecha al cambiarla.
-- `fechaEnPalabras(instante: Date): string` — «viernes, 20 de octubre de 2026», con
+- `fechaEnPalabras(instante: Date): string` — «martes, 20 de octubre de 2026», con
   `Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid", dateStyle: "full" })`.
 
 Y una cuarta, de regla: `estaFueraDePlazo(fechaTope: Date, ahora: Date): boolean`. **El
@@ -189,7 +189,7 @@ extiende a los dos estados:
 `app/page.tsx` deja de ser la pantalla de comprobar que entrar funcionaba.
 
 **Si quien entra es estudiante:** su nombre y, debajo, una tarjeta por cada examen
-asignado, ordenadas por fecha, con el título, el nivel, «Para el viernes, 20 de octubre de
+asignado, ordenadas por fecha, con el título, el nivel, «Para el martes, 20 de octubre de
 2026» y, si el plazo pasó, «Se pasó el plazo el …». Cada tarjeta dice que **todavía no se
 puede empezar**; el botón llega con la 3c. Si no tiene nada: una línea, «No tienes nada
 pendiente.»
