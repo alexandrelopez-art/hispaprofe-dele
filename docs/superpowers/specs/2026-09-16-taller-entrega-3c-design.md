@@ -302,6 +302,10 @@ Todos con el mismo criterio de la casa: mensaje corto, en castellano, que dice q
 - **«Este examen no es tuyo.»** Sin asignación. No dice si existe.
 - **«No se pudo preparar el audio. Vuelve a entrar.»** Si el trozo no se pudo marcar: la
   cinta **no suena** si el servidor no ha podido apuntarlo.
+- **«Todavía no has empezado esta prueba.»** Al guardar, marcar un trozo o entregar sin
+  haber pulsado «Empezar». Se descubrió al construirlo: como las acciones de servidor son
+  direcciones públicas, esa llamada se puede hacer sin pasar por la pantalla, y tenía que
+  contestarse con un mensaje y no con un error mudo.
 - **«Tiene un examen empezado: no se puede quitar de la lista.»** Al quitar una asignación
   con intento.
 
