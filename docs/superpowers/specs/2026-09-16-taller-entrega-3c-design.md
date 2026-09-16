@@ -306,7 +306,12 @@ Todos con el mismo criterio de la casa: mensaje corto, en castellano, que dice q
   haber pulsado «Empezar». Se descubrió al construirlo: como las acciones de servidor son
   direcciones públicas, esa llamada se puede hacer sin pasar por la pantalla, y tenía que
   contestarse con un mensaje y no con un error mudo.
-- **«Tiene un examen empezado: no se puede quitar de la lista.»** Al quitar una asignación
+- **«Este examen no es de práctica libre.»** Al pulsar «Corregir» en un examen asignado en
+  modo completo. No debería poder pasar desde la pantalla, y justamente por eso hace falta: la
+  acción de servidor puntúa las letras que le manden, así que sin este candado un estudiante
+  podría mandar todas A, luego todas B, mirar los aciertos y reconstruir la clave entera antes
+  de sentarse a hacer el examen de verdad.
+- **«<Nombre> ya ha empezado este examen: no se le puede quitar.»** Al quitar una asignación
   con intento.
 
 ## 10. Cómo se prueba
