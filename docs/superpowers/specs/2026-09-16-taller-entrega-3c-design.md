@@ -64,6 +64,10 @@ model Intento {
   /// La nota, congelada al entregar. null mientras se hace.
   aciertos     Int?
   total        Int?
+  /// Los números que falló, congelados también. Sin esto, la pantalla de
+  /// resultados tendría que volver a mirar la Clave para pintar los fallos, y
+  /// la clave no vuelve a salir de su tabla después de entregar.
+  fallos       Int[]      @default([])
 
   respuestas  RespuestaDeIntento[]
   trozosOidos TrozoOido[]
@@ -98,7 +102,7 @@ model TrozoOido {
 }
 ```
 
-**La nota se congela.** `aciertos` y `total` se calculan al entregar y se guardan. Si
+**La nota se congela.** `aciertos`, `total` y la lista de números fallados se calculan al entregar y se guardan. Si
 mañana el profesor recupera el examen y corrige una tarea, el 19 de 25 de esa chica sigue
 siendo 19 de 25: la nota es de lo que hizo, no de lo que el examen diga hoy.
 
