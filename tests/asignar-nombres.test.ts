@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { listaDeNombres } from "@/lib/examen/asignar";
+import { listaDeNombres } from "@/lib/examen/nombres";
 
 describe("la lista de nombres del aviso", () => {
   // Mutación que la mata: pegar todos los nombres. Con doce estudiantes el

@@ -18,15 +18,6 @@ type ResultadoDeLaTransaccion =
   | { error: string }
   | { examen: { titulo: string; nivel: Nivel }; personas: { id: string; nombre: string; correo: string }[] };
 
-/** «Ana, Luis, Marta y 5 más»: con doce estudiantes, la lista entera no cabe en el aviso. */
-export function listaDeNombres(nombres: string[]): string {
-  if (nombres.length <= 3) {
-    if (nombres.length <= 1) return nombres[0] ?? "";
-    return `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
-  }
-  return `${nombres.slice(0, 3).join(", ")} y ${nombres.length - 3} más`;
-}
-
 export function estudiantesParaAsignar(): Promise<{ id: string; nombre: string; correo: string }[]> {
   return prisma.persona.findMany({
     where: { papel: "ESTUDIANTE", activa: true },
