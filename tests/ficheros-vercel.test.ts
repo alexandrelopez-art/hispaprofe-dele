@@ -22,6 +22,7 @@ import {
   enlaceDeLectura,
   MINUTOS_DE_SUBIDA,
   MINUTOS_DE_LECTURA,
+  MINUTOS_DE_LECTURA_DE_AUDIO,
 } from "@/lib/ficheros/vercel";
 
 const MINUTO = 60_000;
@@ -204,5 +205,24 @@ describe("enlaceDeLectura pide el token que dice que pide", () => {
       { operation: "get", pathname: "examenes/1/a-x.jpg", access: "private" },
     );
     expect(url).toBe("https://blob.vercel-storage.com/lectura");
+  });
+
+  // Mutación que mata esta prueba: quitar `minutos` dentro de enlaceDeLectura
+  // (que vuelva a firmar siempre MINUTOS_DE_LECTURA), o poner
+  // MINUTOS_DE_LECTURA_DE_AUDIO a 5. El 60 va escrito a mano, no como la
+  // constante: comparar la constante contra sí misma no prueba nada. Sin esta
+  // prueba, una pista de once minutos que el navegador vuelve a pedir a mitad
+  // de camino se encontraría el enlace ya muerto y se quedaría muda, y nada
+  // en la suite se daría cuenta.
+  it("con MINUTOS_DE_LECTURA_DE_AUDIO pide una hora, no los cinco de siempre", async () => {
+    const ahora = new Date("2026-01-01T00:00:00.000Z");
+
+    await enlaceDeLectura("examenes/1/pista.mp3", ahora, MINUTOS_DE_LECTURA_DE_AUDIO);
+
+    expect(issueSignedToken).toHaveBeenCalledWith({
+      pathname: "examenes/1/pista.mp3",
+      operations: ["get"],
+      validUntil: ahora.getTime() + 60 * MINUTO,
+    });
   });
 });

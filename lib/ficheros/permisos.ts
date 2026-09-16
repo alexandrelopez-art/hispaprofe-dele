@@ -13,8 +13,14 @@ export type PruebaAbierta = { examenId: string; prueba: Prueba };
  *
  * La tercera rama es la del examen: un estudiante ve un fichero si alguna de
  * sus piezas cuelga de una tarea cuyo examen y prueba están en `abiertas`.
- * Nunca desde una `PaginaDeExamen`: esa tabla no tiene piezas, así que una
- * hoja escaneada no entra por esta rama — es el examen entero en PDF.
+ * Esta rama solo mira `piezas`, nunca `paginas`: hoy ningún camino del código
+ * hace que el fichero de una hoja escaneada sea TAMBIÉN el fichero de una
+ * pieza (son filas distintas, subidas por sitios distintos), así que una
+ * página nunca entra por aquí. Pero un `Fichero` puede llevar las dos
+ * relaciones a la vez (`lib/taller/paginas.ts` ya cuenta referencias de
+ * `piezas` y de `paginas` sobre el mismo fichero): si algún día algo reutiliza
+ * el mismo fichero para las dos cosas, esa página se volvería legible para el
+ * estudiante por esta rama. La garantía es del camino de hoy, no de la tabla.
  */
 export function puedeVerFichero(
   persona: { id: string; papel: Papel },
