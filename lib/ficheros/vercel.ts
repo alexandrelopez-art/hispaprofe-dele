@@ -4,6 +4,11 @@ import { nombreSaneado } from "./nombres";
 
 export const MINUTOS_DE_SUBIDA = 15;
 export const MINUTOS_DE_LECTURA = 5;
+// Una pista de once minutos que el navegador vuelve a pedir a mitad de la
+// reproducción se encontraría el enlace de cinco minutos ya muerto, y la
+// cinta se quedaría muda a media frase. El audio del examen es la única
+// excepción a "pocos minutos": una hora cubre cualquier pista del DELE.
+export const MINUTOS_DE_LECTURA_DE_AUDIO = 60;
 
 const MINUTO = 60_000;
 
@@ -66,9 +71,15 @@ export async function permisoDeSubida(
   return { url: presignedUrl, validoHasta };
 }
 
-/** Un enlace de lectura de vida muy corta. Nunca dura más de MINUTOS_DE_LECTURA. */
-export async function enlaceDeLectura(ruta: string, ahora: Date): Promise<string> {
-  const validoHasta = new Date(ahora.getTime() + MINUTOS_DE_LECTURA * MINUTO);
+/**
+ * Un enlace de lectura de vida muy corta. Nunca dura más de MINUTOS_DE_LECTURA,
+ * salvo que quien llama pida otra cosa (`minutos`): hoy solo el audio del
+ * examen lo hace, con MINUTOS_DE_LECTURA_DE_AUDIO. El parámetro es opcional
+ * para que las llamadas que ya existían (`lib/taller/ia/hojas.ts`) sigan
+ * compilando sin tocarlas.
+ */
+export async function enlaceDeLectura(ruta: string, ahora: Date, minutos?: number): Promise<string> {
+  const validoHasta = new Date(ahora.getTime() + (minutos ?? MINUTOS_DE_LECTURA) * MINUTO);
   const firmado = await issueSignedToken({
     pathname: ruta,
     operations: ["get"],

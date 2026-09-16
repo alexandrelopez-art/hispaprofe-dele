@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { Persona } from "@/lib/generated/prisma";
+import { MINUTOS_DE_LECTURA, MINUTOS_DE_LECTURA_DE_AUDIO } from "@/lib/ficheros/vercel";
 
 // Ninguna prueba importaba antes las tres rutas del almacén de Vercel: se
 // podían borrar las comprobaciones de papel y de sesión sin que nada se
@@ -36,16 +37,17 @@ vi.mock("@/lib/ficheros/vercel", async (importOriginal) => {
 // duplicada, igual que BlobNotFoundError en tests/ficheros-vercel.test.ts:
 // así se comprueba exactamente qué distingue esClaveDuplicada, sin depender
 // del cliente real de Prisma (que exigiría DATABASE_URL).
-const { fichero, ClavePrismaDuplicada } = vi.hoisted(() => {
+const { fichero, asignacion, ClavePrismaDuplicada } = vi.hoisted(() => {
   class ClavePrismaDuplicada extends Error {
     code = "P2002";
   }
   return {
     fichero: { create: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
+    asignacion: { findMany: vi.fn() },
     ClavePrismaDuplicada,
   };
 });
-vi.mock("@/lib/db", () => ({ prisma: { fichero } }));
+vi.mock("@/lib/db", () => ({ prisma: { fichero, asignacion } }));
 vi.mock("@/lib/generated/prisma", () => ({
   Prisma: { PrismaClientKnownRequestError: ClavePrismaDuplicada },
 }));
@@ -289,7 +291,7 @@ describe("GET /api/ficheros/[id]", () => {
 
   it("un fichero de Vercel, 307 al enlace de lectura, sin caché", async () => {
     personaDeLaPeticion.mockResolvedValue(PROFESOR);
-    fichero.findUnique.mockResolvedValue({ id: "f3", almacen: "VERCEL", ruta: "material/a-x.jpg" });
+    fichero.findUnique.mockResolvedValue({ id: "f3", almacen: "VERCEL", ruta: "material/a-x.jpg", tipoMime: "image/jpeg" });
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
     const respuesta = await peticionDeLectura("f3");
@@ -305,7 +307,17 @@ describe("GET /api/ficheros/[id]", () => {
   // ya nos pilló tres veces.
   it("un estudiante que pide una página de examen recibe el MISMO 404 que si no existiera", async () => {
     personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
-    fichero.findUnique.mockResolvedValue({ id: "f4", almacen: "VERCEL", ruta: "material/examen-1-01.jpg", subidoPorId: PROFESOR.id });
+    // Una página escaneada no tiene piezas (cuelga de PaginaDeExamen, no de
+    // Pieza), así que ninguna asignación abierta puede alcanzarla.
+    fichero.findUnique.mockResolvedValue({
+      id: "f4",
+      almacen: "VERCEL",
+      ruta: "material/examen-1-01.jpg",
+      tipoMime: "image/jpeg",
+      subidoPorId: PROFESOR.id,
+      piezas: [],
+    });
+    asignacion.findMany.mockResolvedValue([]);
 
     const respuesta = await peticionDeLectura("f4");
 
@@ -319,18 +331,120 @@ describe("GET /api/ficheros/[id]", () => {
   // Mutación que la mata: invertir la comparación de papel.
   it("el profesor sí recibe el enlace de esa misma página", async () => {
     personaDeLaPeticion.mockResolvedValue(PROFESOR);
-    fichero.findUnique.mockResolvedValue({ id: "f4", almacen: "VERCEL", ruta: "material/examen-1-01.jpg", subidoPorId: PROFESOR.id });
+    fichero.findUnique.mockResolvedValue({
+      id: "f4",
+      almacen: "VERCEL",
+      ruta: "material/examen-1-01.jpg",
+      tipoMime: "image/jpeg",
+      subidoPorId: PROFESOR.id,
+    });
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
     expect((await peticionDeLectura("f4")).status).toBe(307);
+    // Al profesor no se le pide ninguna prueba abierta: ni siquiera se consulta
+    // sus asignaciones (no tiene, es el que las crea).
+    expect(asignacion.findMany).not.toHaveBeenCalled();
   });
 
   // Mutación que la mata: mirar el dueño solo cuando es profesor, o no mirarlo.
   it("un estudiante sí abre lo que subió él", async () => {
     personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
-    fichero.findUnique.mockResolvedValue({ id: "f5", almacen: "VERCEL", ruta: "material/suyo.jpg", subidoPorId: ESTUDIANTE.id });
+    fichero.findUnique.mockResolvedValue({
+      id: "f5",
+      almacen: "VERCEL",
+      ruta: "material/suyo.jpg",
+      tipoMime: "image/jpeg",
+      subidoPorId: ESTUDIANTE.id,
+      piezas: [],
+    });
+    asignacion.findMany.mockResolvedValue([]);
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
     expect((await peticionDeLectura("f5")).status).toBe(307);
+  });
+
+  // Mutación que la mata: abrir las pruebas de una asignación COMPLETO sin
+  // mirar si hay intento empezado (tratarla igual que LIBRE, o ignorar
+  // `intentos`). El estudiante se bajaría la pista antes de pulsar «Empezar»
+  // y la oiría entera antes del examen.
+  it("la pista de una prueba sin empezar, el mismo 404 y enlaceDeLectura no se llama", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    fichero.findUnique.mockResolvedValue({
+      id: "f6",
+      almacen: "VERCEL",
+      ruta: "material/pista.mp3",
+      tipoMime: "audio/mpeg",
+      subidoPorId: PROFESOR.id,
+      piezas: [{ tarea: { examenId: "ex1", prueba: "CO" } }],
+    });
+    asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "COMPLETO", intentos: [] }]);
+
+    const respuesta = await peticionDeLectura("f6");
+
+    expect(respuesta.status).toBe(404);
+    expect(await respuesta.json()).toEqual({ error: "No encontrado." });
+    expect(enlaceDeLectura).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: exigir un intento empezado también en modo LIBRE.
+  // En modo libre no hay intento (la práctica libre no guarda nada), así que
+  // esa exigencia dejaría a cualquier estudiante en modo libre sin ver ni una
+  // foto de su propio examen.
+  it("en modo libre ve la pieza sin haber empezado nada", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    fichero.findUnique.mockResolvedValue({
+      id: "f7",
+      almacen: "VERCEL",
+      ruta: "material/opcion-a.jpg",
+      tipoMime: "image/jpeg",
+      subidoPorId: PROFESOR.id,
+      piezas: [{ tarea: { examenId: "ex1", prueba: "CE" } }],
+    });
+    asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "LIBRE", intentos: [] }]);
+    enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
+
+    expect((await peticionDeLectura("f7")).status).toBe(307);
+  });
+
+  // Mutación que la mata: usar siempre MINUTOS_DE_LECTURA e ignorar el tipo
+  // del fichero. Una pista de once minutos con un enlace de cinco se quedaría
+  // muda a media reproducción, que es justo lo que este paso del brief evita.
+  it("el enlace de una pista de audio se pide con una hora, no con los cinco de siempre", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    fichero.findUnique.mockResolvedValue({
+      id: "f8",
+      almacen: "VERCEL",
+      ruta: "material/pista.mp3",
+      tipoMime: "audio/mpeg",
+      subidoPorId: PROFESOR.id,
+      piezas: [{ tarea: { examenId: "ex1", prueba: "CO" } }],
+    });
+    asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "COMPLETO", intentos: [{ prueba: "CO" }] }]);
+    enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
+
+    await peticionDeLectura("f8");
+
+    expect(enlaceDeLectura).toHaveBeenCalledWith("material/pista.mp3", expect.any(Date), MINUTOS_DE_LECTURA_DE_AUDIO);
+  });
+
+  // Mutación que la mata: pedir siempre MINUTOS_DE_LECTURA_DE_AUDIO, o
+  // invertir la comparación de tipoMime. Una foto no necesita una hora de
+  // vida en su enlace.
+  it("el enlace de una foto se pide con los cinco minutos de siempre", async () => {
+    personaDeLaPeticion.mockResolvedValue(ESTUDIANTE);
+    fichero.findUnique.mockResolvedValue({
+      id: "f9",
+      almacen: "VERCEL",
+      ruta: "material/foto.jpg",
+      tipoMime: "image/jpeg",
+      subidoPorId: PROFESOR.id,
+      piezas: [{ tarea: { examenId: "ex1", prueba: "CE" } }],
+    });
+    asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "COMPLETO", intentos: [{ prueba: "CE" }] }]);
+    enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
+
+    await peticionDeLectura("f9");
+
+    expect(enlaceDeLectura).toHaveBeenCalledWith("material/foto.jpg", expect.any(Date), MINUTOS_DE_LECTURA);
   });
 });
