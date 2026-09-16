@@ -5,6 +5,7 @@ import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
+import { corregirTareaEnLibre } from "@/components/examen/hacer-prueba";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -45,7 +46,7 @@ vi.mock("@/app/examen/acciones", () => ({
   corregirEnLibreAccion: vi.fn(),
 }));
 
-import PantallaDelPrueba from "@/app/examen/[id]/[prueba]/page";
+import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
 
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
 
@@ -343,9 +344,22 @@ function sinEmpezar(): PruebaParaHacer {
   return pruebaDePrueba();
 }
 
-// CO (auditiva): sin reloj (minutos: null), aviso de audio.
+// CO (auditiva) sin empezar: el aviso de audio, todavía sin intento.
 function sinEmpezarAuditiva(): PruebaParaHacer {
   return pruebaDePrueba({ prueba: "CO", minutos: null, tareas: [auditivaUnoConFotos()] });
+}
+
+// CO (auditiva) YA EMPEZADA: la única fixture que pasa de verdad por
+// PruebaHaciendo con `minutos: null` — sinEmpezarAuditiva() se queda en
+// AvisoPrevio, que no tiene rama de reloj que mutar.
+function haciendoAuditiva(): PruebaParaHacer {
+  return pruebaDePrueba({
+    prueba: "CO",
+    minutos: null,
+    estado: { estado: "HACIENDO", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    tareas: [auditivaUnoConFotos()],
+  });
 }
 
 // CE-2 tiene 6 preguntas (7-12); sumadas a CE-1 (6) + CE-3 (6) + CE-4 (7) da
@@ -375,7 +389,7 @@ function enLibre(): PruebaParaHacer {
 
 async function pintarPagina(prueba: PruebaParaHacer): Promise<string> {
   dobles.pruebaParaHacer.mockResolvedValue(prueba);
-  const elemento = await PantallaDelPrueba({
+  const elemento = await PantallaDelExamen({
     params: Promise.resolve({ id: prueba.examen.id, prueba: prueba.prueba }),
   });
   return renderToStaticMarkup(elemento);
@@ -383,7 +397,7 @@ async function pintarPagina(prueba: PruebaParaHacer): Promise<string> {
 
 /** Para las dos pruebas que solo miran el 404: no hay fixture que pasarle. */
 function pintarPaginaDe(prueba: string) {
-  return PantallaDelPrueba({ params: Promise.resolve({ id: "x1", prueba }) });
+  return PantallaDelExamen({ params: Promise.resolve({ id: "x1", prueba }) });
 }
 
 describe("la pantalla que hace el estudiante", () => {
@@ -397,10 +411,23 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).not.toContain("Pregunta 8");
   });
 
-  // Mutación que la mata: pintar el reloj también en la auditiva, que no lo lleva.
-  it("la auditiva avisa de que cada audio suena una vez, y no lleva reloj", async () => {
+  // Mutación que la mata: invertir `esLectura` (o compararlo con `minutos`),
+  // colando el aviso de lectura en la auditiva.
+  it("sin empezar, la auditiva avisa de que cada audio suena una vez", async () => {
     const html = await pintarPagina(sinEmpezarAuditiva());
     expect(html).toContain("una sola vez");
+  });
+
+  // Antes esta aserción vivía en el fixture SIN_EMPEZAR de arriba, donde no
+  // podía morir nunca: AvisoPrevio no tiene ninguna rama que pinte <Reloj>,
+  // así que ninguna mutación de una línea la habría hecho fallar. Aquí sí
+  // pasa por la guarda de verdad, en PruebaHaciendo.
+  // Mutación que la mata: borrar `prueba.minutos !== null &&
+  // prueba.segundosQueQuedan !== null` antes de <Reloj> (o sustituirlo por
+  // `?? 0`): con los dos en null, eso pintaría «Te quedan 0:00».
+  it("empezada, la auditiva sigue sin reloj", async () => {
+    const html = await pintarPagina(haciendoAuditiva());
+    expect(html).toContain("Escucha y elige la foto que corresponde."); // que la tarea se pintó de verdad
     expect(html).not.toContain("Te quedan");
   });
 
@@ -420,11 +447,33 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).not.toContain("Entregar");
   });
 
-  // Mutación que la mata: quitar el `notFound()`. Sería una pantalla a medias de
-  // una prueba que no existe todavía.
-  it("la escrita y la oral contestan 404", async () => {
+  // Antes se llamaba «la escrita y la oral contestan 404», pero eso no es lo
+  // que prueba: "EE" ya pasa la guarda `esPrueba` (es una prueba real del
+  // DELE, solo que sin pantalla propia todavía), así que la 404 de aquí sale
+  // de `pruebaParaHacer` devolviendo null — doblado más abajo — no de
+  // `esPrueba`. Esa guarda tiene su propia prueba justo debajo.
+  // Mutación que la mata: quitar el `if (!leida) notFound();` de la página.
+  // Sería una pantalla a medias, con `prueba={null}`.
+  it("si pruebaParaHacer no encuentra nada (aquí, EE, que aún no tiene pantalla propia) la pantalla contesta 404", async () => {
     dobles.pruebaParaHacer.mockResolvedValue(null);
     await expect(pintarPaginaDe("EE")).rejects.toThrow("NOT_FOUND");
+  });
+
+  // Mutación que la mata: quitar `if (!esPrueba(prueba)) notFound();`. Una
+  // ruta inventada llegaría a llamar a `pruebaParaHacer` con un valor que
+  // `Prueba` no admite.
+  it("una prueba inventada no llega a pruebaParaHacer", async () => {
+    await expect(pintarPaginaDe("XX")).rejects.toThrow("NOT_FOUND");
+    expect(dobles.pruebaParaHacer).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: borrar `await exigirPersona()` de la página. El
+  // doble de `redirect` ya lanzaba desde el principio de este fichero; hasta
+  // ahora ningún test lo usaba.
+  it("sin sesión, un desconocido no entra", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(null);
+    await expect(pintarPaginaDe("CE")).rejects.toThrow("REDIRECT:/entrar");
+    expect(dobles.pruebaParaHacer).not.toHaveBeenCalled();
   });
 
   // Mutación que la mata: no cerrar las pasadas de hora antes de pintar. Quien
@@ -432,5 +481,44 @@ describe("la pantalla que hace el estudiante", () => {
   it("al abrir la pantalla se cierran las que se pasaron de hora", async () => {
     await pintarPagina(sinEmpezar());
     expect(dobles.cerrarLasQueSePasaron).toHaveBeenCalled();
+  });
+});
+
+describe("«Corregir» en modo libre corrige la prueba entera pero solo cuenta y pinta la tarea abierta", () => {
+  // La prueba que faltaba: hasta ahora nada ejecutaba `alCorregir` de verdad
+  // (ni con jsdom ni de ninguna otra forma), así que un «Corregir» que
+  // mandaba la letra buena del estudiante y se comía los fallos de las
+  // otras tres tareas pasaba sin que nada lo notara.
+  // Mutación que la mata: devolver `r` tal cual (sin filtrar `r.fallos` por
+  // los números de la tarea, y sin recalcular `total`/`aciertos` sobre ese
+  // subconjunto) — la CE-2 tiene 6 preguntas, no las 25 de toda la prueba.
+  it("recorta la nota y los fallos del servidor a los números de la tarea abierta", async () => {
+    const tarea = lecturaDos(); // CE-2: preguntas 7-12 (seis ítems)
+    const accion = vi.fn().mockResolvedValue({
+      aciertos: 22,
+      total: 25,
+      fallos: [
+        { numero: 1, marcada: null }, // CE-1: fuera de la tarea abierta
+        { numero: 8, marcada: "A" }, // CE-2: dentro
+        { numero: 11, marcada: null }, // CE-2: dentro
+        { numero: 19, marcada: null }, // CE-4: fuera
+      ],
+    });
+
+    const r = await corregirTareaEnLibre("x1", "CE", { "8": "A" }, tarea, accion);
+
+    expect(accion).toHaveBeenCalledWith("x1", "CE", { "8": "A" });
+    expect(r).toEqual({ aciertos: 4, total: 6, fallos: [8, 11] });
+  });
+
+  // Mutación que la mata: no comprobar `"error" in r` antes de filtrar, y
+  // reventar (o devolver `{ fallos: undefined }`) cuando la acción falla.
+  it("si la acción devuelve error, lo deja pasar tal cual, sin tocar fallos", async () => {
+    const tarea = lecturaDos();
+    const accion = vi.fn().mockResolvedValue({ error: "Este examen ya no está disponible." });
+
+    const r = await corregirTareaEnLibre("x1", "CE", {}, tarea, accion);
+
+    expect(r).toEqual({ error: "Este examen ya no está disponible." });
   });
 });

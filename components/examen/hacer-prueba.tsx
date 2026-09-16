@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { Prueba } from "@/lib/generated/prisma";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { NOMBRE_DE_PRUEBA } from "@/lib/dele/estructura";
 import { textoDelEstado } from "@/lib/examen/motor";
+import { itemsDelFormulario } from "@/lib/taller/estado";
 import {
   corregirEnLibreAccion,
   empezarPruebaAccion,
@@ -15,6 +17,7 @@ import { Reloj } from "@/components/examen/reloj";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 
 type Marcadas = Record<string, string>;
+type NotaDeTarea = { aciertos: number; total: number; fallos: number[] };
 
 const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
 const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
@@ -22,6 +25,36 @@ const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
 
 function totalDePreguntas(tareas: TareaParaHacer[]): number {
   return tareas.reduce((n, t) => n + (t.regla.items ?? 0), 0);
+}
+
+/** Cuántas de las marcadas tienen de verdad una letra (una cadena vacía guardada no cuenta como contestada). */
+function contarContestadas(marcadas: Marcadas): number {
+  return Object.values(marcadas).filter((letra) => letra.trim() !== "").length;
+}
+
+/**
+ * La corrección de una tarea, en modo libre. `corregirEnLibreAccion` corrige
+ * la PRUEBA entera (lib/examen/hacer.ts no admite corregir una tarea sola: la
+ * clave sale de `claveDeLaPrueba`, que junta las cuatro), así que sus fallos
+ * cubren las 25 preguntas de golpe. Aquí se recorta el resultado a la tarea
+ * que lo pidió: sus propios números (de `itemsDelFormulario`, la misma
+ * fuente que usa `letrasPosibles`), su propio total, su propia nota.
+ *
+ * Aislada de React (no toca useState) y con la acción como argumento para
+ * poder doblarla y probarla sin renderizar nada.
+ */
+export async function corregirTareaEnLibre(
+  examenId: string,
+  prueba: Prueba,
+  marcadas: Marcadas,
+  tarea: TareaParaHacer,
+  accion: typeof corregirEnLibreAccion,
+): Promise<NotaDeTarea | { error: string }> {
+  const r = await accion(examenId, prueba, marcadas);
+  if ("error" in r) return r;
+  const numerosDeLaTarea = new Set(itemsDelFormulario(tarea.formulario));
+  const fallos = r.fallos.filter((f) => numerosDeLaTarea.has(f.numero)).map((f) => f.numero);
+  return { aciertos: numerosDeLaTarea.size - fallos.length, total: numerosDeLaTarea.size, fallos };
 }
 
 /**
@@ -39,7 +72,11 @@ function AvisoPrevio({
   enviando: boolean;
   error: string | null;
 }) {
-  const esLectura = prueba.minutos !== null;
+  // Lo que decide el aviso es QUÉ prueba es, no si lleva reloj: son la misma
+  // cosa hoy (solo CE lo lleva), pero decirlo por minutos mezclaría, el día
+  // que cambie una regla de tiempos, la pregunta «¿es lectura?» con la
+  // pregunta «¿tiene reloj?».
+  const esLectura = prueba.prueba === "CE";
   return (
     <section className={CAJA}>
       <h1 className="text-xl font-bold">
@@ -92,10 +129,17 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const [error, setError] = useState<string | null>(null);
   const [bloqueadaPorError, setBloqueadaPorError] = useState(false);
   const [procesando, empezarTransicion] = useTransition();
+  // Una sola entrega automática: sin esto, cada re-render (uno por cada
+  // guardarRespuestaAccion en curso) le pasa a <Reloj> una alAcabarse con
+  // identidad nueva, su efecto se re-dispara con quedan ya en 0, y se
+  // llamaría a entregarPruebaAccion una y otra vez.
+  const entregadaPorTiempo = useRef(false);
 
   function alMarcar(numero: number, letra: string) {
     // Se pinta en el acto; la llamada al servidor va detrás, y solo si falla
-    // deja de aceptar respuestas (bloqueadaPorError).
+    // deja de aceptar respuestas (bloqueadaPorError). «Entregar» se deja
+    // encendido a propósito (ver alEntregar): lo guardado hasta el fallo no
+    // se pierde, y la auditiva no tiene reloj que la rescate sola.
     setMarcadas((m) => ({ ...m, [String(numero)]: letra }));
     empezarTransicion(async () => {
       const r = await guardarRespuestaAccion(examenId, prueba.prueba, numero, letra);
@@ -106,18 +150,31 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
     });
   }
 
-  function alAcabarse() {
+  // Identidad estable entre renders (useCallback): si cambiara en cada
+  // render, el useEffect de <Reloj> (que la lleva en sus dependencias) se
+  // volvería a disparar en cada marcado aunque `quedan` no se haya movido,
+  // y el segundero visible se quedaría reiniciando su propio setTimeout.
+  const alAcabarse = useCallback(() => {
+    if (entregadaPorTiempo.current) return;
+    entregadaPorTiempo.current = true;
     // El reloj avisó por su cuenta: se entrega con porTiempo y se refresca
     // (esto no pasa por un formulario, así que Next no lo revalida solo).
     empezarTransicion(async () => {
-      await entregarPruebaAccion(examenId, prueba.prueba, true);
+      const r = await entregarPruebaAccion(examenId, prueba.prueba, true);
+      if (r.error) {
+        // «Se entrega sola» solo es honesto si, cuando falla, alguien se
+        // entera: sin esto el estudiante se queda mirando 0:00 sin nota y
+        // sin aviso. «Entregar» sigue ahí para reintentar a mano.
+        setError(r.error);
+        return;
+      }
       router.refresh();
     });
-  }
+  }, [examenId, prueba.prueba, empezarTransicion, router]);
 
   function alEntregar() {
     const total = totalDePreguntas(prueba.tareas);
-    const sinMarcar = total - Object.keys(marcadas).length;
+    const sinMarcar = total - contarContestadas(marcadas);
     const pregunta = sinMarcar > 0
       ? `Te quedan ${sinMarcar} sin contestar. Entregar no se puede deshacer. ¿Entregar de todos modos?`
       : "Entregar no se puede deshacer. ¿Entregar?";
@@ -141,7 +198,11 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
       {tarea && (
         <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={null} bloqueada={bloqueadaPorError} alMarcar={alMarcar} />
       )}
-      <button type="button" disabled={bloqueadaPorError || procesando} onClick={alEntregar} className={BOTON}>
+      {/* Sin bloqueadaPorError aquí a propósito: un fallo al guardar UNA
+          respuesta bloquea las respuestas, no la salida. Sin esto, la
+          auditiva (sin reloj que la cierre sola) se quedaría «HACIENDO»
+          para siempre. */}
+      <button type="button" disabled={procesando} onClick={alEntregar} className={BOTON}>
         Entregar
       </button>
     </div>
@@ -165,50 +226,65 @@ function PruebaEntregada({ prueba }: { prueba: PruebaParaHacer }) {
 
 /**
  * Modo libre: sin reloj y sin «Entregar» — no hay intento que cerrar, así que
- * ni el uno ni el otro tienen sentido. En su lugar, «Corregir» por tarea:
- * corrige TODO lo marcado hasta ahora (la clave nunca baja al navegador), y
- * se puede repetir tantas veces como se quiera.
+ * ni el uno ni el otro tienen sentido. En su lugar, «Corregir» por tarea: el
+ * botón vive bajo la tarea abierta y solo cuenta y pinta SUS preguntas — no
+ * las 25 de la prueba entera — aunque por debajo tenga que corregir la
+ * prueba entera (corregirTareaEnLibre recorta el resultado). Se puede
+ * repetir tantas veces como se quiera, y la nota de una tarea ya corregida
+ * se conserva al cambiar de pestaña, hasta que se vuelve a tocar esa tarea.
  */
 function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
   const examenId = prueba.examen.id;
   const [marcadas, setMarcadas] = useState<Marcadas>(prueba.respuestas);
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
-  const [nota, setNota] = useState<{ aciertos: number; total: number } | null>(null);
-  const [fallos, setFallos] = useState<number[] | null>(null);
+  const [notasPorTarea, setNotasPorTarea] = useState<Record<number, NotaDeTarea>>({});
   const [error, setError] = useState<string | null>(null);
   const [procesando, empezarTransicion] = useTransition();
 
   function alMarcar(numero: number, letra: string) {
     setMarcadas((m) => ({ ...m, [String(numero)]: letra }));
-    // La corrección anterior ya no vale para lo que se acaba de cambiar.
-    setNota(null);
-    setFallos(null);
+    // Solo la nota de la tarea abierta (la que se acaba de tocar) queda
+    // obsoleta; las demás no se han tocado y su nota sigue siendo la de verdad.
+    setNotasPorTarea((n) => {
+      if (!(tareaAbierta in n)) return n;
+      const resto = { ...n };
+      delete resto[tareaAbierta];
+      return resto;
+    });
   }
 
-  function alCorregir() {
+  function alCorregir(tarea: TareaParaHacer) {
     empezarTransicion(async () => {
-      const r = await corregirEnLibreAccion(examenId, prueba.prueba, marcadas);
+      const r = await corregirTareaEnLibre(examenId, prueba.prueba, marcadas, tarea, corregirEnLibreAccion);
       if ("error" in r) { setError(r.error); return; }
       setError(null);
-      setNota({ aciertos: r.aciertos, total: r.total });
-      setFallos(r.fallos.map((f) => f.numero));
+      setNotasPorTarea((n) => ({ ...n, [tarea.numero]: r }));
     });
   }
 
   const tarea = prueba.tareas.find((t) => t.numero === tareaAbierta) ?? prueba.tareas[0];
+  const notaDeLaTarea = tarea ? notasPorTarea[tarea.numero] : undefined;
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-tinta-suave">Práctica libre: puedes corregir tantas veces como quieras.</p>
-      {nota && <p className="text-xl font-bold">{nota.aciertos} de {nota.total}</p>}
+      <p className="text-sm text-tinta-suave">Práctica libre: puedes corregir cada tarea tantas veces como quieras.</p>
+      {notaDeLaTarea && <p className="text-xl font-bold">{notaDeLaTarea.aciertos} de {notaDeLaTarea.total}</p>}
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
-        <TareaDelEstudiante tarea={tarea} marcadas={marcadas} fallos={fallos} bloqueada={false} alMarcar={alMarcar} />
+        <>
+          <TareaDelEstudiante
+            tarea={tarea}
+            marcadas={marcadas}
+            fallos={notaDeLaTarea?.fallos ?? null}
+            bloqueada={false}
+            alMarcar={alMarcar}
+          />
+          <button type="button" disabled={procesando} onClick={() => alCorregir(tarea)} className={BOTON}>
+            Corregir
+          </button>
+        </>
       )}
-      <button type="button" disabled={procesando} onClick={alCorregir} className={BOTON}>
-        Corregir
-      </button>
     </div>
   );
 }
