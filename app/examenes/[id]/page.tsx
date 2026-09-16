@@ -5,11 +5,18 @@ import { NOMBRE_DE_NIVEL, NOMBRE_DE_PRUEBA, PRUEBAS, etiquetasDeNivel, nombreCor
 import { examenParaElTaller } from "@/lib/taller/examenes";
 import { textoDelGasto } from "@/lib/taller/ia/coste";
 import { listarCuadernillos } from "@/lib/taller/cuadernillos";
-import { publicarExamenAccion, retirarExamenAccion } from "@/app/examenes/acciones";
+import { asignacionesDelExamen, estudiantesParaAsignar } from "@/lib/examen/asignar";
+import {
+  archivarExamenAccion,
+  publicarExamenAccion,
+  recuperarExamenAccion,
+  retirarExamenAccion,
+} from "@/app/examenes/acciones";
 import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 import { ElegirCuadernillo } from "@/components/taller/elegir-cuadernillo";
 import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";
 import { InsigniaDeEstado } from "@/components/taller/estado-de-la-tarea";
+import { QuienLoHace } from "@/components/taller/quien-lo-hace";
 import { SubirCuadernillo } from "@/components/taller/subir-cuadernillo";
 import { SubirPaginas } from "@/components/taller/subir-paginas";
 
@@ -20,10 +27,10 @@ export default async function PantallaDelExamen({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; aviso?: string }>;
 }) {
   await exigirProfesor();
-  const [{ id }, { error }] = await Promise.all([params, searchParams]);
+  const [{ id }, { error, aviso }] = await Promise.all([params, searchParams]);
   const examen = await examenParaElTaller(id);
   if (!examen) notFound();
   const cuadernillos = await listarCuadernillos();
@@ -32,7 +39,13 @@ export default async function PantallaDelExamen({
   const elegido = examen.cuadernillo;
   const resumenDelNumero = elegido?.resumen.find((r) => r.examen === String(examen.numeroEnCuadernillo));
   const publicado = examen.estado === "PUBLICADO";
+  const archivado = examen.estado === "ARCHIVADO";
   const motivos = examen.motivosParaPublicar;
+  // Solo se piden si hace falta: en construcción o archivado serían dos
+  // consultas de más en cada visita al taller.
+  const [estudiantes, asignaciones] = publicado
+    ? await Promise.all([estudiantesParaAsignar(), asignacionesDelExamen(id)])
+    : [[], []];
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 p-6">
@@ -43,6 +56,7 @@ export default async function PantallaDelExamen({
         {textoDelGasto(examen.gasto) && <p className="text-sm text-tinta-suave">{textoDelGasto(examen.gasto)}</p>}
       </header>
       {error && <p role="alert" className="rounded-2xl bg-error-100 p-4 text-error-600">{error}</p>}
+      {aviso && <p role="status" className="rounded-2xl bg-verde-100 p-4 text-verde-600">{aviso}</p>}
 
       <section className={CAJA} data-publicacion>
         <h2 className="text-xl font-bold">Publicación</h2>
@@ -52,6 +66,13 @@ export default async function PantallaDelExamen({
             <p className="text-tinta-suave">{MENSAJE_PUBLICADO}</p>
             <form action={retirarExamenAccion.bind(null, examen.id)}>
               <button type="submit" className="rounded-2xl border border-hp-400 px-5 py-2 font-bold text-hp-600">Retirar</button>
+            </form>
+          </>
+        ) : archivado ? (
+          <>
+            <p className="font-bold text-tinta-suave">Archivado: fuera de circulación.</p>
+            <form action={recuperarExamenAccion.bind(null, examen.id)}>
+              <button type="submit" className="rounded-2xl border border-hp-400 px-5 py-2 font-bold text-hp-600">Recuperar</button>
             </form>
           </>
         ) : (
@@ -64,9 +85,19 @@ export default async function PantallaDelExamen({
                 {motivos.map((m) => <li key={m}>{m}</li>)}
               </ul>
             )}
+            <form action={archivarExamenAccion.bind(null, examen.id)}>
+              <button type="submit" className="rounded-2xl border border-tinta-suave/30 px-5 py-2 font-bold text-tinta-suave">Archivar</button>
+            </form>
           </>
         )}
       </section>
+
+      {publicado && (
+        <section className={CAJA} data-asignacion>
+          <h2 className="text-xl font-bold">Quién lo hace</h2>
+          <QuienLoHace examenId={examen.id} estudiantes={estudiantes} asignaciones={asignaciones} />
+        </section>
+      )}
 
       <section className={CAJA}>
         <h2 className="text-xl font-bold">Tareas</h2>

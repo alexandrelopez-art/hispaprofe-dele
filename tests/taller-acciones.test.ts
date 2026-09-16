@@ -22,9 +22,16 @@ const dobles = vi.hoisted(() => ({
   guardarCuadernillo: vi.fn(),
   elegirCuadernillo: vi.fn(),
   rellenarTarea: vi.fn(),
+  asignarExamen: vi.fn(),
+  quitarAsignacion: vi.fn(),
+  archivarExamen: vi.fn(),
+  recuperarExamen: vi.fn(),
 }));
 
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
+// headers() se usa para componer el enlace del correo de asignación
+// (direccionDelSitio); sin SITIO_URL en las pruebas cae a la cabecera host,
+// que aquí no hace falta que diga nada concreto.
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }), headers: async () => new Headers() }));
 vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie: dobles.personaDeLaCookie }));
 vi.mock("next/navigation", () => ({ redirect: dobles.redirect, notFound: dobles.notFound }));
 vi.mock("next/cache", () => ({ revalidatePath: dobles.revalidatePath }));
@@ -33,6 +40,8 @@ vi.mock("@/lib/taller/examenes", () => ({
   guardarTarea: dobles.guardarTarea,
   publicarExamen: dobles.publicarExamen,
   retirarExamen: dobles.retirarExamen,
+  archivarExamen: dobles.archivarExamen,
+  recuperarExamen: dobles.recuperarExamen,
 }));
 vi.mock("@/lib/taller/paginas", () => ({
   registrarPaginas: dobles.registrarPaginas,
@@ -45,8 +54,12 @@ vi.mock("@/lib/taller/cuadernillos", () => ({
   elegirCuadernillo: dobles.elegirCuadernillo,
 }));
 vi.mock("@/lib/taller/ia/rellenar", () => ({ rellenarTarea: dobles.rellenarTarea }));
+vi.mock("@/lib/examen/asignar", () => ({ asignarExamen: dobles.asignarExamen, quitarAsignacion: dobles.quitarAsignacion }));
+vi.mock("@/lib/correo/transporte", () => ({ mandarPorSmtp: vi.fn() }));
 
 import {
+  archivarExamenAccion,
+  asignarExamenAccion,
   borrarPaginasAccion,
   crearExamenAccion,
   elegirCuadernilloAccion,
@@ -54,6 +67,8 @@ import {
   guardarCuadernilloAccion,
   guardarTareaAccion,
   publicarExamenAccion,
+  quitarAsignacionAccion,
+  recuperarExamenAccion,
   registrarPaginasAccion,
   rellenarTareaConIAAccion,
   retirarExamenAccion,
@@ -92,6 +107,10 @@ const ACCIONES = [
   { nombre: "guardarTareaAccion", llamar: () => guardarTareaAccion("x1", "CE", 3, {}), tocan: [dobles.guardarTarea] },
   { nombre: "publicarExamenAccion", llamar: () => publicarExamenAccion("x1"), tocan: [dobles.publicarExamen] },
   { nombre: "retirarExamenAccion", llamar: () => retirarExamenAccion("x1"), tocan: [dobles.retirarExamen] },
+  { nombre: "asignarExamenAccion", llamar: () => asignarExamenAccion("x1", formulario({ estudiante: "e1", dia: "2026-10-20" })), tocan: [dobles.asignarExamen] },
+  { nombre: "quitarAsignacionAccion", llamar: () => quitarAsignacionAccion("x1", "e1"), tocan: [dobles.quitarAsignacion] },
+  { nombre: "archivarExamenAccion", llamar: () => archivarExamenAccion("x1"), tocan: [dobles.archivarExamen] },
+  { nombre: "recuperarExamenAccion", llamar: () => recuperarExamenAccion("x1"), tocan: [dobles.recuperarExamen] },
 ];
 
 beforeEach(() => {
@@ -232,6 +251,66 @@ describe("lo que hace cada acción con el profesor", () => {
     expect(await mensajeDelRechazo(publicarExamenAccion("x1"))).toBe(
       `REDIRECT:/examenes/x1?error=${encodeURIComponent("No se puede publicar: Faltan por completar: CO1.")}`,
     );
+  });
+
+  // Mutación que la mata: leer formulario.get("estudiante") en vez de getAll, que
+  // se quedaría con uno solo y dejaría sin examen a los otros once.
+  it("el profesor asigna a todos los marcados y vuelve con el aviso", async () => {
+    dobles.asignarExamen.mockResolvedValue({ asignados: 2, sinAviso: ["Ana"] });
+    const form = formulario({ dia: "2026-10-20" });
+    form.append("estudiante", "e1");
+    form.append("estudiante", "e2");
+
+    expect(await mensajeDelRechazo(asignarExamenAccion("x1", form))).toMatch(/^REDIRECT:/);
+    expect(dobles.asignarExamen.mock.calls[0]!.slice(0, 4)).toEqual(["x1", ["e1", "e2"], "2026-10-20", PROFESOR.id]);
+    expect(dobles.redirect.mock.calls[0]![0]).toContain("aviso=");
+  });
+
+  // Mutación que la mata: construir siempre el aviso largo ("No salió el aviso
+  // a...") aunque sinAviso esté vacío.
+  it("cuando el aviso llega a todos, el mensaje no habla de nadie sin avisar", async () => {
+    dobles.asignarExamen.mockResolvedValue({ asignados: 2, sinAviso: [] });
+    const form = formulario({ dia: "2026-10-20" });
+    form.append("estudiante", "e1");
+    form.append("estudiante", "e2");
+
+    expect(await mensajeDelRechazo(asignarExamenAccion("x1", form))).toBe(
+      `REDIRECT:/examenes/x1?aviso=${encodeURIComponent("Asignado a 2.")}`,
+    );
+  });
+
+  // Mutación que la mata: redirigir siempre a la pantalla sin el ?error=,
+  // perdiendo el motivo (p.ej. "Esa fecha ya pasó.") que devuelve asignarExamen.
+  it("cuando asignarExamen falla, vuelve con el error exacto", async () => {
+    dobles.asignarExamen.mockResolvedValue({ error: "Esa fecha ya pasó." });
+    const form = formulario({ dia: "2020-01-01" });
+    form.append("estudiante", "e1");
+
+    expect(await mensajeDelRechazo(asignarExamenAccion("x1", form))).toBe(
+      `REDIRECT:/examenes/x1?error=${encodeURIComponent("Esa fecha ya pasó.")}`,
+    );
+  });
+
+  // Mutación que la mata: invertir el orden de los argumentos
+  // (quitarAsignacion(personaId, examenId)).
+  it("quitar una asignación pasa examen y persona en ese orden, y vuelve al examen", async () => {
+    dobles.quitarAsignacion.mockResolvedValue({});
+    expect(await mensajeDelRechazo(quitarAsignacionAccion("x1", "e5"))).toBe("REDIRECT:/examenes/x1");
+    expect(dobles.quitarAsignacion).toHaveBeenCalledWith("x1", "e5");
+  });
+
+  // Mutación que la mata: no propagar el error de archivarExamen/recuperarExamen
+  // (redirigir siempre a la pantalla limpia).
+  it("archivar y recuperar delegan en la capa del taller y vuelven con el error si lo hay", async () => {
+    dobles.archivarExamen.mockResolvedValue({});
+    expect(await mensajeDelRechazo(archivarExamenAccion("x1"))).toBe("REDIRECT:/examenes/x1");
+    expect(dobles.archivarExamen).toHaveBeenCalledWith("x1");
+
+    dobles.recuperarExamen.mockResolvedValue({ error: "Ese examen no está archivado." });
+    expect(await mensajeDelRechazo(recuperarExamenAccion("x1"))).toBe(
+      `REDIRECT:/examenes/x1?error=${encodeURIComponent("Ese examen no está archivado.")}`,
+    );
+    expect(dobles.recuperarExamen).toHaveBeenCalledWith("x1");
   });
 });
 

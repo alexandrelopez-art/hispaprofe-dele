@@ -15,6 +15,8 @@ const dobles = vi.hoisted(() => ({
   examenParaElTaller: vi.fn(),
   tareaParaElTaller: vi.fn(),
   listarCuadernillos: vi.fn(),
+  estudiantesParaAsignar: vi.fn(),
+  asignacionesDelExamen: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -26,6 +28,14 @@ vi.mock("@/lib/taller/examenes", () => ({
   tareaParaElTaller: dobles.tareaParaElTaller,
 }));
 vi.mock("@/lib/taller/cuadernillos", () => ({ listarCuadernillos: dobles.listarCuadernillos }));
+// Declarado para TODO el fichero, con [] por defecto en el beforeEach común: la
+// prueba de tabla más abajo pinta TODAS las pantallas, y sin este doble la
+// pantalla del examen llamaría a Prisma de verdad en cuanto el examen esté
+// publicado.
+vi.mock("@/lib/examen/asignar", () => ({
+  asignacionesDelExamen: dobles.asignacionesDelExamen,
+  estudiantesParaAsignar: dobles.estudiantesParaAsignar,
+}));
 // Cada acción que importan las pantallas o sus componentes tiene que existir en
 // el doble: Vitest revienta al leer una exportación que el doble no define.
 vi.mock("@/app/examenes/acciones", () => ({
@@ -39,6 +49,10 @@ vi.mock("@/app/examenes/acciones", () => ({
   guardarTareaAccion: vi.fn(),
   publicarExamenAccion: vi.fn(),
   retirarExamenAccion: vi.fn(),
+  asignarExamenAccion: vi.fn(),
+  quitarAsignacionAccion: vi.fn(),
+  archivarExamenAccion: vi.fn(),
+  recuperarExamenAccion: vi.fn(),
 }));
 
 import Examenes from "@/app/examenes/page";
@@ -87,6 +101,11 @@ beforeEach(() => {
   vi.resetAllMocks();
   dobles.redirect.mockImplementation((ruta: string) => { throw new Error(`REDIRECT:${ruta}`); });
   dobles.notFound.mockImplementation(() => { throw new Error("NOT_FOUND"); });
+  // Por defecto vacíos: la prueba de tabla pinta un examen PUBLICADO sin
+  // pensar en la asignación, y sin esto la pantalla recibiría `undefined`
+  // donde espera una lista.
+  dobles.estudiantesParaAsignar.mockResolvedValue([]);
+  dobles.asignacionesDelExamen.mockResolvedValue([]);
 });
 
 const PANTALLAS = [
@@ -305,5 +324,48 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(html).not.toContain("Subir un cuadernillo nuevo");
     expect(html).not.toContain("aria-pressed");
     expect(html).not.toContain(">Publicar</button>");
+  });
+});
+
+describe("la caja de quién hace el examen", () => {
+  const pintar = async (estado: string) => {
+    dobles.cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    dobles.personaDeLaCookie.mockResolvedValue(PROFESOR);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ estado }));
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    return renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+  };
+
+  beforeEach(() => {
+    dobles.estudiantesParaAsignar.mockResolvedValue([{ id: "e1", nombre: "Ana", correo: "ana@ejemplo.com" }]);
+    dobles.asignacionesDelExamen.mockResolvedValue([{ personaId: "e1", nombre: "Ana", fechaTope: new Date("2026-10-20T21:59:59.999Z") }]);
+  });
+
+  // Mutación que la mata: enseñar la caja también en construcción. El profesor
+  // rellenaría un formulario que no puede funcionar (asignar exige publicado).
+  it("no sale si el examen no está publicado", async () => {
+    const marcado = await pintar("EN_CONSTRUCCION");
+
+    expect(marcado.length).toBeGreaterThan(200); // que no esté vacío: si no, cualquier ausencia pasa
+    expect(marcado).not.toContain("Quién lo hace");
+    expect(marcado).toContain("Archivar");
+  });
+
+  // Mutación que la mata: no pintar la fecha de quien ya lo tiene, o pintarla en
+  // UTC (el 19 en vez del 20).
+  it("publicado, lista a los estudiantes y a quien ya lo tiene con su fecha", async () => {
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain("Quién lo hace");
+    expect(marcado).toContain("Ana");
+    expect(marcado).toContain("martes, 20 de octubre de 2026");
+    // Quitárselo cambia algo: formulario POST, nunca un enlace.
+    expect(marcado).not.toContain('href="/examenes/x1/quitar');
+  });
+
+  // Mutación que la mata: dejar las casillas marcadas de quien ya lo tiene.
+  // Asignárselo a uno nuevo le cambiaría la fecha a los demás sin pedirlo.
+  it("las casillas nacen vacías aunque ya lo tengan", async () => {
+    expect(await pintar("PUBLICADO")).not.toContain("checked");
   });
 });

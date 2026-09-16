@@ -1,14 +1,19 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { esPrueba } from "@/lib/dele/estructura";
-import { crearExamen, guardarTarea, publicarExamen, retirarExamen } from "@/lib/taller/examenes";
+import { archivarExamen, crearExamen, guardarTarea, publicarExamen, recuperarExamen, retirarExamen } from "@/lib/taller/examenes";
 import { borrarPaginas, etiquetarPagina, registrarPaginas, sustituirPaginas } from "@/lib/taller/paginas";
 import { elegirCuadernillo, guardarCuadernillo } from "@/lib/taller/cuadernillos";
 import type { EstadoDeTarea } from "@/lib/taller/estado";
 import { rellenarTarea, type ResultadoDeRelleno } from "@/lib/taller/ia/rellenar";
+import { asignarExamen, quitarAsignacion } from "@/lib/examen/asignar";
+import { listaDeNombres } from "@/lib/examen/nombres";
+import { mandarPorSmtp } from "@/lib/correo/transporte";
+import { direccionDelSitio } from "@/lib/puerta/sitio";
 
 // Las pantallas ya exigen al profesor, pero una acción de servidor es una
 // dirección pública: cada una vuelve a comprobarlo, la primera línea.
@@ -110,4 +115,34 @@ export async function publicarExamenAccion(examenId: string): Promise<void> {
 export async function retirarExamenAccion(examenId: string): Promise<void> {
   await exigirProfesor();
   await volverAlExamen(examenId, await retirarExamen(examenId));
+}
+
+export async function archivarExamenAccion(examenId: string): Promise<void> {
+  await exigirProfesor();
+  await volverAlExamen(examenId, await archivarExamen(examenId));
+}
+
+export async function recuperarExamenAccion(examenId: string): Promise<void> {
+  await exigirProfesor();
+  await volverAlExamen(examenId, await recuperarExamen(examenId));
+}
+
+export async function asignarExamenAccion(examenId: string, formulario: FormData): Promise<void> {
+  const profesor = await exigirProfesor();
+  const personaIds = formulario.getAll("estudiante").map(String);
+  const dia = String(formulario.get("dia") ?? "");
+  const base = direccionDelSitio(await headers());
+  const r = await asignarExamen(examenId, personaIds, dia, profesor.id, mandarPorSmtp, base, new Date());
+  revalidatePath(pantallaDelExamen(examenId));
+  if ("error" in r) redirect(`${pantallaDelExamen(examenId)}?error=${encodeURIComponent(r.error)}`);
+  const aviso =
+    r.sinAviso.length === 0
+      ? `Asignado a ${r.asignados}.`
+      : `Asignado a ${r.asignados}. No salió el aviso a ${listaDeNombres(r.sinAviso)}: díselo tú.`;
+  redirect(`${pantallaDelExamen(examenId)}?aviso=${encodeURIComponent(aviso)}`);
+}
+
+export async function quitarAsignacionAccion(examenId: string, personaId: string): Promise<void> {
+  await exigirProfesor();
+  await volverAlExamen(examenId, await quitarAsignacion(examenId, personaId));
 }
