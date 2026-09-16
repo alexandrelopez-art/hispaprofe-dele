@@ -37,17 +37,18 @@ vi.mock("@/lib/ficheros/vercel", async (importOriginal) => {
 // duplicada, igual que BlobNotFoundError en tests/ficheros-vercel.test.ts:
 // así se comprueba exactamente qué distingue esClaveDuplicada, sin depender
 // del cliente real de Prisma (que exigiría DATABASE_URL).
-const { fichero, asignacion, ClavePrismaDuplicada } = vi.hoisted(() => {
+const { fichero, asignacion, pieza, ClavePrismaDuplicada } = vi.hoisted(() => {
   class ClavePrismaDuplicada extends Error {
     code = "P2002";
   }
   return {
     fichero: { create: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     asignacion: { findMany: vi.fn() },
+    pieza: { findMany: vi.fn() },
     ClavePrismaDuplicada,
   };
 });
-vi.mock("@/lib/db", () => ({ prisma: { fichero, asignacion } }));
+vi.mock("@/lib/db", () => ({ prisma: { fichero, asignacion, pieza } }));
 vi.mock("@/lib/generated/prisma", () => ({
   Prisma: { PrismaClientKnownRequestError: ClavePrismaDuplicada },
 }));
@@ -315,7 +316,6 @@ describe("GET /api/ficheros/[id]", () => {
       ruta: "material/examen-1-01.jpg",
       tipoMime: "image/jpeg",
       subidoPorId: PROFESOR.id,
-      piezas: [],
     });
     asignacion.findMany.mockResolvedValue([]);
 
@@ -355,7 +355,6 @@ describe("GET /api/ficheros/[id]", () => {
       ruta: "material/suyo.jpg",
       tipoMime: "image/jpeg",
       subidoPorId: ESTUDIANTE.id,
-      piezas: [],
     });
     asignacion.findMany.mockResolvedValue([]);
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
@@ -375,7 +374,6 @@ describe("GET /api/ficheros/[id]", () => {
       ruta: "material/pista.mp3",
       tipoMime: "audio/mpeg",
       subidoPorId: PROFESOR.id,
-      piezas: [{ tarea: { examenId: "ex1", prueba: "CO" } }],
     });
     asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "COMPLETO", intentos: [] }]);
 
@@ -398,9 +396,10 @@ describe("GET /api/ficheros/[id]", () => {
       ruta: "material/opcion-a.jpg",
       tipoMime: "image/jpeg",
       subidoPorId: PROFESOR.id,
-      piezas: [{ tarea: { examenId: "ex1", prueba: "CE" } }],
     });
     asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "LIBRE", intentos: [] }]);
+    // En libre se abren las cuatro pruebas, así que sus tareas alcanzan esta foto.
+    pieza.findMany.mockResolvedValue([{ ficheroId: null, actividad: { datos: { imagenes: { "1-A": "f7" } } } }]);
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
     expect((await peticionDeLectura("f7")).status).toBe(307);
@@ -417,9 +416,9 @@ describe("GET /api/ficheros/[id]", () => {
       ruta: "material/pista.mp3",
       tipoMime: "audio/mpeg",
       subidoPorId: PROFESOR.id,
-      piezas: [{ tarea: { examenId: "ex1", prueba: "CO" } }],
     });
     asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "COMPLETO", intentos: [{ prueba: "CO" }] }]);
+    pieza.findMany.mockResolvedValue([{ ficheroId: "f8", actividad: null }]);
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
     await peticionDeLectura("f8");
@@ -438,9 +437,9 @@ describe("GET /api/ficheros/[id]", () => {
       ruta: "material/foto.jpg",
       tipoMime: "image/jpeg",
       subidoPorId: PROFESOR.id,
-      piezas: [{ tarea: { examenId: "ex1", prueba: "CE" } }],
     });
     asignacion.findMany.mockResolvedValue([{ examenId: "ex1", modo: "COMPLETO", intentos: [{ prueba: "CE" }] }]);
+    pieza.findMany.mockResolvedValue([{ ficheroId: null, actividad: { datos: { imagenes: { "13-A": "f9" } } } }]);
     enlaceDeLectura.mockResolvedValue("https://blob.vercel-storage.com/lectura");
 
     await peticionDeLectura("f9");

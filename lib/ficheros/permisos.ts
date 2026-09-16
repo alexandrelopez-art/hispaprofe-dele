@@ -1,35 +1,28 @@
-import type { Papel, Prueba } from "@/lib/generated/prisma";
-
-/** Lo que hace falta de una pieza para el candado: de qué examen y qué prueba cuelga su tarea. */
-export type PiezaDelFichero = { tarea: { examenId: string; prueba: Prueba } };
-
-/** Una prueba que la persona que pregunta tiene abierta ahora mismo. Quien llama la calcula; esta función solo la mira. */
-export type PruebaAbierta = { examenId: string; prueba: Prueba };
+import type { Papel } from "@/lib/generated/prisma";
 
 /**
  * Lista blanca: lo que no está dicho aquí, NO se puede ver. Un fichero de un
  * tipo nuevo que nadie haya pensado queda fuera por defecto, que es el lado
  * seguro del error.
  *
- * La tercera rama es la del examen: un estudiante ve un fichero si alguna de
- * sus piezas cuelga de una tarea cuyo examen y prueba están en `abiertas`.
- * Esta rama solo mira `piezas`, nunca `paginas`: hoy ningún camino del código
- * hace que el fichero de una hoja escaneada sea TAMBIÉN el fichero de una
- * pieza (son filas distintas, subidas por sitios distintos), así que una
- * página nunca entra por aquí. Pero un `Fichero` puede llevar las dos
- * relaciones a la vez (`lib/taller/paginas.ts` ya cuenta referencias de
- * `piezas` y de `paginas` sobre el mismo fichero): si algún día algo reutiliza
- * el mismo fichero para las dos cosas, esa página se volvería legible para el
- * estudiante por esta rama. La garantía es del camino de hoy, no de la tabla.
+ * La tercera rama es la del examen, y es una pregunta de pertenencia: ¿está
+ * este fichero entre los que alcanzan las pruebas que esta persona tiene
+ * abiertas? Quien llama calcula ese conjunto (`ficherosDeLasPruebasAbiertas`,
+ * en lib/ficheros/abiertos.ts) y esta función solo lo mira, así que decidir
+ * sigue siendo puro y se puede probar solo.
+ *
+ * Antes esta rama miraba las PIEZAS del fichero, y por eso se veía la pista de
+ * audio —que sí es una pieza— pero no las fotos de las opciones, que viven
+ * dentro del `datos` de la actividad y no cuelgan de ninguna pieza: en la
+ * auditiva 1, donde la respuesta ES la foto, la tarea no se podía hacer. Lo
+ * encontró el profesor en la aceptación de la 3c.
  */
 export function puedeVerFichero(
   persona: { id: string; papel: Papel },
-  fichero: { subidoPorId: string | null; piezas: PiezaDelFichero[] },
-  abiertas: readonly PruebaAbierta[],
+  fichero: { id: string; subidoPorId: string | null },
+  ficherosAbiertos: ReadonlySet<string>,
 ): boolean {
   if (persona.papel === "PROFESOR") return true;
   if (fichero.subidoPorId !== null && fichero.subidoPorId === persona.id) return true;
-  return fichero.piezas.some((pieza) =>
-    abiertas.some((abierta) => abierta.examenId === pieza.tarea.examenId && abierta.prueba === pieza.tarea.prueba),
-  );
+  return ficherosAbiertos.has(fichero.id);
 }
