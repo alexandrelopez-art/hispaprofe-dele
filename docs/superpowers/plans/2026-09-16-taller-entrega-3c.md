@@ -542,6 +542,12 @@ import { pruebaParaHacer } from "@/lib/examen/paraHacer";
 const TOPE = finDelDiaEnMadrid("2026-10-20")!;
 const AHORA = new Date("2026-09-20T09:00:00Z");
 
+// Clave INVENTADA de la lectura 2 (preguntas 7-12). El repositorio es público:
+// la del libro no entra aquí, se contrasta a mano en la aceptación.
+export const CLAVE_INVENTADA: Record<string, string> = {
+  "7": "A", "8": "B", "9": "C", "10": "A", "11": "B", "12": "C",
+};
+
 let ana: Persona;
 let luis: Persona;
 let examen: Examen;
@@ -564,7 +570,17 @@ beforeEach(async () => {
   await prisma.persona.deleteMany();
   ana = await prisma.persona.create({ data: { correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE" } });
   luis = await prisma.persona.create({ data: { correo: "luis@ejemplo.com", nombre: "Luis", papel: "ESTUDIANTE" } });
-  examen = await prisma.examen.create({ data: { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR" } });
+  // Sin cuadernillo y sin número, `guardarTarea` guarda la tarea SIN clave: la
+  // clave se copia del cuadernillo en ese momento (Entrega 1). Sin estas dos
+  // líneas, la comprobación de más abajo («la clave existe de verdad») es
+  // imposible de poner en verde, y la nota de la Task 4 saldría siempre 0 de 0.
+  await prisma.cuadernillo.deleteMany();
+  const cuadernillo = await prisma.cuadernillo.create({
+    data: { titulo: "Cuadernillo inventado", texto: "", soluciones: { "1": { CE: CLAVE_INVENTADA, CO: {} } } },
+  });
+  examen = await prisma.examen.create({
+    data: { titulo: "Examen 1", nivel: "A2_B1_ESCOLAR", cuadernilloId: cuadernillo.id, numeroEnCuadernillo: 1 },
+  });
   await guardarLectura2();
   await prisma.examen.update({ where: { id: examen.id }, data: { estado: "PUBLICADO" } });
   await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
@@ -792,7 +808,7 @@ Los mensajes de error son los de la sección 9 de la spec, **literales**: «Esta
 
 - [ ] **Step 1: Escribir las pruebas que fallan**
 
-Añadir a `tests/base/intentos.test.ts` (con los mismos `beforeEach` y ayudas; hace falta también una tarea guardada con clave, así que se copia el `guardarLectura2` de la Task 3 y se le pone clave con un cuadernillo inventado usando `tests/ayudas/cuadernillo-inventado.ts`):
+Añadir a `tests/base/intentos.test.ts`. Su `beforeEach` tiene que montar lo mismo que el de la Task 3 —cuadernillo inventado, examen con `numeroEnCuadernillo: 1`, `guardarLectura2()`, publicar y asignar—, así que **ese montaje se saca a `tests/ayudas/examen-de-pruebas.ts`** y lo importan las dos, junto con `CLAVE_INVENTADA`. Copiarlo dos veces es lo que hace que una de las dos se quede vieja:
 
 ```ts
 describe("hacer la prueba", () => {
@@ -1606,5 +1622,6 @@ Empezando por el paso 1, que es **arrastrar la marca de 4:35 de la auditiva 4** 
 
 - **La sección 2 de la spec ganó una columna al escribir este plan**: `Intento.fallos Int[]`. Sin ella, la pantalla de resultados tendría que volver a mirar la `Clave` para saber qué preguntas marcar en rojo, y eso es justo lo que la Task 3 prohíbe. Con la columna, los fallos se congelan con la nota y la clave no vuelve a salir de su tabla.
 - **La prueba que la spec llamaba `tests/examen-para-hacer.test.ts` vive en `tests/base/`**, porque necesita Postgres de verdad: leer una prueba sin base no prueba nada.
+- **El montaje del examen de pruebas (cuadernillo inventado + lectura 2 guardada + publicado + asignado) vive en `tests/ayudas/examen-de-pruebas.ts`** y lo comparten las Tasks 3 y 4. La Task 3 lo crea; la Task 4 lo usa.
 - **Las claves de todas las pruebas son inventadas.** La spec pedía contrastar con «la clave del examen 1 de verdad»; eso se hace en la aceptación, a mano y en producción, nunca en una prueba de un repositorio público.
 - Cobertura de la spec, sección por sección: 2 → Task 1; 3 → Tasks 2 y 4; 4 → Tasks 2, 3 y 4; 5 → Tasks 7 y 8; 6 → Task 9; 7 → Task 5; 8 → Task 10; 9 → Tasks 4 y 6; 10 → repartida en las pruebas de cada tarea; 11 → Task 11.
