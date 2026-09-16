@@ -88,6 +88,7 @@ describe("la portada", () => {
 
     const marcado = await html();
 
+    expect(marcado).toContain("Hola, Ana"); // que no esté vacío antes de creerse una ausencia
     expect(marcado).not.toContain('href="/personas"');
   });
 
@@ -107,7 +108,9 @@ describe("la portada", () => {
   it("solo el profesor ve el enlace al taller", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    expect(await html()).not.toContain('href="/examenes"');
+    const deAna = await html();
+    expect(deAna).toContain("Hola, Ana"); // que no esté vacío antes de creerse una ausencia
+    expect(deAna).not.toContain('href="/examenes"');
 
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
@@ -118,23 +121,42 @@ describe("la portada", () => {
 const ASIGNADO = {
   examenId: "x1",
   titulo: "Examen 1",
+  // El tope real que produce finDelDiaEnMadrid("2026-10-20"): con huso de
+  // Madrid o sin él (bajo TZ=UTC, como corre la suite) cae el mismo día, así
+  // que por sí sola esta fecha no distingue si se pintó con huso o no. Se
+  // deja porque es el caso que de verdad ve el estudiante.
   nivel: "A2_B1_ESCOLAR" as const,
   modo: "COMPLETO" as const,
   fechaTope: new Date("2026-10-20T21:59:59.999Z"),
 };
+// A las 23:30 UTC del 20 ya son las 01:30 del 21 en Madrid (CEST, +2): esta sí
+// discrepa entre pintar con huso o sin él.
+const ASIGNADO_DE_MADRUGADA = {
+  examenId: "x2",
+  titulo: "Examen 2",
+  nivel: "A2_B1_ESCOLAR" as const,
+  modo: "COMPLETO" as const,
+  fechaTope: new Date("2026-10-20T23:30:00.000Z"),
+};
 
 describe("Inicio del estudiante", () => {
-  // Mutación que la mata: no pintar la fecha, o pintarla sin huso (el servidor de
-  // Vercel va en UTC y saldría el 19 de octubre).
+  // Mutación que la mata: no pintar la fecha, o pintarla sin huso. La fecha
+  // de ASIGNADO_DE_MADRUGADA es la que mata lo segundo: bajo TZ=UTC (como
+  // corre esta suite) cae en el 21 de octubre solo si se aplica el huso de
+  // Madrid; sin huso saldría el 20. La fecha de ASIGNADO es, además, el tope
+  // real que produce finDelDiaEnMadrid, para no perder cobertura del caso
+  // normal.
   it("enseña el examen asignado con su fecha en palabras", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    asignacionesDe.mockResolvedValue([ASIGNADO]);
+    asignacionesDe.mockResolvedValue([ASIGNADO, ASIGNADO_DE_MADRUGADA]);
 
     const marcado = await html();
 
     expect(marcado).toContain("Examen 1");
     expect(marcado).toContain("martes, 20 de octubre de 2026");
+    expect(marcado).toContain("Examen 2");
+    expect(marcado).toContain("miércoles, 21 de octubre de 2026");
   });
 
   // Mutación que la mata: quitar la línea de «nada pendiente» y dejar la lista
