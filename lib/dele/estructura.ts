@@ -132,3 +132,21 @@ export function nombreDeEtiqueta(etiqueta: string): string {
   const [prueba, numero] = etiqueta.split("-");
   return esPrueba(prueba) ? nombreCortoDeTarea(prueba, Number(numero)) : etiqueta;
 }
+
+/**
+ * Minutos de cada prueba. null = no lleva reloj. La auditiva no lo lleva a
+ * propósito: la marca el audio, y las pistas del libro traen dentro las dos
+ * audiciones, así que juntas pasan de los 30 minutos del papel oficial.
+ * La escrita llega con la 3d.
+ */
+export const MINUTOS_DE_PRUEBA: Readonly<Record<Nivel, Readonly<Record<Prueba, number | null>>>> = {
+  A2_B1_ESCOLAR: { CE: 50, CO: null, EE: null, EO: null },
+  A1: { CE: null, CO: null, EE: null, EO: null },
+  A2: { CE: null, CO: null, EE: null, EO: null },
+  B1: { CE: null, CO: null, EE: null, EO: null },
+  B2: { CE: null, CO: null, EE: null, EO: null },
+};
+
+export function minutosDePrueba(nivel: Nivel, prueba: Prueba): number | null {
+  return MINUTOS_DE_PRUEBA[nivel][prueba];
+}
