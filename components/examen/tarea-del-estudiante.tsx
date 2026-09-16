@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ReglaTarea } from "@/lib/dele/estructura";
 import type { TareaParaHacer } from "@/lib/examen/paraHacer";
 import { letrasPosibles } from "@/lib/taller/estado";
@@ -28,16 +29,14 @@ function esFallo(numero: number, fallos: number[] | null): boolean {
   return fallos?.includes(numero) ?? false;
 }
 
-function ActividadRelacionar({
-  f, regla, marcadas, fallos, bloqueada, alMarcar,
-}: {
-  f: FormularioDe<"RELACIONAR">;
-  regla: ReglaTarea;
-  marcadas: Marcadas;
-  fallos: number[] | null;
-  bloqueada: boolean;
-  alMarcar: (numero: number, letra: string) => void;
-}) {
+/**
+ * Lo que el estudiante CONSULTA en relacionar: el ejemplo y los diez destinos.
+ * Va aparte de las preguntas porque son dos cosas que hay que mirar a la vez —
+ * en papel son dos páginas abiertas— y si van una detrás de otra, se lee todo,
+ * se baja a contestar y ya no se ve lo que se acaba de leer. Lo dijo el
+ * profesor viendo hacer la tarea 1.
+ */
+function ReferenciaRelacionar({ f, regla }: { f: FormularioDe<"RELACIONAR">; regla: ReglaTarea }) {
   const a = f.actividad;
   const conTexto = Boolean(regla.elementosConTexto);
   return (
@@ -58,6 +57,24 @@ function ActividadRelacionar({
           <p className="whitespace-pre-wrap">{d.texto}</p>
         </section>
       ))}
+    </>
+  );
+}
+
+function PreguntasRelacionar({
+  f, regla, marcadas, fallos, bloqueada, alMarcar,
+}: {
+  f: FormularioDe<"RELACIONAR">;
+  regla: ReglaTarea;
+  marcadas: Marcadas;
+  fallos: number[] | null;
+  bloqueada: boolean;
+  alMarcar: (numero: number, letra: string) => void;
+}) {
+  const a = f.actividad;
+  const conTexto = Boolean(regla.elementosConTexto);
+  return (
+    <>
       {a.elementos.map((e) => {
         const fallo = esFallo(e.numero, fallos);
         return (
@@ -87,15 +104,8 @@ function ActividadRelacionar({
   );
 }
 
-function ActividadListaComun({
-  f, marcadas, fallos, bloqueada, alMarcar,
-}: {
-  f: FormularioDe<"LISTA_COMUN">;
-  marcadas: Marcadas;
-  fallos: number[] | null;
-  bloqueada: boolean;
-  alMarcar: (numero: number, letra: string) => void;
-}) {
+/** Lo que se consulta en lista común: las tres personas y el ejemplo. Misma razón que en relacionar. */
+function ReferenciaListaComun({ f }: { f: FormularioDe<"LISTA_COMUN"> }) {
   const a = f.actividad;
   return (
     <>
@@ -118,6 +128,22 @@ function ActividadListaComun({
           </p>
         </section>
       )}
+    </>
+  );
+}
+
+function PreguntasListaComun({
+  f, marcadas, fallos, bloqueada, alMarcar,
+}: {
+  f: FormularioDe<"LISTA_COMUN">;
+  marcadas: Marcadas;
+  fallos: number[] | null;
+  bloqueada: boolean;
+  alMarcar: (numero: number, letra: string) => void;
+}) {
+  const a = f.actividad;
+  return (
+    <>
       {a.preguntas.map((p) => {
         const fallo = esFallo(p.numero, fallos);
         return (
@@ -288,26 +314,125 @@ function TextoHuecos({ f }: { f: FormularioDe<"HUECOS"> }) {
   );
 }
 
-function actividadDe(
+/**
+ * Las dos mitades de una actividad: lo que se CONSULTA y lo que se CONTESTA.
+ * Separarlas es lo que deja poner el material a un lado y las preguntas al
+ * otro. En opciones y huecos no hay material propio de la actividad (el texto
+ * largo va suelto, en `f.textos`), así que la mitad de consulta va vacía.
+ */
+function partesDe(
   f: Formulario,
   regla: ReglaTarea,
   marcadas: Marcadas,
   fallos: number[] | null,
   bloqueada: boolean,
   alMarcar: (numero: number, letra: string) => void,
-) {
+): { referencia: React.ReactNode; preguntas: React.ReactNode } {
   switch (f.forma) {
     case "RELACIONAR":
-      return <ActividadRelacionar f={f} regla={regla} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} />;
+      return {
+        referencia: <ReferenciaRelacionar f={f} regla={regla} />,
+        preguntas: <PreguntasRelacionar f={f} regla={regla} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} />,
+      };
     case "LISTA_COMUN":
-      return <ActividadListaComun f={f} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} />;
+      return {
+        referencia: <ReferenciaListaComun f={f} />,
+        preguntas: <PreguntasListaComun f={f} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} />,
+      };
     case "OPCIONES":
-      return <ActividadOpciones f={f} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} />;
+      return { referencia: null, preguntas: <ActividadOpciones f={f} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} /> };
     case "HUECOS":
-      return <ActividadHuecos f={f} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} />;
+      return { referencia: null, preguntas: <ActividadHuecos f={f} marcadas={marcadas} fallos={fallos} bloqueada={bloqueada} alMarcar={alMarcar} /> };
     default:
-      return null;
+      return { referencia: null, preguntas: null };
   }
+}
+
+/** Las preguntas de una tarea, reducidas a lo que la barra necesita: número, enunciado y letras entre las que elegir. */
+type PreguntaDeLaBarra = { numero: number; texto: string; letras: string[] };
+
+function preguntasParaLaBarra(f: Formulario): PreguntaDeLaBarra[] {
+  switch (f.forma) {
+    case "RELACIONAR":
+      return f.actividad.elementos.map((e) => ({ numero: e.numero, texto: e.texto, letras: letrasPosibles(f, e.numero) }));
+    case "LISTA_COMUN":
+      return f.actividad.preguntas.map((p) => ({ numero: p.numero, texto: p.enunciado, letras: f.actividad.comunes.map((c) => c.letra) }));
+    default:
+      return [];
+  }
+}
+
+/**
+ * La barra que viaja con el estudiante, SOLO en pantalla estrecha (`md:hidden`).
+ * En ordenador no hace falta: ahí las preguntas están siempre a la vista, en su
+ * columna. En un móvil no caben dos columnas, así que el material se lee de
+ * corrido y las respuestas van pegadas abajo: se contesta sin subir ni bajar.
+ *
+ * Los números llevan la letra ya elegida, para saber de un vistazo qué queda.
+ * El enunciado de la pregunta enfocada va dentro de la barra a propósito: sin
+ * él, «pregunta 3» no le dice nada a quien está leyendo los anuncios.
+ *
+ * Es un segundo mando sobre la MISMA respuesta que la caja de arriba, no otra
+ * respuesta: las dos llaman a `alMarcar`, y lo que se pinta sale de `marcadas`.
+ * En lista común la caja de arriba usa radios y esta un desplegable, para que
+ * no queden dos grupos de radios con el mismo `name` peleándose.
+ */
+function BarraDeRespuestas({
+  preguntas, marcadas, bloqueada, alMarcar,
+}: {
+  preguntas: PreguntaDeLaBarra[];
+  marcadas: Marcadas;
+  bloqueada: boolean;
+  alMarcar: (numero: number, letra: string) => void;
+}) {
+  const [enfocada, setEnfocada] = useState(preguntas[0]?.numero ?? 0);
+  const pregunta = preguntas.find((p) => p.numero === enfocada) ?? preguntas[0];
+  if (!pregunta) return null;
+
+  return (
+    <div
+      data-barra-respuestas
+      className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-tinta-suave/20 bg-white p-3 md:hidden"
+      style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {preguntas.map((p) => {
+          const letra = marcadas[String(p.numero)] ?? "";
+          return (
+            <button
+              key={p.numero}
+              type="button"
+              aria-current={p.numero === pregunta.numero ? "true" : undefined}
+              onClick={() => setEnfocada(p.numero)}
+              className={`min-w-11 rounded-full px-2.5 py-1.5 text-sm font-bold ${p.numero === pregunta.numero ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
+            >
+              {p.numero}
+              {letra ? ` ${letra}` : ""}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-sm text-tinta-suave">
+        {pregunta.numero}. {pregunta.texto}
+      </p>
+      <select
+        aria-label={`Pregunta ${pregunta.numero}, respuesta rápida`}
+        value={marcadas[String(pregunta.numero)] ?? ""}
+        disabled={bloqueada}
+        onChange={(ev) => alMarcar(pregunta.numero, ev.target.value)}
+        className="w-full rounded-xl border border-tinta-suave/30 p-3"
+      >
+        <option value="" disabled>
+          Elige una letra
+        </option>
+        {pregunta.letras.map((l) => (
+          <option key={l} value={l}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 /**
@@ -326,25 +451,39 @@ export function TareaDelEstudiante({
   alMarcar: (numero: number, letra: string) => void;
 }) {
   const f = tarea.formulario;
-  // El texto largo va junto a sus preguntas, en dos columnas solo desde
-  // md: a 400 px nunca hay dos columnas, siempre una debajo de otra.
-  const dosColumnas = f.forma === "HUECOS" || (f.forma === "OPCIONES" && f.textos.length > 0);
-  const columnaTextos = f.forma === "HUECOS" ? <TextoHuecos f={f} /> : f.textos.map((t, i) => <TextoSuelto key={i} etiqueta={t.etiqueta} texto={t.texto} />);
-  const actividad = actividadDe(f, tarea.regla, marcadas, fallos, bloqueada, alMarcar);
+  const { referencia, preguntas } = partesDe(f, tarea.regla, marcadas, fallos, bloqueada, alMarcar);
+  const textos = f.forma === "HUECOS" ? <TextoHuecos f={f} /> : f.textos.map((t, i) => <TextoSuelto key={i} etiqueta={t.etiqueta} texto={t.texto} />);
+  // Hay columna de consulta si hay ALGO que consultar: el texto largo de
+  // huecos, los textos sueltos de la lectura 3, los destinos de relacionar o
+  // la lista común. Solo la auditiva 1 y la 4 se quedan sin ella, y con razón:
+  // ahí no hay nada que mirar mientras se contesta, se escucha.
+  const hayConsulta = f.forma === "HUECOS" || f.textos.length > 0 || referencia !== null;
+  // Dos columnas solo desde md: a 400 px nunca hay dos columnas. Ahí lo que
+  // resuelve el ir y venir es la barra de abajo.
+  const barra = preguntasParaLaBarra(f);
 
   return (
     <div className="flex flex-col gap-4">
       <p className="font-bold">{f.consigna}</p>
-      {dosColumnas ? (
+      {hayConsulta ? (
         <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:items-start">
-          <div className="flex flex-col gap-4 md:max-h-[70vh] md:overflow-y-auto">{columnaTextos}</div>
-          <div className="flex flex-col gap-4">{actividad}</div>
+          <div className="flex flex-col gap-4 md:max-h-[70vh] md:overflow-y-auto">
+            {textos}
+            {referencia}
+          </div>
+          <div className="flex flex-col gap-4">{preguntas}</div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {columnaTextos}
-          {actividad}
+          {textos}
+          {preguntas}
         </div>
+      )}
+      {/* Solo relacionar y lista común dan preguntas para la barra, y las dos
+          tienen siempre material que consultar: no hace falta preguntar por
+          `hayConsulta`, sería una guarda que nunca puede ser falsa aquí. */}
+      {barra.length > 0 && (
+        <BarraDeRespuestas preguntas={barra} marcadas={marcadas} bloqueada={bloqueada} alMarcar={alMarcar} />
       )}
     </div>
   );

@@ -500,6 +500,54 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).not.toContain("<audio");
   });
 
+  // Mutación que la mata: volver a juntar consulta y preguntas en una sola
+  // columna (el `hayConsulta` que solo mira HUECOS y los textos sueltos, como
+  // estaba). Relacionar son diez anuncios y seis personas: leídos uno detrás de
+  // otro, el estudiante contesta sin ver ya lo que acaba de leer. Lo dijo el
+  // profesor viendo hacer la tarea 1.
+  it("relacionar y lista común reparten consulta y preguntas en dos columnas", () => {
+    for (const tarea of [lecturaUnoConEjemploEnB(), lecturaDos()]) {
+      const html = pintar(tarea, {});
+      expect(html).not.toBe("");
+      expect(html).toContain("md:grid-cols-2");
+      expect(html).toContain("md:overflow-y-auto");
+    }
+  });
+
+  // Mutación que la mata: quitar la barra, o pintarla también en ordenador
+  // (sin `md:hidden`), donde estorba porque las preguntas ya están a la vista.
+  it("en pantalla estrecha las respuestas viajan en una barra pegada abajo", () => {
+    const html = pintar(lecturaUnoConEjemploEnB(), { marcadas: { "2": "C" } });
+    expect(html).toContain("data-barra-respuestas");
+    expect(html).toContain("md:hidden");
+    expect(html).toContain("sticky");
+    // Lleva los seis números, y el que ya tiene letra la enseña.
+    expect(html).toContain("2 C");
+  });
+
+  // Mutación que la mata: que `preguntasParaLaBarra` devuelva también las
+  // preguntas de OPCIONES (quitarle el `default: return []`). La auditiva 1 se
+  // escucha, no se lee: ahí la barra sería un trozo de pantalla robado a las
+  // fotos de las opciones, y no hay nada arriba que consultar mientras suena.
+  // NO la mata quitar la guarda `hayConsulta` de la barra: esa guarda era
+  // código muerto, se descubrió mutándola y ya no está.
+  it("las tareas que solo se escuchan no llevan barra", () => {
+    const html = pintar(auditivaUnoConFotos(), {});
+    expect(html).not.toBe("");
+    expect(html).not.toContain("data-barra-respuestas");
+  });
+
+  // Mutación que la mata: dejar el mando de la barra vivo en una prueba ya
+  // entregada. Es un segundo mando sobre la misma respuesta, así que tiene que
+  // apagarse con el primero.
+  it("la barra se apaga con la prueba entregada", () => {
+    const html = pintar(lecturaDos(), { marcadas: { "8": "B" }, bloqueada: true });
+    expect(html).toContain("data-barra-respuestas");
+    expect(html).toContain("respuesta rápida");
+    // Dos mandos apagados: el de la caja de la pregunta y el de la barra.
+    expect(html.match(/disabled=""/g)?.length ?? 0).toBeGreaterThan(1);
+  });
+
   // Mutación que la mata: no pintar el resultado, o pintar la letra buena.
   it("entregada enseña la nota y los fallos", async () => {
     const html = await pintarPagina(entregadaCon19De25());
