@@ -59,19 +59,22 @@ async function claveDeLaPrueba(examenId: string, prueba: Prueba): Promise<Record
 }
 
 /**
- * Calcula la nota con la clave y las respuestas que ya se cargaron (quien
- * llama las trae: no hay una segunda vuelta a la base a buscarlas), y la
- * escribe junto con `entregadaEn` en la misma llamada — es la única vez que
- * se calcula. Después de esto, nada vuelve a mirar la `Clave` para este
- * intento.
+ * Cierra un intento. Dos caminos, y la diferencia es de fondo:
  *
- * La escritura lleva `entregadaEn: null` en el propio `where`: es un
- * `updateMany` condicional, no un `update` a ciegas. Dos entregas a la vez
- * (un doble clic, o una entrega que corre con el cierre automático de la
- * guarda) pueden ver las dos `entregadaEn` en null, pero solo la primera en
- * llegar encuentra la fila y escribe; la segunda no toca nada.
+ * - Lectura y auditiva: se calcula la nota con la clave y se congela aquí, en
+ *   la misma escritura que la entrega. Es la única vez que se mira la `Clave`.
+ * - Escrita: NO hay nota que calcular. Se cierra sin `aciertos` ni `total`, y
+ *   eso es exactamente lo que la deja «esperando corrección» (motor.ts) y lo
+ *   que la mete en la cola del profesor. La nota llegará cuando él firme.
+ *
+ * La escritura lleva `entregadaEn: null` en el propio `where`, en los dos
+ * caminos: es un `updateMany` condicional, no un `update` a ciegas. Dos
+ * entregas a la vez (un doble clic, o una entrega que corre con el cierre
+ * automático de la guarda) pueden ver las dos `entregadaEn` en null, pero
+ * solo la primera en llegar encuentra la fila y escribe; la segunda no toca
+ * nada.
  */
-async function congelarNota(
+async function cerrarIntento(
   examenId: string,
   prueba: Prueba,
   intentoId: string,
@@ -79,17 +82,21 @@ async function congelarNota(
   ahora: Date,
   porTiempo: boolean,
 ): Promise<void> {
-  const clave = await claveDeLaPrueba(examenId, prueba);
-  const respuestasPorNumero = Object.fromEntries(respuestas.map((r) => [String(r.numero), r.letra]));
-  const nota = notaDePrueba(clave, respuestasPorNumero);
+  const nota =
+    prueba === "EE"
+      ? null
+      : notaDePrueba(
+          await claveDeLaPrueba(examenId, prueba),
+          Object.fromEntries(respuestas.map((r) => [String(r.numero), r.letra])),
+        );
   await prisma.intento.updateMany({
     where: { id: intentoId, entregadaEn: null },
     data: {
       entregadaEn: ahora,
       porTiempo,
-      aciertos: nota.aciertos,
-      total: nota.total,
-      fallos: nota.fallos.map((f) => f.numero),
+      aciertos: nota?.aciertos ?? null,
+      total: nota?.total ?? null,
+      fallos: nota ? nota.fallos.map((f) => f.numero) : [],
     },
   });
 }
@@ -148,7 +155,7 @@ async function abrirLaPrueba(
   // para saber si la entrega la manda el reloj.
   const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
   if (intento && seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-    await congelarNota(examenId, prueba, intento.id, intento.respuestas, ahora, true);
+    await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, true);
     return { error: SE_ACABO };
   }
 
@@ -267,7 +274,7 @@ export async function marcarTrozo(
 
 /**
  * El botón «Entregar». (El otro camino, el cierre automático, lo hace
- * `abrirLaPrueba` llamando a `congelarNota` con `porTiempo: true`.)
+ * `abrirLaPrueba` llamando a `cerrarIntento` con `porTiempo: true`.)
  *
  * `porTiempo` NO lo dice el navegador: lo decide aquí el reloj del servidor.
  * Antes entraba como argumento de la acción, y una acción de servidor es una
@@ -290,7 +297,7 @@ export async function entregarPrueba(
 
   const intento = abierta.intento!;
   const porTiempo = segundosQueQuedan(intento.empezadaEn, abierta.minutos, ahora) === 0;
-  await congelarNota(examenId, prueba, intento.id, intento.respuestas, ahora, porTiempo);
+  await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, porTiempo);
   return {};
 }
 
@@ -298,7 +305,7 @@ export async function entregarPrueba(
  * Para las pantallas que solo leen: cierra, con `porTiempo`, los intentos de
  * ese ámbito a los que ya se les acabó el tiempo. Idempotente — solo mira los
  * que siguen sin `entregadaEn`, así que la segunda llamada no encuentra nada
- * que cerrar. Pasa las respuestas que ya cargó aquí a `congelarNota`: en la
+ * que cerrar. Pasa las respuestas que ya cargó aquí a `cerrarIntento`: en la
  * pantalla del profesor esto corre sobre una clase entera, y no hay que
  * volver a la base por cada intento — ni arriesgarse a que uno borrado entre
  * medias (cascada de la asignación) tire abajo una pantalla que solo lee.
@@ -317,7 +324,7 @@ export async function cerrarLasQueSePasaron(donde: { personaId: string } | { exa
   for (const intento of intentos) {
     const minutos = minutosDePrueba(intento.asignacion.examen.nivel, intento.prueba);
     if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-      await congelarNota(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true);
+      await cerrarIntento(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true);
     }
   }
 }

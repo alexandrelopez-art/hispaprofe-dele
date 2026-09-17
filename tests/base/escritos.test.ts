@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import type { Asignacion, Examen, Persona } from "@/lib/generated/prisma";
 import { crearExamenDePruebas } from "../ayudas/examen-de-pruebas";
-import { empezarPrueba, guardarEscrito } from "@/lib/examen/hacer";
+import { empezarPrueba, guardarEscrito, entregarPrueba, cerrarLasQueSePasaron } from "@/lib/examen/hacer";
 
 const AHORA = new Date("2026-09-20T09:00:00Z");
 
@@ -151,5 +151,50 @@ describe("guardar el borrador", () => {
     expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", 1.5, AHORA)).toEqual({ error: "Esa opción no existe." });
     expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", 0, AHORA)).toEqual({ error: "Esa opción no existe." });
     expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", -1, AHORA)).toEqual({ error: "Esa opción no existe." });
+  });
+});
+
+describe("entregar la escrita", () => {
+  // Mutación que la mata: dejar que congelarNota corra también para la escrita.
+  // Buscaría una clave que no existe, la nota saldría 0 de 0, y el estado diría
+  // «Entregada, 0 de 0» en vez de «esperando corrección»: el chico vería un cero
+  // que no es suyo y la escrita no entraría nunca en la cola.
+  it("no calcula nota: queda esperando corrección", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await guardarEscrito(examen.id, ana.id, 1, "Hola, qué tal", null, AHORA);
+    expect(await entregarPrueba(examen.id, "EE", ana.id, AHORA)).toEqual({});
+    const intento = await prisma.intento.findFirstOrThrow({ where: { prueba: "EE" } });
+    expect(intento.entregadaEn).not.toBeNull();
+    expect(intento.aciertos).toBeNull();
+    expect(intento.total).toBeNull();
+    expect(intento.fallos).toEqual([]);
+    expect(intento.porTiempo).toBe(false);
+  });
+
+  // Mutación que la mata: borrar o ignorar los escritos al cerrar por tiempo.
+  // Lo que escribió hasta ese momento es justo lo que hay que corregir.
+  it("el reloj la cierra y conserva lo escrito", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await guardarEscrito(examen.id, ana.id, 1, "Iba por aquí", null, AHORA);
+    const tarde = new Date(AHORA.getTime() + 51 * 60_000);
+    await cerrarLasQueSePasaron({ personaId: ana.id }, tarde);
+    const intento = await prisma.intento.findFirstOrThrow({ where: { prueba: "EE" } });
+    expect(intento.porTiempo).toBe(true);
+    expect(intento.aciertos).toBeNull();
+    const escrito = await prisma.escritoDeIntento.findFirstOrThrow();
+    expect(escrito.texto).toBe("Iba por aquí");
+  });
+
+  // Mutación que la mata: quitar el `entregadaEn: null` del where del updateMany.
+  // Dos entregas a la vez (doble clic, o el reloj a la vez que el botón)
+  // pisarían la primera.
+  it("entregar dos veces no cambia la primera entrega", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await entregarPrueba(examen.id, "EE", ana.id, AHORA);
+    const primera = await prisma.intento.findFirstOrThrow({ where: { prueba: "EE" } });
+    const despues = new Date(AHORA.getTime() + 60_000);
+    expect(await entregarPrueba(examen.id, "EE", ana.id, despues)).toEqual({ error: "Esta prueba ya está entregada." });
+    const segunda = await prisma.intento.findFirstOrThrow({ where: { prueba: "EE" } });
+    expect(segunda.entregadaEn).toEqual(primera.entregadaEn);
   });
 });
