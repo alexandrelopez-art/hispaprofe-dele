@@ -334,8 +334,25 @@ function AvisoDeLaEscrita({
   );
 }
 
-/** Una tarea de escrita: el enunciado a un lado y el folio al otro. En el móvil,
- *  uno debajo del otro — un folio a media pantalla no es un folio. */
+/**
+ * Una tarea de escrita: el enunciado a un lado y el folio al otro. En el móvil,
+ * uno debajo del otro —un folio a media pantalla no es un folio—, y con el
+ * enunciado PLEGABLE.
+ *
+ * Plegable y no solo apilado, que era lo que había: en la tarea 2 el enunciado
+ * son las dos opciones enteras, con su contexto y sus pautas, y en un teléfono
+ * eso deja el folio a dos pantallazos. El chico escribe sin ver las pautas, que
+ * es justo lo que el examen le pide cumplir.
+ *
+ * Nace ABIERTO: lo primero que hay que hacer es leerlo. Se pliega cuando ya se
+ * ha leído y toca escribir, y se vuelve a abrir para comprobar algo.
+ *
+ * Solo en el móvil: en un ordenador las dos columnas caben a la vez y no hay
+ * nada que plegar, así que allí el resumen no se pinta (`md:hidden`) y el
+ * enunciado se queda siempre a la vista. El `<details>` es del navegador, sin
+ * estado de React ni JavaScript nuestro: un plegable que dependiera de un clic
+ * nuestro no se podría probar aquí, y además funciona igual sin hidratar.
+ */
 function TareaDeEscrita({
   tarea, borrador, bloqueado, alEscribir, alElegir,
 }: {
@@ -347,12 +364,15 @@ function TareaDeEscrita({
 }) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <EnunciadoDeEscrita
-        formulario={tarea.formulario}
-        opcionElegida={borrador.opcion}
-        alElegir={alElegir}
-        bloqueado={bloqueado}
-      />
+      <details open className="min-w-0">
+        <summary className="cursor-pointer py-2 font-bold text-hp-600 md:hidden">Enunciado</summary>
+        <EnunciadoDeEscrita
+          formulario={tarea.formulario}
+          opcionElegida={borrador.opcion}
+          alElegir={alElegir}
+          bloqueado={bloqueado}
+        />
+      </details>
       <Folio
         texto={borrador.texto}
         rango={rangoDe(tarea)}

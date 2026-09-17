@@ -1271,6 +1271,26 @@ describe("la escrita", () => {
     expect(html).not.toContain("<textarea");
   });
 
+  // Mutación que la mata: sacar el enunciado del <details> y dejarlo suelto
+  // como antes (o quitarle el `open`, que lo dejaría plegado de entrada: lo
+  // primero que hay que hacer con un enunciado es leerlo).
+  //
+  // Se mira el ATRIBUTO del <details>, no una subcadena suelta: «open» aparece
+  // dentro de cualquier palabra, y hasta una clase de Tailwind podría llevarla.
+  // Lo que NO se puede probar aquí es plegarlo: eso es un clic, no hay jsdom, y
+  // el plegado lo hace el navegador. Tampoco que el resumen desaparezca en el
+  // ordenador: eso es `md:hidden`, o sea CSS.
+  it("en el móvil el enunciado se puede plegar, y nace abierto", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    const details = html.match(/<details[^>]*>/)?.[0] ?? "";
+    expect(details).toContain('open=""');
+    expect(html).toContain("<summary");
+    // Y el enunciado sigue DENTRO: un <details> vacío al lado del enunciado de
+    // siempre pasaría las dos líneas de arriba sin plegar nada.
+    expect(html.indexOf("<summary")).toBeLessThan(html.indexOf("¿Vienes el sábado?"));
+    expect(html.indexOf("¿Vienes el sábado?")).toBeLessThan(html.indexOf("</details>"));
+  });
+
   // Mutación que la mata: usar la cara de la lectura para la escrita. La
   // pantalla pediría letras sobre preguntas que no existen.
   it("la escrita entregada y sin corregir dice que espera", () => {
