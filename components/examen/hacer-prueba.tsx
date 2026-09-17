@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Prueba } from "@/lib/generated/prisma";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { NOMBRE_DE_PRUEBA } from "@/lib/dele/estructura";
-import { textoDelEstado } from "@/lib/examen/motor";
+import { estaEntregada, textoDelEstado } from "@/lib/examen/motor";
 import { itemsDelFormulario } from "@/lib/taller/estado";
 import {
   corregirEnLibreAccion,
@@ -311,7 +311,7 @@ function notaDeCadaTarea(prueba: PruebaParaHacer): { numero: number; aciertos: n
  */
 function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
   const porTarea = notaDeCadaTarea(prueba);
-  const queda = prueba.otras.filter((o) => o.estado.estado !== "ENTREGADA");
+  const queda = prueba.otras.filter((o) => !estaEntregada(o.estado));
   return (
     <section className={CAJA}>
       <p className="text-tinta-suave">
@@ -459,7 +459,7 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
   const cara =
     prueba.modo === "LIBRE" ? <PruebaLibre prueba={prueba} />
     : prueba.estado.estado === "SIN_EMPEZAR" ? <AvisoPrevio prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />
-    : prueba.estado.estado === "ENTREGADA" ? <PruebaEntregada prueba={prueba} />
+    : estaEntregada(prueba.estado) ? <PruebaEntregada prueba={prueba} />
     : <PruebaHaciendo prueba={prueba} />;
 
   return (

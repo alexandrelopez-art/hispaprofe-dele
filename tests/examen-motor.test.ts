@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import { minutosDePrueba } from "@/lib/dele/estructura";
 import {
   estadoDePrueba,
+  estaEntregada,
   limitesDelTrozo,
   notaDePrueba,
+  palabras,
   seAcaboElTiempo,
   segundosQueQuedan,
   siguienteTrozo,
+  sumaDeBandas,
   textoDelEstado,
 } from "@/lib/examen/motor";
 
@@ -158,5 +161,60 @@ describe("los minutos de cada prueba", () => {
   // Mutación que la mata: devolver 50 por defecto para cualquier nivel: un examen de B2 saldría con reloj sin que nadie lo haya decidido.
   it("un nivel sin números no inventa minutos", () => {
     expect(minutosDePrueba("B2", "CE")).toBeNull();
+  });
+});
+
+describe("contar palabras", () => {
+  // Mutación que la mata: `texto.split(" ").length`. Con dos espacios seguidos,
+  // con un salto de línea o con el texto vacío, esa cuenta miente — y es el
+  // número que el estudiante ve mientras escribe y el que se guarda.
+  it("cuenta lo que cuenta una persona", () => {
+    expect(palabras("")).toBe(0);
+    expect(palabras("   ")).toBe(0);
+    expect(palabras("Hola")).toBe(1);
+    expect(palabras("Hola,  qué   tal")).toBe(3);
+    expect(palabras("Hola\nqué tal\n\nadiós")).toBe(4);
+    expect(palabras("  Hola qué tal  ")).toBe(3);
+    // Una palabra con guion es una palabra, y un signo pegado no suma.
+    expect(palabras("teórico-práctico ¿sí?")).toBe(2);
+  });
+});
+
+describe("la suma de las bandas", () => {
+  // Mutación que la mata: sumar solo el primer escrito, o dar por hecho que
+  // siempre hay cuatro bandas. La escrita son DOS tareas: sumar una sola
+  // dejaría a todo el mundo con la mitad de su nota.
+  it("suma las bandas de todas las tareas", () => {
+    expect(sumaDeBandas([{ bandas: [3, 2, 1, 0] }, { bandas: [3, 3, 2, 2] }])).toBe(16);
+    expect(sumaDeBandas([])).toBe(0);
+    expect(sumaDeBandas([{ bandas: [] }, { bandas: [1, 1, 1, 1] }])).toBe(4);
+  });
+});
+
+describe("el estado de una escrita", () => {
+  // Mutación que la mata: devolver "ENTREGADA" cuando no hay nota. Entonces la
+  // pantalla del profesor diría «Entregada,» a secas y la del estudiante
+  // intentaría pintarle una nota que todavía no existe.
+  it("entregada y sin nota es esperando corrección", () => {
+    const e = estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: null, total: null, porTiempo: false });
+    expect(e.estado).toBe("ESPERANDO");
+    expect(textoDelEstado(e)).toBe("Entregada, esperando corrección");
+    expect(estaEntregada(e)).toBe(true);
+  });
+
+  // Mutación que la mata: quitar `porTiempo` del texto de ESPERANDO. Es la
+  // única señal que tiene el profesor de a quién se le acabó el tiempo, y en la
+  // escrita importa más que en ninguna: explica un texto a medias.
+  it("dice si la entregó el reloj", () => {
+    const e = estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: null, total: null, porTiempo: true });
+    expect(textoDelEstado(e)).toBe("Entregada por tiempo, esperando corrección");
+  });
+
+  // Mutación que la mata: dejar ESPERANDO cuando ya hay nota. Una escrita
+  // corregida se quedaría para siempre en la cola.
+  it("corregida ya tiene nota y sale de la espera", () => {
+    const e = estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: 18, total: 24, porTiempo: false });
+    expect(e.estado).toBe("ENTREGADA");
+    expect(textoDelEstado(e)).toBe("Entregada, 18 de 24");
   });
 });

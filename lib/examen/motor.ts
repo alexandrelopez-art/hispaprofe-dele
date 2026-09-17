@@ -12,7 +12,10 @@ export type Fallo = { numero: number; marcada: string | null };
 export type Nota = { aciertos: number; total: number; fallos: Fallo[] };
 
 export type EstadoDePrueba = {
-  estado: "SIN_EMPEZAR" | "HACIENDO" | "ENTREGADA";
+  /** ESPERANDO: entregada y sin nota. Hoy solo le pasa a la escrita, pero se
+   *  deduce de la fila, no de qué prueba sea: una lectura entregada SIEMPRE
+   *  tiene nota, porque se congela en la misma llamada que la entrega. */
+  estado: "SIN_EMPEZAR" | "HACIENDO" | "ESPERANDO" | "ENTREGADA";
   aciertos: number | null;
   total: number | null;
   porTiempo: boolean;
@@ -75,7 +78,7 @@ export function estadoDePrueba(
 ): EstadoDePrueba {
   if (!intento) return { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false };
   return {
-    estado: intento.entregadaEn ? "ENTREGADA" : "HACIENDO",
+    estado: !intento.entregadaEn ? "HACIENDO" : intento.aciertos === null ? "ESPERANDO" : "ENTREGADA",
     aciertos: intento.aciertos,
     total: intento.total,
     porTiempo: intento.porTiempo,
@@ -85,6 +88,28 @@ export function estadoDePrueba(
 export function textoDelEstado(e: EstadoDePrueba): string {
   if (e.estado === "SIN_EMPEZAR") return "Sin empezar";
   if (e.estado === "HACIENDO") return "A medias";
+  const entregada = e.porTiempo ? "Entregada por tiempo" : "Entregada";
+  if (e.estado === "ESPERANDO") return `${entregada}, esperando corrección`;
   const nota = e.total === null ? "" : `, ${e.aciertos} de ${e.total}`;
-  return `${e.porTiempo ? "Entregada por tiempo" : "Entregada"}${nota}`;
+  return `${entregada}${nota}`;
+}
+
+/**
+ * Las palabras que contaría una persona: trozos separados por cualquier hueco
+ * (espacios, tabuladores, saltos de línea), sin contar los huecos de los
+ * extremos. Un texto vacío o solo de espacios son cero palabras.
+ */
+export function palabras(texto: string): number {
+  const limpio = texto.trim();
+  return limpio === "" ? 0 : limpio.split(/\s+/u).length;
+}
+
+/** La nota de la escrita: todas las bandas de todas sus tareas. */
+export function sumaDeBandas(escritos: readonly { bandas: readonly number[] }[]): number {
+  return escritos.reduce((total, e) => total + e.bandas.reduce((s, b) => s + b, 0), 0);
+}
+
+/** Entregada, esté corregida o no. Las pantallas casi siempre quieren esto. */
+export function estaEntregada(e: EstadoDePrueba): boolean {
+  return e.estado === "ENTREGADA" || e.estado === "ESPERANDO";
 }

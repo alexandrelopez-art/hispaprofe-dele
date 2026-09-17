@@ -6,7 +6,7 @@ import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
-import { corregirTareaEnLibre, PestanasDeTarea } from "@/components/examen/hacer-prueba";
+import { corregirTareaEnLibre, HacerPrueba, PestanasDeTarea } from "@/components/examen/hacer-prueba";
 import { Cinta } from "@/components/examen/cinta";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
 
@@ -692,6 +692,17 @@ describe("la pantalla que hace el estudiante", () => {
   it("al abrir la pantalla se cierran las que se pasaron de hora", async () => {
     await pintarPagina(sinEmpezar());
     expect(dobles.cerrarLasQueSePasaron).toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: volver a `prueba.estado.estado === "ENTREGADA"` en el
+  // encaminado de HacerPrueba. Con el estado ESPERANDO, la prueba entregada
+  // caería en la cara de «haciendo»: el estudiante vería otra vez sus preguntas
+  // abiertas y un botón de entregar que ya no puede funcionar.
+  it("una prueba entregada y sin corregir no se reabre", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={entregadaCon19De25({ estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } })} />,
+    );
+    expect(html).not.toContain("Entregar");
   });
 });
 
