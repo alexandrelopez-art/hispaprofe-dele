@@ -9,6 +9,8 @@ import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 import { corregirTareaEnLibre, HacerPrueba, PestanasDeTarea } from "@/components/examen/hacer-prueba";
 import { Cinta } from "@/components/examen/cinta";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
+import { avisoDePalabras, Folio } from "@/components/examen/folio";
+import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -196,6 +198,30 @@ function lecturaCuatro(): TareaParaHacer {
       opciones: h.opciones.map((o) => ({ ...o, texto: `Opción ${o.letra} del hueco ${h.numero}` })),
     }));
   });
+}
+
+// EE-1: REDACCION_UNA, la situación y el correo al que hay que contestar.
+function escritaUna(): Formulario {
+  const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "EE", 1)!);
+  if (f.forma !== "REDACCION_UNA") throw new Error("regla equivocada");
+  f.consigna = "Lee el correo y contesta.";
+  f.actividad.situacion = "Un amigo te escribe un correo. Contéstale.";
+  f.actividad.textoRecibido = "Hola, ¿qué tal? ¿Vienes el sábado?";
+  f.actividad.pautas = ["Salúdale", "Dile si puedes venir"];
+  return f;
+}
+
+// EE-2: REDACCION_DOS, dos opciones entre las que elegir para redactar.
+function escritaDos(): Formulario {
+  const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "EE", 2)!);
+  if (f.forma !== "REDACCION_DOS") throw new Error("regla equivocada");
+  f.consigna = "Elige una de las dos opciones y escribe tu texto.";
+  f.actividad.opciones = f.actividad.opciones.map((o, i) => ({
+    ...o,
+    contexto: `Contexto de la opción ${i + 1}`,
+    pautas: [`Pauta de la opción ${i + 1}`],
+  }));
+  return f;
 }
 
 /** Extrae el `<input>` de una letra en una pregunta, sin depender de en qué
@@ -902,5 +928,60 @@ describe("el reloj", () => {
     expect(cinco).toContain("text-error-600");
     expect(seis).toContain("Te quedan 5:01"); // que se pintó de verdad
     expect(seis).not.toContain("text-error-600");
+  });
+});
+
+describe("el aviso de palabras", () => {
+  // Mutación que la mata: comparar solo con el máximo. Quedarse corto también
+  // es un fallo del examen, y es el más común.
+  it("avisa por arriba y por abajo, y calla si no hay rango", () => {
+    expect(avisoDePalabras(90, { min: 80, max: 100 })).toEqual({ texto: "90 palabras (te piden entre 80 y 100)", pasada: false });
+    expect(avisoDePalabras(120, { min: 80, max: 100 }).pasada).toBe(true);
+    expect(avisoDePalabras(12, { min: 80, max: 100 }).pasada).toBe(true);
+    expect(avisoDePalabras(1, { min: null, max: null })).toEqual({ texto: "1 palabra", pasada: false });
+  });
+});
+
+describe("el folio", () => {
+  // Mutación que la mata: pintar el textarea sin `defaultValue`/`value`. Al
+  // volver de un corte, el folio saldría en blanco con el reloj corriendo.
+  it("trae lo ya escrito y su cuenta", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto="Hola qué tal" rango={{ min: 80, max: 100 }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    expect(html).toContain("Hola qué tal");
+    expect(html).toContain("3 palabras (te piden entre 80 y 100)");
+  });
+
+  // Mutación que la mata: ignorar `bloqueado`. En la prueba entregada el folio
+  // tiene que estar apagado de verdad, no solo parecerlo.
+  it("bloqueado no se puede escribir", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto="Ya está" rango={{ min: null, max: null }} bloqueado alEscribir={() => {}} />,
+    );
+    expect(html).toContain("disabled");
+  });
+});
+
+describe("el enunciado de la escrita", () => {
+  // Mutación que la mata: pintar todas las opciones como si estuvieran
+  // elegidas, o no marcar la elegida. El estudiante no sabría sobre cuál
+  // escribe, y es lo único que distingue su tarea 2 de la del de al lado.
+  it("la tarea 2 marca la opción elegida", () => {
+    const html = renderToStaticMarkup(
+      <EnunciadoDeEscrita formulario={escritaDos()} opcionElegida={2} alElegir={() => {}} />,
+    );
+    expect(html).toContain("Opción 1");
+    expect(html).toContain("Opción 2");
+    expect(html).toContain('checked=""');
+  });
+
+  // Mutación que la mata: no pintar el texto recibido. En la tarea 1 es el
+  // correo al que hay que contestar: sin él no hay tarea.
+  it("la tarea 1 pinta la situación, el correo y las pautas", () => {
+    const html = renderToStaticMarkup(<EnunciadoDeEscrita formulario={escritaUna()} opcionElegida={null} />);
+    expect(html).toContain("Un amigo te escribe");
+    expect(html).toContain("¿Vienes el sábado?");
+    expect(html).toContain("Salúdale");
   });
 });
