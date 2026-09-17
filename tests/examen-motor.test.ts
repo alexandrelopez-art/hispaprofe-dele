@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { minutosDePrueba } from "@/lib/dele/estructura";
+import { minutosDePrueba, SEGUNDOS_FUERA_PERDONADOS } from "@/lib/dele/estructura";
 import {
   estadoDePrueba,
   estaEntregada,
@@ -10,6 +10,7 @@ import {
   segundosQueQuedan,
   siguienteTrozo,
   sumaDeBandas,
+  tardoEnVolver,
   textoDelEstado,
 } from "@/lib/examen/motor";
 
@@ -81,6 +82,38 @@ describe("el reloj", () => {
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 11))).toBe(true);
     // Justo en el límite: con >= esto daría true, y por eso la mutación muere aquí.
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 10))).toBe(false);
+  });
+});
+
+describe("cuánto se puede estar fuera", () => {
+  const SALIO = new Date("2026-09-20T09:10:00Z");
+  const tras = (segundos: number) => new Date(SALIO.getTime() + segundos * 1_000);
+
+  // Mutación que la mata: devolver `true` sin marca de salida (por ejemplo,
+  // quitando el `if (salioEn === null)`). Sin marca no se ha ido nadie: a quien
+  // está escribiendo tranquilo se le borraría el folio en cuanto la pantalla
+  // mirara si hay salidas pendientes, que es cada vez que se carga.
+  it("sin marca de salida no ha salido nadie", () => {
+    expect(tardoEnVolver(null, tras(3600))).toBe(false);
+  });
+
+  // Mutación que la mata: comparar con `>=` en vez de `>`, o cambiar el número
+  // por uno propio en vez de leer `SEGUNDOS_FUERA_PERDONADOS`. Los diez segundos
+  // exactos todavía son «volver enseguida»: una notificación o mirar la hora no
+  // pueden costar una redacción.
+  it("diez segundos justos se perdonan; once, no", () => {
+    expect(tardoEnVolver(SALIO, tras(0))).toBe(false);
+    expect(tardoEnVolver(SALIO, tras(5))).toBe(false);
+    expect(tardoEnVolver(SALIO, tras(SEGUNDOS_FUERA_PERDONADOS))).toBe(false);
+    expect(tardoEnVolver(SALIO, tras(SEGUNDOS_FUERA_PERDONADOS + 1))).toBe(true);
+    expect(tardoEnVolver(SALIO, tras(30))).toBe(true);
+  });
+
+  // Mutación que la mata: subir o bajar el número. Es la decisión del profesor,
+  // y es lo que dice el aviso de la pantalla: si aquí pusiera otra cosa, el
+  // aviso estaría mintiendo.
+  it("el margen que se le promete al estudiante es de diez segundos", () => {
+    expect(SEGUNDOS_FUERA_PERDONADOS).toBe(10);
   });
 });
 

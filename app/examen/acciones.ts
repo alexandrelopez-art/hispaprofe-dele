@@ -5,7 +5,16 @@ import { exigirPersona } from "@/lib/puerta/sesion-http";
 import { esPrueba } from "@/lib/dele/estructura";
 import type { Prueba } from "@/lib/generated/prisma";
 import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
-import { corregirEnLibre, empezarPrueba, entregarPrueba, guardarEscrito, guardarRespuesta, marcarTrozo } from "@/lib/examen/hacer";
+import {
+  corregirEnLibre,
+  empezarPrueba,
+  entregarPrueba,
+  guardarEscrito,
+  guardarRespuesta,
+  marcarTrozo,
+  salirDeLaEscrita,
+  volverALaEscrita,
+} from "@/lib/examen/hacer";
 import type { Nota } from "@/lib/examen/motor";
 
 // Una acción de servidor es una dirección pública: quien la conozca la llama
@@ -89,4 +98,34 @@ export async function guardarEscritoAccion(
 ): Promise<{ error?: string }> {
   const persona = await exigirPersona();
   return guardarEscrito(examenId, persona.id, tarea, texto, opcion, new Date());
+}
+
+/**
+ * Se ha ido de la pantalla a media redacción. Solo APUNTA la salida y la hora;
+ * el castigo lo decide `resolverLasSalidas` cuando vuelva.
+ *
+ * Sin `prueba` en la firma, como el borrador: esto es de la escrita y de ninguna
+ * otra prueba. NO revalida: se llama justo cuando la pestaña se está ocultando y
+ * no hay ninguna pantalla que repintar; revalidar aquí solo añadiría trabajo al
+ * viaje que menos tiempo tiene para llegar.
+ */
+export async function salirDeLaEscritaAccion(examenId: string, tarea: number): Promise<{ error?: string }> {
+  const persona = await exigirPersona();
+  return salirDeLaEscrita(examenId, persona.id, tarea, new Date());
+}
+
+/**
+ * Ha vuelto. Resuelve la salida y devuelve qué tarea se ha borrado (null = ha
+ * vuelto a tiempo y no se ha borrado nada), para que la pantalla vacíe ese folio
+ * y se lo explique.
+ *
+ * Revalida SOLO si borró: entonces la pantalla del servidor tiene un texto que
+ * ya no existe. Si no borró no ha cambiado nada, y revalidar sería repintar el
+ * servidor cada vez que alguien mira la hora en el móvil.
+ */
+export async function volverALaEscritaAccion(examenId: string): Promise<{ error?: string; borrada?: number | null }> {
+  const persona = await exigirPersona();
+  const r = await volverALaEscrita(examenId, persona.id, new Date());
+  if (r.borrada != null) revalidatePath(pantallaDeLaPrueba(examenId, "EE"));
+  return r;
 }

@@ -16,6 +16,8 @@ const dobles = vi.hoisted(() => ({
   entregarPrueba: vi.fn(),
   corregirEnLibre: vi.fn(),
   guardarEscrito: vi.fn(),
+  salirDeLaEscrita: vi.fn(),
+  volverALaEscrita: vi.fn(),
   guardarCorreccion: vi.fn(),
 }));
 
@@ -35,6 +37,8 @@ vi.mock("@/lib/examen/hacer", () => ({
   entregarPrueba: dobles.entregarPrueba,
   corregirEnLibre: dobles.corregirEnLibre,
   guardarEscrito: dobles.guardarEscrito,
+  salirDeLaEscrita: dobles.salirDeLaEscrita,
+  volverALaEscrita: dobles.volverALaEscrita,
 }));
 // La acción del profesor vive sobre guardarCorreccion, que a su vez es
 // lib/examen/corregir.ts entero (y ese toca prisma). Se dobla solo esta
@@ -48,6 +52,8 @@ import {
   guardarEscritoAccion,
   guardarRespuestaAccion,
   marcarTrozoAccion,
+  salirDeLaEscritaAccion,
+  volverALaEscritaAccion,
 } from "@/app/examen/acciones";
 import { guardarCorreccionAccion } from "@/app/corregir/acciones";
 
@@ -169,6 +175,50 @@ describe("lo que hace cada acción con la persona ya en sesión", () => {
     dobles.guardarEscrito.mockResolvedValue({});
     expect(await guardarEscritoAccion("ex1", 1, "Hola", null)).toEqual({});
     expect(dobles.guardarEscrito).toHaveBeenCalledWith("ex1", ANA.id, 1, "Hola", null, expect.any(Date));
+  });
+
+  // Mutación que la mata: pasarle a `salirDeLaEscrita` un personaId que venga de
+  // fuera, o meterle la prueba por argumento. Salirse marca el intento de quien
+  // tiene la sesión y de nadie más: con un personaId de fuera, cualquiera le
+  // dejaría a otro una salida puesta y, al volver, le borraría el folio.
+  it("salir marca por quien tiene la sesión, y no revalida nada", async () => {
+    dobles.salirDeLaEscrita.mockResolvedValue({});
+    expect(await salirDeLaEscritaAccion("ex1", 2)).toEqual({});
+    expect(dobles.salirDeLaEscrita).toHaveBeenCalledWith("ex1", ANA.id, 2, expect.any(Date));
+    // Se llama justo cuando la pestaña se oculta: no hay pantalla que repintar.
+    expect(dobles.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: comerse lo que devuelva `volverALaEscrita` y contestar
+  // `{}` fijo. La pantalla no sabría que le han borrado la tarea, dejaría el
+  // texto viejo en el folio y el chaval creería que sigue escrito.
+  it("volver devuelve la tarea borrada y refresca la pantalla", async () => {
+    dobles.volverALaEscrita.mockResolvedValue({ borrada: 1 });
+    expect(await volverALaEscritaAccion("ex1")).toEqual({ borrada: 1 });
+    expect(dobles.volverALaEscrita).toHaveBeenCalledWith("ex1", ANA.id, expect.any(Date));
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/examen/ex1/EE");
+  });
+
+  // Mutación que la mata: revalidar siempre al volver. Se llama cada vez que el
+  // chaval mira la hora en el móvil, y casi siempre no ha borrado nada:
+  // revalidar ahí es repintar el servidor por nada.
+  it("volver a tiempo no refresca nada", async () => {
+    dobles.volverALaEscrita.mockResolvedValue({ borrada: null });
+    expect(await volverALaEscritaAccion("ex1")).toEqual({ borrada: null });
+    expect(dobles.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+// Mutación que la mata: quitar `exigirPersona` de cualquiera de las dos. Son
+// direcciones públicas: sin sesión, cualquiera marcaría salidas y resolvería
+// vueltas en el examen de otro.
+describe("salir y volver sin sesión", () => {
+  it("no tocan nada", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(null);
+    await expect(salirDeLaEscritaAccion("ex1", 1)).rejects.toThrow("REDIRECT:/entrar");
+    await expect(volverALaEscritaAccion("ex1")).rejects.toThrow("REDIRECT:/entrar");
+    expect(dobles.salirDeLaEscrita).not.toHaveBeenCalled();
+    expect(dobles.volverALaEscrita).not.toHaveBeenCalled();
   });
 });
 

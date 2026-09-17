@@ -4,6 +4,7 @@
  * necesitan. Es lo que permite probar el reloj sin esperar cincuenta minutos y
  * sin que el color de la suite dependa del huso del portátil.
  */
+import { SEGUNDOS_FUERA_PERDONADOS } from "@/lib/dele/estructura";
 
 /** Lo que se le perdona a la red para que la última respuesta no se pierda por el viaje. */
 export const SEGUNDOS_DE_GRACIA = 10;
@@ -78,6 +79,20 @@ export function seAcaboElTiempo(empezadaEn: Date, minutos: number | null, ahora:
   if (minutos === null) return false;
   const pasados = (ahora.getTime() - empezadaEn.getTime()) / 1000;
   return pasados > minutos * 60 + SEGUNDOS_DE_GRACIA;
+}
+
+/**
+ * ¿Tardó demasiado en volver? La cuenta va desde la PRIMERA salida —`salioEn` no
+ * se pisa mientras esté puesto—, así que salir, asomarse, volver a salir y
+ * volver cuenta como un solo rato fuera.
+ *
+ * `>` y no `>=`, igual que `seAcaboElTiempo`: los diez segundos exactos todavía
+ * son «volver enseguida». Sin marca de salida no hay nada que perdonar ni que
+ * borrar: `null` es «está aquí».
+ */
+export function tardoEnVolver(salioEn: Date | null, ahora: Date): boolean {
+  if (salioEn === null) return false;
+  return (ahora.getTime() - salioEn.getTime()) / 1000 > SEGUNDOS_FUERA_PERDONADOS;
 }
 
 /** El menor trozo que todavía no ha sonado. Con huecos también: no vale contar cuántos van. */

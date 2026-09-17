@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
-import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
+import { reglaDe, SEGUNDOS_FUERA_PERDONADOS, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { LETRAS_TOPE, palabras, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
@@ -15,6 +15,7 @@ import { avisoDePalabras, Folio } from "@/components/examen/folio";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import {
   apagaLosFolios,
+  AvisoDeVueltaTarde,
   borradoresDe,
   conOpcion,
   conTexto,
@@ -37,6 +38,7 @@ const dobles = vi.hoisted(() => ({
   notFound: vi.fn(),
   pruebaParaHacer: vi.fn(),
   cerrarLasQueSePasaron: vi.fn(),
+  resolverLasSalidas: vi.fn(),
   escritosPorCorregir: vi.fn(),
   escritoParaCorregir: vi.fn(),
   hojaDeRespuestas: vi.fn(),
@@ -62,7 +64,10 @@ vi.mock("@/lib/examen/paraHacer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/examen/paraHacer")>()),
   pruebaParaHacer: dobles.pruebaParaHacer,
 }));
-vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron }));
+vi.mock("@/lib/examen/hacer", () => ({
+  cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron,
+  resolverLasSalidas: dobles.resolverLasSalidas,
+}));
 // Las cinco acciones: la pantalla las importa a través de HacerPrueba, y
 // Vitest revienta al leer una exportación que el doble no define.
 vi.mock("@/app/examen/acciones", () => ({
@@ -103,6 +108,7 @@ beforeEach(() => {
   dobles.redirect.mockImplementation((ruta: string) => { throw new Error(`REDIRECT:${ruta}`); });
   dobles.notFound.mockImplementation(() => { throw new Error("NOT_FOUND"); });
   dobles.cerrarLasQueSePasaron.mockResolvedValue(undefined);
+  dobles.resolverLasSalidas.mockResolvedValue({ borradas: [] });
   como(ESTUDIANTE);
 });
 
@@ -900,6 +906,25 @@ describe("la pantalla que hace el estudiante", () => {
     expect(dobles.cerrarLasQueSePasaron).toHaveBeenCalled();
   });
 
+  // Cargar esta pantalla YA es volver: por eso la marca de la salida vive en el
+  // servidor. Sin esta llamada, cerrar la pestaña y volver a entrar salvaría el
+  // texto, que es el agujero obvio de toda la regla.
+  //
+  // Mutación que la mata: quitar `resolverLasSalidas` de la página, o llamarla
+  // DESPUÉS de leer con `pruebaParaHacer` (la pantalla pintaría el texto que
+  // acaba de borrarse). El orden se afirma con `invocationCallOrder`, no
+  // mirando solo que se llamó.
+  it("al abrir la pantalla se resuelven las salidas, y antes de leer", async () => {
+    await pintarPagina(sinEmpezar());
+    expect(dobles.resolverLasSalidas).toHaveBeenCalled();
+    const resolver = dobles.resolverLasSalidas.mock.invocationCallOrder[0]!;
+    const leer = dobles.pruebaParaHacer.mock.invocationCallOrder[0]!;
+    expect(resolver).toBeLessThan(leer);
+    // Y el reloj va PRIMERO: si se le acabó el tiempo estando fuera, la prueba
+    // se entrega con lo que tuviera y ya no se le borra nada.
+    expect(dobles.cerrarLasQueSePasaron.mock.invocationCallOrder[0]!).toBeLessThan(resolver);
+  });
+
   // Mutación que la mata: volver a `prueba.estado.estado === "ENTREGADA"` en el
   // encaminado de HacerPrueba. Con el estado ESPERANDO, la prueba entregada
   // caería en la cara de «haciendo»: el estudiante vería otra vez sus preguntas
@@ -1417,6 +1442,65 @@ describe("la escrita", () => {
     expect(html).toContain("Ojo: la tarea 1 está en blanco y no has elegido opción en la tarea 2. ¿Entregar de todas formas?");
     expect(html).toContain("Sí, entregar");
     expect(html).toContain("Seguir escribiendo");
+  });
+
+  // El aviso de que la escrita se hace de una sentada. La regla se dice ANTES de
+  // «Empezar», con todas las letras: perder un folio sin haber sido avisado es
+  // un castigo; con el aviso delante, es una regla del examen.
+  //
+  // Mutación que la mata: quitar el párrafo del aviso (o dejarlo sin el número,
+  // o sin la advertencia del reloj). El chaval se sale del examen a mirar una
+  // palabra sin saber lo que le va a costar.
+  it("el aviso previo dice que salirse cuesta la tarea, y con cuánto margen", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("Esto se escribe de una sentada.");
+    expect(html).toContain(`tardas más de ${SEGUNDOS_FUERA_PERDONADOS} segundos en volver`);
+    expect(html).toContain("se borra la tarea que tuvieras abierta");
+    expect(html).toContain("Si vuelves enseguida no pasa nada.");
+    expect(html).toContain("El reloj no se para mientras estás fuera.");
+  });
+
+  // Mutación que la mata: pintar el aviso también en práctica libre (quitarle
+  // el `!sinReloj`). En libre no se marca ni se borra nada: amenazar con algo
+  // que no va a pasar es mentirle, y encima le corta la práctica.
+  it("en práctica libre no amenaza con borrar nada", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibre()} />);
+    expect(html).not.toContain("Esto se escribe de una sentada.");
+    expect(html).not.toContain("se borra la tarea que tuvieras abierta");
+  });
+
+  // El cartel de la vuelta. Pieza aparte y exportada, como `PreguntaDeEntrega`:
+  // dentro de la pantalla solo aparece después de un `visibilitychange` de
+  // verdad, y aquí no hay jsdom. Que el oyente lo encienda de verdad NO se puede
+  // probar en esta suite: va a la aceptación, en el móvil.
+  //
+  // Mutación que la mata: quitar del cartel la frase del reloj, o no decir qué
+  // tarea se ha borrado. Quien vuelve y ve el folio en blanco sin saber por qué
+  // cree que se ha roto el examen, y quien no lee lo del reloj se pone a
+  // reescribir con calma creyendo que le han devuelto el tiempo.
+  it("el cartel de la vuelta dice qué tarea, por qué y que el reloj sigue", () => {
+    const html = renderToStaticMarkup(<AvisoDeVueltaTarde tarea={2} />);
+    // Es un aviso, y se anuncia como tal: se mira el atributo, no la palabra.
+    expect(html).toContain('role="alert"');
+    expect(html).toContain(`has tardado más de ${SEGUNDOS_FUERA_PERDONADOS} segundos en volver`);
+    expect(html).toContain("la tarea 2 se ha borrado");
+    expect(html).toContain("tienes que escribirla otra vez");
+    expect(html).toContain("El reloj no se ha parado mientras estabas fuera.");
+  });
+
+  // Mutación que la mata: escribir el número de la tarea a mano en el cartel (un
+  // «la tarea 1» fijo). Se borra la que tenía ABIERTA, y decirle que ha perdido
+  // la otra es peor que no decir nada.
+  it("el cartel nombra la tarea que se ha borrado, no una fija", () => {
+    expect(renderToStaticMarkup(<AvisoDeVueltaTarde tarea={1} />)).toContain("la tarea 1 se ha borrado");
+    expect(renderToStaticMarkup(<AvisoDeVueltaTarde tarea={2} />)).toContain("la tarea 2 se ha borrado");
+  });
+
+  // Nada de esto se enciende sin haberse ido: la pantalla nace sin cartel.
+  // Mutación que la mata: arrancar `tareaBorrada` con un número en vez de null.
+  it("la pantalla a medias nace sin el cartel de la vuelta", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).not.toContain("data-vuelta-tarde");
   });
 
   // Mutación que la mata: enseñar la lista de lo que falta aunque esté vacía
