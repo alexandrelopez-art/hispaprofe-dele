@@ -24,7 +24,7 @@ import {
   PreguntaDeEntrega,
 } from "@/components/examen/hacer-escrita";
 import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
-import { CorregirEscrita } from "@/components/examen/corregir-escrita";
+import { BotonesDeGuardar, CorregirEscrita } from "@/components/examen/corregir-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -44,7 +44,10 @@ vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie: dobles.personaDeLaCo
 vi.mock("next/navigation", () => ({
   redirect: dobles.redirect,
   notFound: dobles.notFound,
-  useRouter: () => ({ refresh: vi.fn() }),
+  // `CorregirEscrita` también llama a `router.push` (Guardar y seguir): sin
+  // él en el doble, un render que llegara a dispararlo reventaría por
+  // `push is not a function` en vez de fallar por lo que la prueba mira.
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 // lib/examen/paraHacer.ts importa lib/db (prisma) al cargarse; sin este
 // doble, cargar el módulo real revienta por falta de DATABASE_URL (no hay
@@ -1504,9 +1507,10 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
     expect((html.match(/step="1"/g) ?? []).length).toBe(8);
   });
 
-  // Mutación que la mata: pintar la `ayuda` esté vacía o no. Hoy los cuatro
-  // criterios llegan con `ayuda` vacía a propósito, así que ningún
-  // `data-ayuda` puede aparecer.
+  // Mutación que la mata: pintar la `ayuda` esté vacía o no (o quitarle el
+  // `data-ayuda`, que es la marca que una prueba hermana usa para lo mismo en
+  // hacer-escrita.tsx). Hoy los cuatro criterios llegan con `ayuda` vacía a
+  // propósito, así que ningún `data-ayuda` puede aparecer todavía.
   it("hoy, sin ayuda dictada, no se pinta ningún renglón de ayuda", () => {
     const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
     expect(html).not.toContain("data-ayuda");
@@ -1533,21 +1537,53 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
     expect(sinCorregir).not.toContain("Ya la corregiste");
 
     const yaCorregida = renderToStaticMarkup(
-      <CorregirEscrita para={paraCorregirDePrueba({ corregidaEn: new Date("2026-09-16T10:00:00.000Z") })} />,
+      <CorregirEscrita
+        para={paraCorregirDePrueba({
+          corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+          tareas: [
+            tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null, [3, 2, 2, 1], "Muy bien el saludo"),
+            tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2, [3, 3, 2, 2], "Cuida los acentos"),
+          ],
+        })}
+      />,
     );
     expect(yaCorregida).toContain("Ya la corregiste");
     expect(yaCorregida).toContain("se cambia");
   });
 
-  // Mutación que la mata: no ofrecer «Guardar y seguir», o pintar los dos
-  // botones como enlaces en vez de `<button type="button">` (que es lo que
-  // hace falta para poder apagarlos mientras se manda).
-  it("trae los dos botones de guardar, listos para apagarse mientras se manda", () => {
+  // Mutación que la mata: sembrar las casillas a 0 en vez de vacías cuando
+  // nunca se corrigió (`bandasIniciales` devolviendo `bandas.map(() => 0)`,
+  // como estaba antes del arreglo). Un profesor que solo rellenara la tarea 1
+  // y guardara firmaría la tarea 2 con cuatro ceros que nadie puso.
+  it("sin corrección previa, las ocho casillas nacen vacías, no en cero", () => {
     const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
-    const botones = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)];
-    const deGuardar = botones.filter((b) => b[1] === "Guardar" || b[1] === "Guardar y seguir");
-    expect(deGuardar).toHaveLength(2);
-    expect(deGuardar.every((b) => b[0].includes('type="button"'))).toBe(true);
+    expect((html.match(/value=""/g) ?? []).length).toBe(8);
+    expect(html).not.toContain('value="0"');
+  });
+
+  // Mutación que la mata: no sembrar las casillas con las bandas que ya
+  // trajera `para` cuando SÍ hay corrección previa (dejarlas vacías siempre).
+  // El profesor que reabre una redacción ya firmada vería sus propias notas
+  // borradas.
+  it("con corrección previa, las ocho casillas traen sus valores", () => {
+    const html = renderToStaticMarkup(
+      <CorregirEscrita
+        para={paraCorregirDePrueba({
+          corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+          tareas: [
+            tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null, [3, 2, 2, 1], "Muy bien el saludo"),
+            tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2, [3, 3, 2, 0], "Cuida los acentos"),
+          ],
+        })}
+      />,
+    );
+    // Ninguna casilla vacía: las ocho traen su nota.
+    expect(html).not.toContain('value=""');
+    // El 0 de la última casilla de la tarea 2 sigue siendo un 0 de verdad, no
+    // "sin nota": si `bandasIniciales` tratara un 0 guardado como vacío, esta
+    // casilla saldría en blanco.
+    expect((html.match(/value="0"/g) ?? []).length).toBe(1);
+    expect((html.match(/value="1"/g) ?? []).length).toBe(1);
   });
 
   // Mutación que la mata: pintar el texto del estudiante sin su cuenta de
@@ -1556,5 +1592,41 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
   it("el texto del estudiante trae su cuenta de palabras", () => {
     const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
     expect(html).toContain(`${palabras("Hola, qué tal, el sábado no puedo.")} palabras`);
+  });
+});
+
+describe("BotonesDeGuardar", () => {
+  // Mutación que la mata: quitar `disabled={procesando}` de los dos botones.
+  // Sin él, un doble clic (o la misma redacción abierta en dos pestañas)
+  // manda dos firmas a la vez. Mismo patrón que PestanasDeTarea (piezas.tsx):
+  // se cuentan los `disabled=""`, no la palabra suelta.
+  it("con procesando, los dos botones se apagan", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    expect(html).toContain("Guardar y seguir"); // que se pintaron de verdad
+    expect((html.match(/disabled=""/g) ?? []).length).toBe(2);
+  });
+
+  // Mutación que la mata: apagarlos siempre (`disabled` fijo), o invertir
+  // `procesando`. Sin guardado en marcha, el profesor tiene que poder pulsar.
+  it("sin procesando, los dos botones están vivos", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando={false} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    expect(html).toContain("Guardar y seguir");
+    expect(html).not.toContain('disabled=""');
+  });
+
+  // Mutación que la mata: no ofrecer «Guardar y seguir», o pintar los dos
+  // botones como enlaces en vez de `<button type="button">`.
+  it("son los dos <button type=\"button\">, no enlaces ni un submit", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando={false} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    const botones = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)];
+    const deGuardar = botones.filter((b) => b[1] === "Guardar" || b[1] === "Guardar y seguir");
+    expect(deGuardar).toHaveLength(2);
+    expect(deGuardar.every((b) => b[0].includes('type="button"'))).toBe(true);
   });
 });

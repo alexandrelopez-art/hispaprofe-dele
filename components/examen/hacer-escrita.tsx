@@ -10,6 +10,7 @@ import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
 import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
 import { Reloj } from "@/components/examen/reloj";
+import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /** Lo que el estudiante lleva escrito en UNA tarea: su folio y, si la tarea
  *  tiene opciones, sobre cuál escribe. */
@@ -118,8 +119,6 @@ function rangoDe(tarea: TareaParaHacer): Rango {
 
 const escritoDe = (prueba: PruebaParaHacer, tarea: number): EscritoParaHacer | undefined =>
   prueba.escritos.find((e) => e.tarea === tarea);
-
-const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Madrid" });
 
 /** Qué enseña el cartelito del guardado. `nada` = callado, que es como nace. */
 type EstadoDelGuardado = "nada" | "pendiente" | "guardando" | "hecho";
@@ -518,7 +517,7 @@ function EscritaEsperando({ prueba }: { prueba: PruebaParaHacer }) {
         {/* La fecha no es adorno: es el acuse de recibo. Quien lleva tres días
             viendo «esperando corrección» sin fecha no sabe si su redacción
             llegó o si se perdió por el camino. */}
-        {prueba.entregadaEn && <p>La mandaste el {FECHA_LARGA.format(prueba.entregadaEn)}.</p>}
+        {prueba.entregadaEn && <p>La mandaste el {fechaHoraEnPalabras(prueba.entregadaEn)}.</p>}
         {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
         <p>
           La corrige tu profesor, a mano: no hay nota automática. Cuando la firme, verás aquí las cuatro notas de cada
@@ -574,7 +573,7 @@ function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
           {prueba.estado.aciertos} de {prueba.estado.total}
         </p>
         {prueba.corregidaEn && (
-          <p className="text-tinta-suave">Corregida el {FECHA_LARGA.format(prueba.corregidaEn)}.</p>
+          <p className="text-tinta-suave">Corregida el {fechaHoraEnPalabras(prueba.corregidaEn)}.</p>
         )}
         {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
         <p className="text-tinta-suave">

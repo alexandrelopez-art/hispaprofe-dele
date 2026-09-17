@@ -2,8 +2,7 @@ import Link from "next/link";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { escritosPorCorregir } from "@/lib/examen/corregir";
 import { CAJA } from "@/components/examen/piezas";
-
-const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Madrid" });
+import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /** «3 días esperando», «1 día esperando». Es el único dato que dice por dónde
  *  empezar: lo más viejo de la cola es lo primero que hay que corregir. */
@@ -47,7 +46,7 @@ export default async function Cola() {
                 <span className="font-bold">{c.persona.nombre}</span>
                 <span className="text-tinta-suave">{c.titulo}</span>
                 <span className="text-sm text-tinta-suave">
-                  Entregada el {FECHA_LARGA.format(c.entregadaEn)}
+                  Entregada el {fechaHoraEnPalabras(c.entregadaEn)}
                   {c.porTiempo ? " · por tiempo" : ""} · {diasEnPalabras(c.diasEsperando)}
                 </span>
               </Link>

@@ -241,4 +241,46 @@ describe("guardarCorreccionAccion", () => {
 
     expect(r).toEqual({ error: "Esa nota no vale." });
   });
+
+  // guardarCorreccion hace `.length` y recorre `bandas` sin comprobar nada:
+  // es la única barrera contra una llamada a mano con datos que no tienen la
+  // forma del tipo. Una acción de servidor es una dirección pública, así que
+  // esto no es hipotético.
+  // Mutación que la mata: quitar `tareasConFormaValida` (o su llamada). Con
+  // `bandas: null`, `guardarCorreccion` (o el doble, que también haría
+  // `.length`) reventaría con un TypeError en vez de devolver `{ error }`.
+  it("una tarea con `bandas` que no es un array se rechaza sin tocar guardarCorreccion", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(PROFE);
+
+    const r = await guardarCorreccionAccion("i1", [{ tarea: 1, bandas: null, comentario: "" }] as never);
+
+    expect(r).toEqual({ error: expect.any(String) });
+    expect(dobles.guardarCorreccion).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el tope de longitud del comentario (o
+  // subirlo tanto que no lo detecte esta prueba). Sin tope, una llamada a
+  // mano podría intentar meter cualquier cosa en esa columna.
+  it("un comentario más largo que el tope se rechaza sin tocar guardarCorreccion", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(PROFE);
+    const comentarioLargo = "x".repeat(2001);
+
+    const r = await guardarCorreccionAccion("i1", [{ tarea: 1, bandas: [1, 1, 1, 1], comentario: comentarioLargo }]);
+
+    expect(r).toEqual({ error: expect.any(String) });
+    expect(dobles.guardarCorreccion).not.toHaveBeenCalled();
+  });
+
+  // El caso normal sigue pasando con el tope puesto: 2000 caracteres exactos
+  // no se rechazan.
+  it("un comentario de hasta el tope sí llega a guardarCorreccion", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(PROFE);
+    dobles.guardarCorreccion.mockResolvedValue({});
+    const comentarioAlTope = "x".repeat(2000);
+
+    const r = await guardarCorreccionAccion("i1", [{ tarea: 1, bandas: [1, 1, 1, 1], comentario: comentarioAlTope }]);
+
+    expect(r).toEqual({});
+    expect(dobles.guardarCorreccion).toHaveBeenCalled();
+  });
 });

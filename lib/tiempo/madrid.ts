@@ -39,6 +39,16 @@ export function fechaEnPalabras(instante: Date): string {
   return new Intl.DateTimeFormat("es-ES", { timeZone: HUSO, dateStyle: "full" }).format(instante);
 }
 
+const FORMATO_FECHA_Y_HORA = new Intl.DateTimeFormat("es-ES", { timeZone: HUSO, dateStyle: "long", timeStyle: "short" });
+
+/** «15 de septiembre de 2026, 11:30». Para lo que se entrega o se firma, donde
+ *  la hora importa además del día. `lib/tiempo/madrid.ts` es el dueño del
+ *  huso: antes de esta función había tres copias sueltas del mismo
+ *  `Intl.DateTimeFormat` con `"Europe/Madrid"` escrito a mano. */
+export function fechaHoraEnPalabras(instante: Date): string {
+  return FORMATO_FECHA_Y_HORA.format(instante);
+}
+
 /** El «ahora» se recibe: si se leyera aquí dentro, la prueba cambiaría de color según la hora. */
 export function estaFueraDePlazo(fechaTope: Date, ahora: Date): boolean {
   return ahora.getTime() > fechaTope.getTime();
