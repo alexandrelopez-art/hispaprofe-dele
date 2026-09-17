@@ -4,13 +4,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
 import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
-import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
+import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
+import { palabras } from "@/lib/examen/motor";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 import { corregirTareaEnLibre, HacerPrueba, PestanasDeTarea } from "@/components/examen/hacer-prueba";
 import { Cinta } from "@/components/examen/cinta";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
 import { avisoDePalabras, Folio } from "@/components/examen/folio";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
+import { borradoresDe, conOpcion, conTexto, hayQueGuardar, loQueFalta } from "@/components/examen/hacer-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -49,6 +51,9 @@ vi.mock("@/app/examen/acciones", () => ({
   marcarTrozoAccion: vi.fn(),
   entregarPruebaAccion: vi.fn(),
   corregirEnLibreAccion: vi.fn(),
+  // La sexta, la de la escrita: sin ella en el doble, importar
+  // hacer-escrita.tsx revienta al leer una exportación que no existe.
+  guardarEscritoAccion: vi.fn(),
 }));
 
 import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
@@ -466,6 +471,80 @@ function enLibre(): PruebaParaHacer {
     segundosQueQuedan: 1800,
     tareas: [lecturaDos()],
   });
+}
+
+// ── La escrita (EE) ─────────────────────────────────────────────────────────
+// Las dos tareas de la escrita con su regla de verdad: la 1 es REDACCION_UNA
+// (el correo al que hay que contestar) y la 2 REDACCION_DOS (elegir tema).
+function tareaDeEscrita(numero: 1 | 2): TareaParaHacer {
+  const regla = reglaDe("A2_B1_ESCOLAR", "EE", numero)!;
+  return { numero, regla, formulario: numero === 1 ? escritaUna() : escritaDos(), trozos: 0, oidos: [] };
+}
+
+function escritoDe(
+  tarea: number,
+  texto: string,
+  opcion: number | null,
+  correccion: EscritoParaHacer["correccion"] = null,
+): EscritoParaHacer {
+  return { tarea, opcion, texto, palabras: palabras(texto), correccion };
+}
+
+const CARTA = "Hola Juan, el sábado no puedo.";
+const FIN_DE_SEMANA = "Mi fin de semana ideal es un sábado en el río.";
+
+// EE a medias: reloj de 50 minutos corriendo, la tarea 1 ya empezada y la 2
+// todavía en blanco (por eso `escritos` trae una sola fila: la siembra de
+// borradores tiene que inventar la que falta).
+function escritaParaHacer(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
+  return pruebaDePrueba({
+    prueba: "EE",
+    minutos: 50,
+    segundosQueQuedan: 1800,
+    estado: { estado: "HACIENDO", aciertos: null, total: null, porTiempo: false },
+    tareas: [tareaDeEscrita(1), tareaDeEscrita(2)],
+    escritos: [escritoDe(1, CARTA, null)],
+    otras: [{ prueba: "CE", estado: { estado: "ENTREGADA", aciertos: 19, total: 25, porTiempo: false } }],
+    ...extra,
+  });
+}
+
+function escritaSinEmpezar(): PruebaParaHacer {
+  return escritaParaHacer({
+    estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    escritos: [],
+  });
+}
+
+// Entregada y sin firmar: ESPERANDO es el estado que la lectura no tiene nunca
+// —una lectura entregada ya trae su nota—, y es donde vive la escrita hasta que
+// el profesor la corrige.
+function escritaEsperando(): PruebaParaHacer {
+  return escritaParaHacer({
+    estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    escritos: [escritoDe(1, CARTA, null), escritoDe(2, FIN_DE_SEMANA, 2)],
+  });
+}
+
+// Firmada: 8 + 10 = 18 de 24 (dos tareas × cuatro criterios × banda 3).
+function escritaCorregida(): PruebaParaHacer {
+  return escritaParaHacer({
+    estado: { estado: "ENTREGADA", aciertos: 18, total: 24, porTiempo: false },
+    segundosQueQuedan: null,
+    escritos: [
+      escritoDe(1, CARTA, null, { bandas: [3, 2, 2, 1], comentario: "Muy bien el saludo" }),
+      escritoDe(2, FIN_DE_SEMANA, 2, { bandas: [3, 3, 2, 2], comentario: "Cuida los acentos" }),
+    ],
+    corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+  });
+}
+
+// Práctica libre de la escrita: con `minutos` y `estado: HACIENDO` a propósito,
+// para que decidir el reloj por ellos y no por `modo` se note.
+function escritaLibre(): PruebaParaHacer {
+  return escritaParaHacer({ modo: "LIBRE" });
 }
 
 async function pintarPagina(prueba: PruebaParaHacer): Promise<string> {
@@ -1003,5 +1082,154 @@ describe("el enunciado de la escrita", () => {
     expect(html).toContain("Un amigo te escribe");
     expect(html).toContain("¿Vienes el sábado?");
     expect(html).toContain("Salúdale");
+  });
+});
+
+describe("la escrita", () => {
+  // Mutación que la mata: guardar siempre que salte el temporizador, haya
+  // cambiado algo o no. Serían cientos de escrituras por redacción, y cada una
+  // reescribiendo la misma fila con lo mismo.
+  it("solo guarda lo que ha cambiado", () => {
+    expect(hayQueGuardar({ texto: "Hola", opcion: null }, { texto: "Hola", opcion: null })).toBe(false);
+    expect(hayQueGuardar({ texto: "Hola", opcion: null }, { texto: "Hola ", opcion: null })).toBe(true);
+    expect(hayQueGuardar({ texto: "Hola", opcion: null }, { texto: "Hola", opcion: 2 })).toBe(true);
+  });
+
+  // Mutación que la mata: avisar solo del folio vacío y olvidar la opción sin
+  // elegir. Se puede entregar una tarea 2 escrita sobre ninguna opción.
+  it("dice lo que falta antes de entregar", () => {
+    expect(loQueFalta(escritaParaHacer(), { 1: { texto: "", opcion: null }, 2: { texto: "Algo", opcion: 1 } })).toEqual([
+      "la tarea 1 está en blanco",
+    ]);
+    expect(loQueFalta(escritaParaHacer(), { 1: { texto: "Algo", opcion: null }, 2: { texto: "Algo", opcion: null } })).toEqual([
+      "no has elegido opción en la tarea 2",
+    ]);
+    expect(loQueFalta(escritaParaHacer(), { 1: { texto: "A", opcion: null }, 2: { texto: "B", opcion: 1 } })).toEqual([]);
+  });
+
+  // Mutación que la mata: sembrar los borradores recorriendo `escritos` en vez
+  // de `tareas`. La tarea que todavía no se ha tocado no tendría borrador, y el
+  // folio de la 2 nacería `undefined`: la pantalla revienta al abrirla.
+  it("siembra un borrador por tarea, con lo ya escrito", () => {
+    expect(borradoresDe(escritaEsperando())).toEqual({
+      1: { texto: CARTA, opcion: null },
+      2: { texto: FIN_DE_SEMANA, opcion: 2 },
+    });
+    expect(borradoresDe(escritaSinEmpezar())).toEqual({
+      1: { texto: "", opcion: null },
+      2: { texto: "", opcion: null },
+    });
+  });
+
+  // Mutación que la mata: al elegir otra opción, devolver un borrador nuevo
+  // (`{ texto: "", opcion }`) en vez de conservar el folio. El chico que
+  // empieza, se arrepiente y cambia de tema perdería lo escrito.
+  it("cambiar de opción no borra el folio, ni escribir borra la opción", () => {
+    expect(conOpcion({ texto: "Mi carta", opcion: 1 }, 2)).toEqual({ texto: "Mi carta", opcion: 2 });
+    expect(conTexto({ texto: "Mi carta", opcion: 1 }, "Mi carta más larga")).toEqual({ texto: "Mi carta más larga", opcion: 1 });
+  });
+
+  // Mutación que la mata: quitar el encaminado de "EE" y dejar que la escrita
+  // caiga en PruebaHaciendo. Pediría letras sobre preguntas que no existen y no
+  // pintaría folio ninguno.
+  it("a medias trae el reloj, el enunciado y el folio abierto", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).toContain("Te quedan");
+    expect(html).toContain("Lee el correo y contesta.");
+    expect(html).toContain(CARTA);
+    expect(html).toContain("Entregar");
+    // El folio de la tarea abierta se puede escribir: se mira el atributo del
+    // `<textarea>`, no la palabra «disabled» suelta (la clase de Tailwind
+    // `disabled:bg-tinta-suave/5` la lleva dentro).
+    const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
+    expect(textarea).not.toBe("");
+    expect(textarea).not.toContain('disabled=""');
+  });
+
+  // Mutación que la mata: enseñar el folio antes del aviso. El «se entrega ella
+  // sola» hay que decirlo ANTES de que el reloj empiece a correr.
+  it("sin empezar avisa de los minutos y no enseña folio", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("50 minutos");
+    expect(html).toContain("no se puede repetir");
+    expect(html).toContain("Empezar");
+    expect(html).not.toContain("<textarea");
+  });
+
+  // Mutación que la mata: usar la cara de la lectura para la escrita. La
+  // pantalla pediría letras sobre preguntas que no existen.
+  it("la escrita entregada y sin corregir dice que espera", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
+    expect(html).toContain("Esperando corrección");
+    expect(html).not.toContain("Entregar");
+  });
+
+  // Mutación que la mata: pasar `bloqueado={false}` a los folios de la
+  // entregada. Se podría reescribir encima de lo entregado y hasta creer que
+  // eso cambia algo, cuando ya no se guarda nada.
+  it("la entregada enseña sus dos folios apagados, con lo que mandó", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
+    expect(html).toContain(FIN_DE_SEMANA);
+    const folios = html.match(/<textarea[^>]*>/g) ?? [];
+    expect(folios).toHaveLength(2);
+    expect(folios.every((t) => t.includes('disabled=""'))).toBe(true);
+    // Y la opción que eligió sigue marcada, sin poder cambiarla.
+    const opciones = html.match(/<input[^>]*>/g) ?? [];
+    expect(opciones).toHaveLength(2);
+    expect(opciones.every((t) => t.includes('disabled=""'))).toBe(true);
+    expect(html.match(/checked=""/g) ?? []).toHaveLength(1);
+  });
+
+  // Mutación que la mata: pintar la nota sin mirar `correccion`. Diría «null de
+  // 24» a quien todavía no ha sido corregido.
+  it("la escrita corregida enseña las bandas, los comentarios y la suma", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaCorregida()} />);
+    expect(html).toContain("18 de 24");
+    expect(html).toContain("Adecuación al género discursivo");
+    expect(html).toContain("Muy bien el saludo");
+  });
+
+  // Mutación que la mata: pintar la `ayuda` del criterio esté vacía o no. Hoy
+  // las cuatro están vacías a propósito (las dicta el profesor), y saldrían
+  // cuatro renglones en blanco bajo cada criterio.
+  it("la corregida no pinta la ayuda vacía, ni deja entregar otra vez", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaCorregida()} />);
+    expect(html).not.toContain("data-ayuda");
+    expect(html).not.toContain("Entregar");
+    // Las dos tareas, no solo la primera: el comentario de la 2 también es suyo.
+    expect(html).toContain("Cuida los acentos");
+  });
+
+  // Mutación que la mata: dejar que la práctica libre pase por la cara con
+  // reloj. Un examen de práctica no tiene intento que cerrar: «Entregar» daría
+  // error y el reloj entregaría algo que nadie va a corregir.
+  it("en libre se escribe, pero no hay reloj ni entrega", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibre()} />);
+    expect(html).toContain("<textarea");
+    expect(html).not.toContain("Te quedan");
+    expect(html).not.toContain("Entregar");
+    expect(html).toContain("no se guarda");
+  });
+
+  // Mutación que la mata: encaminar la escrita ANTES del <VolverAInicio> de
+  // HacerPrueba y no poner ninguna salida en su sitio. Es exactamente el fallo
+  // que el profesor cazó en la lectura: la pantalla se queda sin salida y solo
+  // se sale con el botón de atrás del navegador.
+  it("las cuatro caras de la escrita tienen salida a Inicio", () => {
+    for (const cara of [escritaSinEmpezar(), escritaParaHacer(), escritaEsperando(), escritaCorregida()]) {
+      const html = renderToStaticMarkup(<HacerPrueba prueba={cara} />);
+      expect(html).toContain('href="/"');
+      expect(html).toContain("Volver a Inicio");
+    }
+  });
+
+  // Mutación que la mata: avisar del reloj siempre (o nunca). Irse a Inicio a
+  // media redacción es legal —el borrador ya está guardado—, pero irse creyendo
+  // que el reloj se para, no.
+  it("solo avisa de que el reloj sigue cuando de verdad corre", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("El reloj sigue corriendo.");
+    for (const cara of [escritaSinEmpezar(), escritaEsperando(), escritaCorregida(), escritaLibre()]) {
+      expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).not.toContain("El reloj sigue corriendo.");
+    }
   });
 });

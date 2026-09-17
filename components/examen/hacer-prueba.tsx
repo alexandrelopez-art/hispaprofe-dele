@@ -16,15 +16,19 @@ import {
   marcarTrozoAccion,
 } from "@/app/examen/acciones";
 import { Cinta } from "@/components/examen/cinta";
+import { HacerEscrita } from "@/components/examen/hacer-escrita";
 import { Reloj } from "@/components/examen/reloj";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 
 type Marcadas = Record<string, string>;
 type NotaDeTarea = { aciertos: number; total: number; fallos: number[] };
 
-const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
-const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
-const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
+// Exportadas para que hacer-escrita.tsx vista sus cuatro caras igual que estas:
+// son la misma pantalla del mismo examen, y dos cajas que se parezcan «casi»
+// se notan en cuanto se pasa de la lectura a la escrita.
+export const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
+export const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
+export const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
 
 function totalDePreguntas(tareas: TareaParaHacer[]): number {
   return tareas.reduce((n, t) => n + (t.regla.items ?? 0), 0);
@@ -454,6 +458,12 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
     });
   }
 
+  // La escrita tiene sus propias caras: un folio no se parece en nada a
+  // veinticinco letras marcadas, y meterla en PruebaHaciendo obligaría a que
+  // cada rama de allí preguntara de qué prueba se trata. Sale antes del
+  // <VolverAInicio> de abajo y por eso HacerEscrita lleva el suyo.
+  if (prueba.prueba === "EE") return <HacerEscrita prueba={prueba} />;
+
   // El modo libre no tiene intento que abrir ni que cerrar: se corrige al
   // vuelo desde el primer momento, así que no pasa por el aviso previo.
   const cara =
@@ -480,8 +490,11 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
  * que NO se puede hacer es irse creyendo que el reloj se para, y por eso ahí
  * lo dice. Es un enlace y no un formulario porque no cambia nada: las
  * respuestas ya están guardadas en el servidor según se marcan.
+ *
+ * Exportada: la escrita se encamina antes de llegar aquí y necesita la misma
+ * salida, con el mismo aviso del reloj.
  */
-function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
+export function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
   return (
     <p>
       <Link href="/" className="text-hp-600 underline">
