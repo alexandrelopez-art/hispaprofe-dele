@@ -10,7 +10,7 @@ import type { Nota } from "@/lib/examen/motor";
 
 // Una acción de servidor es una dirección pública: quien la conozca la llama
 // sin pasar por la pantalla, sin haber entrado nunca por el examen de nadie.
-// Por eso NINGUNA de las cinco de aquí abajo recibe un identificador de
+// Por eso NINGUNA de las seis de aquí abajo recibe un identificador de
 // persona: la persona sale siempre de exigirPersona() (la sesión), nunca de
 // un argumento. Si tomara un personaId, cualquiera que conociera esta
 // dirección podría contestar el examen de otro estudiante llamándola a mano.
