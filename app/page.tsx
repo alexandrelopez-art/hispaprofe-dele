@@ -2,6 +2,7 @@ import Link from "next/link";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
 import { asignacionesDe, type AsignacionDelEstudiante, type EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { cerrarLasQueSePasaron } from "@/lib/examen/hacer";
+import { escritosPorCorregir } from "@/lib/examen/corregir";
 import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
 import { NOMBRE_CORTO, NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { estaFueraDePlazo, fechaEnPalabras } from "@/lib/tiempo/madrid";
@@ -17,13 +18,17 @@ export default async function Portada() {
   const persona = await personaDeLaPeticion();
   const esProfesor = persona?.papel === "PROFESOR";
   const ahora = new Date();
-  // Solo se piden si hacen falta: al profesor no se le pinta ninguna tarjeta.
+  // Solo se piden si hacen falta: al profesor no se le pinta ninguna tarjeta,
+  // y al estudiante no se le pide la cola de corrección.
   let asignaciones: AsignacionDelEstudiante[] = [];
+  let porCorregir = 0;
   if (persona && !esProfesor) {
     // Antes de leer: si no, quien cerró el portátil a medio examen se vería
     // "a medias" para siempre y sin nota.
     await cerrarLasQueSePasaron({ personaId: persona.id }, ahora);
     asignaciones = await asignacionesDe(persona.id);
+  } else if (persona && esProfesor) {
+    porCorregir = (await escritosPorCorregir(ahora)).length;
   }
 
   return (
@@ -82,6 +87,11 @@ export default async function Portada() {
             {esProfesor && (
               <Link href="/personas" className="text-hp-600 underline">
                 Personas
+              </Link>
+            )}
+            {esProfesor && (
+              <Link href="/corregir" className="text-hp-600 underline">
+                Por corregir{porCorregir > 0 ? ` (${porCorregir})` : ""}
               </Link>
             )}
             {esProfesor && (

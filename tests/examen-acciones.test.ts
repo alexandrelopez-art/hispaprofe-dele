@@ -8,6 +8,7 @@ const dobles = vi.hoisted(() => ({
   cookiesGet: vi.fn(),
   personaDeLaCookie: vi.fn(),
   redirect: vi.fn((ruta: string) => { throw new Error(`REDIRECT:${ruta}`); }),
+  notFound: vi.fn(),
   revalidatePath: vi.fn(),
   empezarPrueba: vi.fn(),
   guardarRespuesta: vi.fn(),
@@ -15,11 +16,12 @@ const dobles = vi.hoisted(() => ({
   entregarPrueba: vi.fn(),
   corregirEnLibre: vi.fn(),
   guardarEscrito: vi.fn(),
+  guardarCorreccion: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
 vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie: dobles.personaDeLaCookie }));
-vi.mock("next/navigation", () => ({ redirect: dobles.redirect }));
+vi.mock("next/navigation", () => ({ redirect: dobles.redirect, notFound: dobles.notFound }));
 vi.mock("next/cache", () => ({ revalidatePath: dobles.revalidatePath }));
 // lib/examen/paraHacer.ts (de donde sale PRUEBAS_QUE_SE_HACEN) importa
 // lib/db para pruebaParaHacer, que esta prueba nunca llama; sin este doble,
@@ -34,6 +36,10 @@ vi.mock("@/lib/examen/hacer", () => ({
   corregirEnLibre: dobles.corregirEnLibre,
   guardarEscrito: dobles.guardarEscrito,
 }));
+// La acción del profesor vive sobre guardarCorreccion, que a su vez es
+// lib/examen/corregir.ts entero (y ese toca prisma). Se dobla solo esta
+// exportación: nada más de este fichero necesita el resto del módulo.
+vi.mock("@/lib/examen/corregir", () => ({ guardarCorreccion: dobles.guardarCorreccion }));
 
 import {
   corregirEnLibreAccion,
@@ -43,8 +49,10 @@ import {
   guardarRespuestaAccion,
   marcarTrozoAccion,
 } from "@/app/examen/acciones";
+import { guardarCorreccionAccion } from "@/app/corregir/acciones";
 
 const ANA: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
+const PROFE: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -52,6 +60,7 @@ beforeEach(() => {
   // pruebas, es personaDeLaCookie, no la cookie en sí.
   dobles.cookiesGet.mockReturnValue({ value: "cookie-de-prueba" });
   dobles.redirect.mockImplementation((ruta: string) => { throw new Error(`REDIRECT:${ruta}`); });
+  dobles.notFound.mockImplementation(() => { throw new Error("NOT_FOUND"); });
 });
 
 // Una acción de servidor es una dirección pública: quien la conozca la llama sin
@@ -171,5 +180,65 @@ describe("guardarEscritoAccion sin sesión", () => {
     dobles.personaDeLaCookie.mockResolvedValue(null);
     await expect(guardarEscritoAccion("ex1", 1, "Hola", null)).rejects.toThrow("REDIRECT:/entrar");
     expect(dobles.guardarEscrito).not.toHaveBeenCalled();
+  });
+});
+
+// guardarCorreccionAccion es la única puerta por la que se firma una nota:
+// lib/examen/corregir.ts no comprueba papeles, así que TODA la barrera vive
+// en exigirProfesor.
+describe("guardarCorreccionAccion", () => {
+  const ana = ANA; // ESTUDIANTE
+
+  // Mutación que la mata: usar exigirPersona en vez de exigirProfesor. Un
+  // estudiante se pondría nota a sí mismo llamando a la dirección.
+  it("guardarCorreccionAccion es solo del profesor", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana); // ESTUDIANTE
+    await expect(guardarCorreccionAccion("i1", [{ tarea: 1, bandas: [1, 1, 1, 1], comentario: "" }])).rejects.toThrow();
+    expect(dobles.guardarCorreccion).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar exigirPersona/exigirProfesor del todo. Sin
+  // ninguna sesión no hay ni papel que mirar.
+  it("sin sesión, tampoco entra", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(null);
+    await expect(guardarCorreccionAccion("i1", [])).rejects.toThrow("REDIRECT:/entrar");
+    expect(dobles.guardarCorreccion).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: coger el profesorId de un argumento en vez de la
+  // sesión. Una acción de servidor es una dirección pública: con un
+  // argumento, cualquiera firmaría en nombre de otro profesor.
+  it("firma con quien tiene la sesión, no con lo que llegue de fuera", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(PROFE);
+    dobles.guardarCorreccion.mockResolvedValue({});
+    const tareas = [{ tarea: 1, bandas: [3, 2, 2, 1], comentario: "Bien" }];
+
+    await guardarCorreccionAccion("i1", tareas);
+
+    expect(dobles.guardarCorreccion).toHaveBeenCalledWith("i1", tareas, PROFE.id, expect.any(Date));
+  });
+
+  // Mutación que la mata: no revalidar la cola, o no revalidar la propia
+  // pantalla. El profesor vería la redacción que acaba de firmar todavía
+  // «por corregir», o la cola con una fila de más.
+  it("refresca la cola y la pantalla de esa corrección", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(PROFE);
+    dobles.guardarCorreccion.mockResolvedValue({});
+
+    await guardarCorreccionAccion("i1", []);
+
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/corregir");
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/corregir/i1");
+  });
+
+  // Mutación que la mata: comerse el error que devuelva guardarCorreccion
+  // (una nota fuera de 0-3, una tarea que no existe) y devolver `{}` fijo.
+  it("devuelve el error tal cual si guardarCorreccion lo rechaza", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(PROFE);
+    dobles.guardarCorreccion.mockResolvedValue({ error: "Esa nota no vale." });
+
+    const r = await guardarCorreccionAccion("i1", [{ tarea: 1, bandas: [9, 0, 0, 0], comentario: "" }]);
+
+    expect(r).toEqual({ error: "Esa nota no vale." });
   });
 });

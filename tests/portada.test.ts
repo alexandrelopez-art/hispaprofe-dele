@@ -7,11 +7,12 @@ import type { Persona } from "@/lib/generated/prisma";
 // funcionado. Mismos dobles que en tests/puerta-sesion-http.test.ts, porque
 // Portada llama a personaDeLaPeticion(), que vive sobre cookies() y
 // personaDeLaCookie.
-const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron } = vi.hoisted(() => ({
+const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron, escritosPorCorregir } = vi.hoisted(() => ({
   cookiesGet: vi.fn(),
   personaDeLaCookie: vi.fn(),
   asignacionesDe: vi.fn(),
   cerrarLasQueSePasaron: vi.fn(),
+  escritosPorCorregir: vi.fn(),
 }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: cookiesGet }),
@@ -22,6 +23,9 @@ vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie }));
 vi.mock("@/lib/examen/asignar", () => ({ asignacionesDe }));
 // Mismo motivo: cerrarLasQueSePasaron vive sobre prisma.intento.
 vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron }));
+// Mismo motivo: escritosPorCorregir (la cola de «Por corregir») también vive
+// sobre prisma.intento.
+vi.mock("@/lib/examen/corregir", () => ({ escritosPorCorregir }));
 // La portada también importa PRUEBAS_QUE_SE_HACEN de lib/examen/paraHacer.ts,
 // que a su vez importa lib/db (prisma) al cargarse. Con este doble se deja
 // pasar el resto del módulo real (PRUEBAS_QUE_SE_HACEN, la lista de verdad)
@@ -54,6 +58,7 @@ async function html(): Promise<string> {
 beforeEach(() => {
   vi.resetAllMocks();
   asignacionesDe.mockResolvedValue([]);
+  escritosPorCorregir.mockResolvedValue([]);
 });
 
 describe("la portada", () => {
@@ -300,5 +305,61 @@ describe("Inicio del estudiante", () => {
 
     expect(asignacionesDe).not.toHaveBeenCalled();
     expect(cerrarLasQueSePasaron).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: pedir escritosPorCorregir también al estudiante
+  // (contraparte del "solo el profesor" de arriba: aquí lo que se comprueba
+  // es que ni siquiera se llama).
+  it("al estudiante no se le pide la cola de corrección", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+
+    await html();
+
+    expect(escritosPorCorregir).not.toHaveBeenCalled();
+  });
+});
+
+describe("«Por corregir» en la portada del profesor", () => {
+  // Mutación que la mata: quitar el `esProfesor &&` del enlace, o dejar de
+  // pedir escritosPorCorregir para el profesor. Un estudiante vería un enlace
+  // a la cola de corrección de todo el mundo.
+  it("un estudiante no ve el enlace a corregir", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+
+    const marcado = await html();
+
+    expect(marcado).not.toContain('href="/corregir"');
+  });
+
+  // Mutación que la mata: no pintar el enlace, o no pasarle a esta pantalla
+  // el tamaño real de la cola.
+  it("el profesor ve el enlace, con el número esperando al lado", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    personaDeLaCookie.mockResolvedValue(PROFESOR);
+    escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i1", examenId: "ex1", titulo: "Examen 1", persona: { id: "e1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
+      { intentoId: "i2", examenId: "ex1", titulo: "Examen 1", persona: { id: "e2", nombre: "Luis" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
+    ]);
+
+    const marcado = await html();
+
+    expect(marcado).toContain('href="/corregir"');
+    expect(marcado).toContain("Por corregir (2)");
+  });
+
+  // Mutación que la mata: pintar «(0)» con la cola vacía. Un número puesto
+  // ahí siempre no distingue "nada esperando" de "acabo de mirar".
+  it("con la cola vacía, no pinta ningún número", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    personaDeLaCookie.mockResolvedValue(PROFESOR);
+    escritosPorCorregir.mockResolvedValue([]);
+
+    const marcado = await html();
+
+    expect(marcado).toContain("Por corregir");
+    expect(marcado).not.toContain("Por corregir (0)");
+    expect(marcado).not.toContain("(0)");
   });
 });

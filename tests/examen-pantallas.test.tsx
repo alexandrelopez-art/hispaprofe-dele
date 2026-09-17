@@ -23,6 +23,8 @@ import {
   loQueFalta,
   PreguntaDeEntrega,
 } from "@/components/examen/hacer-escrita";
+import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
+import { CorregirEscrita } from "@/components/examen/corregir-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -33,6 +35,8 @@ const dobles = vi.hoisted(() => ({
   notFound: vi.fn(),
   pruebaParaHacer: vi.fn(),
   cerrarLasQueSePasaron: vi.fn(),
+  escritosPorCorregir: vi.fn(),
+  escritoParaCorregir: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -65,8 +69,18 @@ vi.mock("@/app/examen/acciones", () => ({
   // hacer-escrita.tsx revienta al leer una exportación que no existe.
   guardarEscritoAccion: vi.fn(),
 }));
+// Las dos pantallas del profesor (app/corregir/...) solo leen: escribir es
+// cosa de guardarCorreccionAccion, doblada aparte para no arrastrar
+// lib/examen/corregir.ts entero (que sí toca prisma) dentro de acciones.ts.
+vi.mock("@/lib/examen/corregir", () => ({
+  escritosPorCorregir: dobles.escritosPorCorregir,
+  escritoParaCorregir: dobles.escritoParaCorregir,
+}));
+vi.mock("@/app/corregir/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
 
 import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
+import Cola from "@/app/corregir/page";
+import PantallaDeCorregir from "@/app/corregir/[intentoId]/page";
 
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
 
@@ -1329,5 +1343,218 @@ describe("la escrita", () => {
   it("la que espera dice cuándo la mandó", () => {
     const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
     expect(html).toContain("La mandaste el 15 de septiembre de 2026");
+  });
+});
+
+// ── Las pantallas del profesor: /corregir ──────────────────────────────────
+// Mismas dos personas de siempre: ana (ESTUDIANTE, definida arriba) y un
+// profesor nuevo, porque hasta ahora ninguna prueba de este fichero
+// necesitaba uno.
+const PROFESOR: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
+const ana = ESTUDIANTE;
+const profe = PROFESOR;
+
+function tareaParaCorregir(
+  numero: 1 | 2,
+  texto: string,
+  opcion: number | null,
+  bandas: number[] = [],
+  comentario = "",
+): TareaParaCorregir {
+  return {
+    numero,
+    formulario: numero === 1 ? escritaUna() : escritaDos(),
+    opcion,
+    texto,
+    palabras: palabras(texto),
+    bandas,
+    comentario,
+  };
+}
+
+// Dos tareas, como el examen de verdad: la 1 (REDACCION_UNA, el correo) con
+// lo que escribió Ana, y la 2 (REDACCION_DOS) con su opción elegida.
+function paraCorregirDePrueba(extra: Partial<ParaCorregir> = {}): ParaCorregir {
+  return {
+    intentoId: "i1",
+    examen: { id: "ex1", titulo: "Libro, examen 1", nivel: "A2_B1_ESCOLAR" },
+    persona: { id: "e1", nombre: "Ana" },
+    entregadaEn: new Date("2026-09-15T09:30:00.000Z"),
+    porTiempo: false,
+    corregidaEn: null,
+    puntos: 24,
+    tareas: [
+      tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null),
+      tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2),
+    ],
+    siguiente: null,
+    ...extra,
+  };
+}
+
+describe("Por corregir: la cola del profesor", () => {
+  beforeEach(() => {
+    dobles.escritosPorCorregir.mockResolvedValue([]);
+  });
+
+  // Mutación que la mata: quitar exigirProfesor de la página. Un estudiante
+  // vería los textos y las notas de todos sus compañeros con solo escribir la
+  // dirección.
+  it("la cola no se le enseña a un estudiante", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana); // ESTUDIANTE
+    const { default: Cola } = await import("@/app/corregir/page");
+    await expect(Cola()).rejects.toThrow();
+    expect(dobles.escritosPorCorregir).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: pintar la cola sin los días de espera. Es el único dato
+  // que dice por dónde empezar.
+  it("la cola dice quién, qué examen y cuántos días lleva", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i1", examenId: "ex1", titulo: "Libro, examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: true, diasEsperando: 3 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("Ana");
+    expect(html).toContain("Libro, examen 1");
+    expect(html).toContain("3 días");
+    expect(html).toContain("por tiempo");
+  });
+
+  // Mutación que la mata: pintar la cola vacía sin decir nada (una lista
+  // vacía y ya está), que deja al profesor sin saber si es que no hay nada o
+  // si es que la pantalla se rompió a medias.
+  it("con la cola vacía lo dice en una línea", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("No hay nada esperando.");
+  });
+
+  // Mutación que la mata: enlazar todas las filas al mismo sitio, o a
+  // `/corregir` sin el id.
+  it("cada fila enlaza a su propia corrección", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i7", examenId: "ex1", titulo: "Examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 0 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain('href="/corregir/i7"');
+  });
+
+  // Mutación que la mata: cerrar las que se pasaron de hora desde esta
+  // pantalla. Decidido en el brief: la cola solo lee, y el cierre es de quien
+  // tiene ámbito (el Inicio del estudiante y la lista del examen).
+  it("no cierra las que se pasaron de hora: solo lee", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    await Cola();
+    expect(dobles.cerrarLasQueSePasaron).not.toHaveBeenCalled();
+  });
+});
+
+describe("La pantalla de corregir una redacción: /corregir/[intentoId]", () => {
+  // Mutación que la mata: quitar exigirProfesor de esta página también. Es la
+  // segunda mitad de la misma puerta que la cola: sin ella, un estudiante que
+  // adivine el id de un compañero vería su texto entero y podría firmarle
+  // una nota.
+  it("tampoco se le enseña a un estudiante", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana);
+    await expect(PantallaDeCorregir({ params: Promise.resolve({ intentoId: "i1" }) })).rejects.toThrow();
+    expect(dobles.escritoParaCorregir).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el `if (!para) notFound();`. Un id que no
+  // existe (o de un intento que ya no es de escrita) pintaría la pantalla con
+  // datos a medias en vez de contestar 404.
+  it("un intento que no existe contesta 404", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritoParaCorregir.mockResolvedValue(null);
+    await expect(PantallaDeCorregir({ params: Promise.resolve({ intentoId: "i1" }) })).rejects.toThrow("NOT_FOUND");
+  });
+
+  // Mutación que la mata: no pasarle `para` a <CorregirEscrita>, o pasarle
+  // otra cosa distinta de lo que devolvió escritoParaCorregir.
+  it("con datos, pinta la corrección de esa redacción", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritoParaCorregir.mockResolvedValue(paraCorregirDePrueba());
+    const elemento = await PantallaDeCorregir({ params: Promise.resolve({ intentoId: "i1" }) });
+    const html = renderToStaticMarkup(elemento);
+    expect(html).toContain("Ana");
+    expect(html).toContain("Hola, qué tal");
+    expect(dobles.escritoParaCorregir).toHaveBeenCalledWith("i1", expect.any(Date));
+  });
+});
+
+describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
+  // Mutación que la mata: pintar las bandas sin `max` (o con uno distinto de
+  // BANDA_MAXIMA). Se podría firmar un 7 en un criterio que llega hasta 3.
+  it("la pantalla de corregir trae las ocho casillas y los dos textos", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toContain("Adecuación al género discursivo");
+    expect(html).toContain('max="3"');
+    expect((html.match(/type="number"/g) ?? []).length).toBe(8);
+    expect(html).toContain("Hola, qué tal");
+  });
+
+  // Mutación que la mata: quitar `min={0}` o `step={1}` de la casilla. Con
+  // solo el `max` puesto, todavía se podría escribir una nota negativa o con
+  // decimales.
+  it("las ocho casillas van de 0 a 3, entero a entero", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect((html.match(/min="0"/g) ?? []).length).toBe(8);
+    expect((html.match(/step="1"/g) ?? []).length).toBe(8);
+  });
+
+  // Mutación que la mata: pintar la `ayuda` esté vacía o no. Hoy los cuatro
+  // criterios llegan con `ayuda` vacía a propósito, así que ningún
+  // `data-ayuda` puede aparecer.
+  it("hoy, sin ayuda dictada, no se pinta ningún renglón de ayuda", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).not.toContain("data-ayuda");
+  });
+
+  // Mutación que la mata: enseñar el enunciado editable (sin `bloqueado`), o
+  // no enseñarlo. El profesor tiene que ver a qué contestaba el chico, pero
+  // de solo lectura: no es él quien la responde.
+  it("el enunciado de cada tarea sale de solo lectura, para ver a qué contestaba", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toContain("Un amigo te escribe"); // tarea 1
+    expect(html).toContain("Opción 1"); // tarea 2
+    const radiosDeLaOpcion = html.match(/<input[^>]*name="opcion-de-la-escrita"[^>]*>/g) ?? [];
+    expect(radiosDeLaOpcion.length).toBeGreaterThan(0);
+    expect(radiosDeLaOpcion.every((r) => r.includes('disabled=""'))).toBe(true);
+  });
+
+  // Mutación que la mata: quitar el aviso de que ya se corrigió, o pintarlo
+  // aunque `corregidaEn` sea null. Firmar es un acto con fecha: si el
+  // profesor ya la corrigió, la pantalla tiene que decírselo y avisar de que
+  // volver a guardar la cambia.
+  it("si ya se corrigió, avisa de la fecha y de que guardar la cambia", () => {
+    const sinCorregir = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(sinCorregir).not.toContain("Ya la corregiste");
+
+    const yaCorregida = renderToStaticMarkup(
+      <CorregirEscrita para={paraCorregirDePrueba({ corregidaEn: new Date("2026-09-16T10:00:00.000Z") })} />,
+    );
+    expect(yaCorregida).toContain("Ya la corregiste");
+    expect(yaCorregida).toContain("se cambia");
+  });
+
+  // Mutación que la mata: no ofrecer «Guardar y seguir», o pintar los dos
+  // botones como enlaces en vez de `<button type="button">` (que es lo que
+  // hace falta para poder apagarlos mientras se manda).
+  it("trae los dos botones de guardar, listos para apagarse mientras se manda", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    const botones = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)];
+    const deGuardar = botones.filter((b) => b[1] === "Guardar" || b[1] === "Guardar y seguir");
+    expect(deGuardar).toHaveLength(2);
+    expect(deGuardar.every((b) => b[0].includes('type="button"'))).toBe(true);
+  });
+
+  // Mutación que la mata: pintar el texto del estudiante sin su cuenta de
+  // palabras. El profesor corrige alcance, y sin el número a la vista tiene
+  // que contarlas él mismo.
+  it("el texto del estudiante trae su cuenta de palabras", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toContain(`${palabras("Hola, qué tal, el sábado no puedo.")} palabras`);
   });
 });
