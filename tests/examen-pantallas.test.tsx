@@ -616,6 +616,19 @@ describe("la pantalla que hace el estudiante", () => {
     expect(terminadas).not.toContain("Te queda");
   });
 
+  // Mutación que la mata: volver la línea del filtro de `Resultado` a
+  // `o.estado.estado !== "ENTREGADA"`. Una escrita ESPERANDO (entregada, sin
+  // nota todavía) no es "ENTREGADA" con esa comparación vieja, así que
+  // reaparecería como pendiente aunque el estudiante ya la haya mandado.
+  it("una escrita entregada y sin corregir no cuenta como pendiente", async () => {
+    const html = await pintarPagina(
+      entregadaCon19De25({
+        otras: [{ prueba: "EE", estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } }],
+      }),
+    );
+    expect(html).not.toContain("Te queda");
+  });
+
   // Mutación que la mata: no decir que la entregó el reloj. Para el estudiante
   // no es lo mismo un 12 de 25 contestando que un 12 de 25 porque se le acabó.
   it("si la entregó el reloj, lo dice", async () => {
