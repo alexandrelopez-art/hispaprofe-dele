@@ -153,7 +153,12 @@ async function abrirLaPrueba(
   // Los minutos salen de aquí, y no cada quien por su cuenta: es la única
   // consulta que ya trae el nivel del examen. `entregarPrueba` los necesita
   // para saber si la entrega la manda el reloj.
-  const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
+  //
+  // En modo libre no hay reloj: se practica sin cronómetro. Importa solo en la
+  // escrita, que es la única prueba que crea intento en libre (la lectura y la
+  // auditiva se corrigen al vuelo y no guardan nada); sin esto, una redacción
+  // de práctica se cerraría sola a los cincuenta minutos.
+  const minutos = asignacion.modo === "LIBRE" ? null : minutosDePrueba(asignacion.examen.nivel, prueba);
   if (intento && seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
     await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, true);
     return { error: SE_ACABO };
@@ -318,11 +323,16 @@ export async function cerrarLasQueSePasaron(donde: { personaId: string } | { exa
       prueba: true,
       empezadaEn: true,
       respuestas: { select: { numero: true, letra: true } },
-      asignacion: { select: { examenId: true, examen: { select: { nivel: true } } } },
+      asignacion: { select: { examenId: true, modo: true, examen: { select: { nivel: true } } } },
     },
   });
   for (const intento of intentos) {
-    const minutos = minutosDePrueba(intento.asignacion.examen.nivel, intento.prueba);
+    // Mismo modo que en abrirLaPrueba, y por la misma razón: esta es la otra
+    // mitad del cierre automático (la que corre sin que nadie haya pulsado
+    // nada, sobre una clase entera). Sin la comprobación del modo, una
+    // escrita de práctica libre se cerraría sola aquí igual, aunque la
+    // pantalla ya no pintara reloj.
+    const minutos = intento.asignacion.modo === "LIBRE" ? null : minutosDePrueba(intento.asignacion.examen.nivel, intento.prueba);
     if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
       await cerrarIntento(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true);
     }

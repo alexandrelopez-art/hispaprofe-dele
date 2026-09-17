@@ -204,3 +204,48 @@ describe("entregar la escrita", () => {
     expect(segunda.entregadaEn).toEqual(primera.entregadaEn);
   });
 });
+
+describe("la escrita en modo libre", () => {
+  beforeEach(async () => {
+    await prisma.asignacion.updateMany({ where: { personaId: ana.id }, data: { modo: "LIBRE" } });
+  });
+
+  // Mutación que la mata: sacar los minutos del nivel sin mirar el modo. Una
+  // escrita de práctica se cerraría sola a los 50 minutos, entraría en la cola
+  // sin que nadie la mandara, y no habría forma de seguir escribiéndola.
+  it("no lleva reloj: no se cierra sola ni rebota por tiempo", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    const muchoDespues = new Date(AHORA.getTime() + 5 * 60 * 60_000);
+    expect(await guardarEscrito(examen.id, ana.id, 1, "Sigo escribiendo", null, muchoDespues)).toEqual({});
+    await cerrarLasQueSePasaron({ personaId: ana.id }, muchoDespues);
+    const intento = await prisma.intento.findFirstOrThrow({ where: { prueba: "EE" } });
+    expect(intento.entregadaEn).toBeNull();
+  });
+
+  // Mutación que la mata: prohibir entregar en libre. Practicar a escribir sin
+  // que nadie lo lea no sirve de nada: es justo lo que decidió el profesor.
+  //
+  // `escritosPorCorregir` todavía no existe (la escribe la próxima tarea): se
+  // comprueba la misma condición contra la base, que es exactamente lo que
+  // esa función recogerá — un Intento de la escrita entregado y sin corregir.
+  it("se manda a corregir igual, y entra en la cola", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await guardarEscrito(examen.id, ana.id, 1, "Para que me la mires", null, AHORA);
+    expect(await entregarPrueba(examen.id, "EE", ana.id, AHORA)).toEqual({});
+    const pendientes = await prisma.intento.findMany({
+      where: { prueba: "EE", entregadaEn: { not: null }, corregidaEn: null },
+    });
+    expect(pendientes).toHaveLength(1);
+  });
+
+  // Mutación que la mata: dejar reabrir una escrita ya mandada en libre. El
+  // «repitiendo» del modo libre es de la lectura y la auditiva, que se
+  // corrigen solas; aquí hay una persona al otro lado.
+  it("una escrita mandada no se reescribe, tampoco en libre", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await entregarPrueba(examen.id, "EE", ana.id, AHORA);
+    expect(await guardarEscrito(examen.id, ana.id, 1, "Otra vez", null, AHORA)).toEqual({
+      error: "Esta prueba ya está entregada.",
+    });
+  });
+});

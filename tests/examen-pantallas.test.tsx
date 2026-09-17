@@ -556,9 +556,22 @@ function escritaCorregida(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer
   });
 }
 
-// Práctica libre de la escrita: con `minutos` y `estado: HACIENDO` a propósito,
-// para que decidir el reloj por ellos y no por `modo` se note.
+// Práctica libre de la escrita, antes de empezar: el aviso es otro —dice
+// «sin reloj», no «Tienes 50 minutos»— aunque `minutos` siga viniendo del
+// nivel (paraHacer.ts no lo pone a null; es el `modo`, no el campo, quien
+// decide qué se pinta).
 function escritaLibre(): PruebaParaHacer {
+  return escritaParaHacer({
+    modo: "LIBRE",
+    estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    escritos: [],
+  });
+}
+
+// La misma, ya empezada: con `minutos` y `estado: HACIENDO` a propósito, para
+// que decidir el reloj por ellos y no por `modo` se note.
+function escritaLibreHaciendo(): PruebaParaHacer {
   return escritaParaHacer({ modo: "LIBRE" });
 }
 
@@ -1215,15 +1228,23 @@ describe("la escrita", () => {
     expect(html).toContain("Cuida los acentos");
   });
 
-  // Mutación que la mata: dejar que la práctica libre pase por la cara con
-  // reloj. Un examen de práctica no tiene intento que cerrar: «Entregar» daría
-  // error y el reloj entregaría algo que nadie va a corregir.
-  it("en libre se escribe, pero no hay reloj ni entrega", () => {
-    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibre()} />);
+  // Mutación que la mata: dejar que la práctica libre pase por una cara aparte
+  // que no guarda ni entrega. La decisión es la contraria (spec §9): en libre
+  // la escrita se guarda y se entrega IGUAL que en un examen de verdad, sin
+  // reloj y nada más.
+  it("en libre se escribe y se puede entregar, igual que en un examen de verdad", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibreHaciendo()} />);
     expect(html).toContain("<textarea");
     expect(html).not.toContain("Te quedan");
-    expect(html).not.toContain("Entregar");
-    expect(html).toContain("no se guarda");
+    expect(html).toContain("Entregar");
+  });
+
+  // Mutación que la mata: pintar el reloj también en libre. Le pondría una cuenta
+  // atrás de cincuenta minutos a algo que no se cierra nunca: pura mentira.
+  it("la escrita libre no enseña reloj y lo dice en el aviso", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibre()} />);
+    expect(html).not.toContain("50 minutos");
+    expect(html).toContain("sin reloj");
   });
 
   // Mutación que la mata: encaminar la escrita ANTES del <VolverAInicio> de
@@ -1243,7 +1264,7 @@ describe("la escrita", () => {
   // que el reloj se para, no.
   it("solo avisa de que el reloj sigue cuando de verdad corre", () => {
     expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("El reloj sigue corriendo.");
-    for (const cara of [escritaSinEmpezar(), escritaEsperando(), escritaCorregida(), escritaLibre()]) {
+    for (const cara of [escritaSinEmpezar(), escritaEsperando(), escritaCorregida(), escritaLibreHaciendo()]) {
       expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).not.toContain("El reloj sigue corriendo.");
     }
   });

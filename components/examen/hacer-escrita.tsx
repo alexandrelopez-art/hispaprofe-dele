@@ -271,10 +271,15 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
 }
 
 /**
- * El aviso previo de la escrita. Dice las dos cosas que la separan de la
- * lectura: que el reloj la entrega sola (eso lo comparten) y que la nota no
- * sale al entregar, porque la pone una persona. Un chico que entrega y no ve
- * nota se cree que algo se ha roto: por eso se avisa ANTES.
+ * El aviso previo de la escrita. En un examen de verdad dice las dos cosas que
+ * la separan de la lectura: que el reloj la entrega sola (eso lo comparten) y
+ * que la nota no sale al entregar, porque la pone una persona. En práctica
+ * libre no hay reloj —se escribe sin cronómetro—, pero el resto es IGUAL: se
+ * guarda, se manda cuando el estudiante quiera y entra en la cola del
+ * profesor igual que en un examen de verdad; por eso el aviso dice que, en
+ * cuanto se manda, ya no se puede cambiar (spec §9: la escrita es la única
+ * prueba que en libre crea intento y se entrega de verdad). Un chico que
+ * entrega y no ve nota se cree que algo se ha roto: por eso se avisa ANTES.
  */
 function AvisoDeLaEscrita({
   prueba, alEmpezar, enviando, error,
@@ -284,12 +289,20 @@ function AvisoDeLaEscrita({
   enviando: boolean;
   error: string | null;
 }) {
+  const libre = prueba.modo === "LIBRE";
   return (
     <section className={CAJA}>
       <h1 className="text-xl font-bold">
         {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
       </h1>
-      <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
+      {libre ? (
+        <p>
+          Esto es práctica: escribes <strong>sin reloj</strong> y lo mandas cuando quieras. Cuando lo mandes, ya no
+          se puede cambiar.
+        </p>
+      ) : (
+        <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
+      )}
       <p>Lo que escribas se va guardando mientras escribes. La nota no sale al entregar: la pone tu profesor.</p>
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
@@ -372,6 +385,8 @@ export function PreguntaDeEntrega({
 function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const router = useRouter();
   const examenId = prueba.examen.id;
+  // El reloj es del examen de verdad. En libre no hay ninguno que enseñar.
+  const conReloj = prueba.modo === "COMPLETO" && prueba.minutos !== null;
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
   const [error, setError] = useState<string | null>(null);
   const [bloqueadaPorError, setBloqueadaPorError] = useState(false);
@@ -451,7 +466,7 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-4">
-        {prueba.minutos !== null && prueba.segundosQueQuedan !== null && (
+        {conReloj && prueba.segundosQueQuedan !== null && (
           <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
         )}
         {/* El cartelito del guardado, al lado del reloj: es lo que le dice al
@@ -596,43 +611,19 @@ function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
 }
 
 /**
- * Práctica libre: se escribe para practicar y ya está. No hay reloj ni entrega
- * —no hay intento que abrir ni que cerrar— y tampoco se guarda nada: el
- * borrador vive en el navegador, porque `guardarEscrito` exige una prueba
- * empezada y en libre no la hay. Se dice, que es lo que no se puede callar.
- */
-function EscritaLibre({ prueba }: { prueba: PruebaParaHacer }) {
-  const [borradores, setBorradores] = useState<Record<number, Borrador>>(() => borradoresDe(prueba));
-  const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
-  const tarea = prueba.tareas.find((t) => t.numero === tareaAbierta) ?? prueba.tareas[0];
-  const borrador = borradores[tareaAbierta] ?? BORRADOR_VACIO;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-tinta-suave">
-        Práctica libre: escribe todo lo que quieras. Esto no se guarda ni lo corrige nadie — la escrita la corrige tu
-        profesor cuando la haces en un examen asignado.
-      </p>
-      <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
-      {tarea && (
-        <TareaDeEscrita
-          tarea={tarea}
-          borrador={borrador}
-          bloqueado={false}
-          alEscribir={(texto) => setBorradores((b) => ({ ...b, [tareaAbierta]: conTexto(b[tareaAbierta] ?? BORRADOR_VACIO, texto) }))}
-          alElegir={(opcion) => setBorradores((b) => ({ ...b, [tareaAbierta]: conOpcion(b[tareaAbierta] ?? BORRADOR_VACIO, opcion) }))}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
  * El armazón de la escrita: las mismas cuatro caras que la lectura, pero con
  * folios en vez de letras. Lleva su propio <VolverAInicio> porque el
  * encaminado de HacerPrueba manda aquí ANTES de llegar al suyo: sin esto, la
  * escrita nacería con el mismo callejón sin salida que ya costó una ronda en
  * la lectura.
+ *
+ * `modo` NO añade una quinta cara. La escrita es la única prueba que en
+ * práctica libre crea intento y se entrega de verdad (spec §9): las mismas
+ * cuatro caras del examen completo sirven igual, sin reloj —eso lo deciden
+ * `AvisoDeLaEscrita` y `EscritaHaciendo` mirando `prueba.modo`, no el
+ * encaminado de aquí—. Una cara aparte que dijera «no se guarda» estaría
+ * mintiendo: en libre la escrita se guarda y se manda igual que en un examen
+ * de verdad.
  */
 export function HacerEscrita({ prueba }: { prueba: PruebaParaHacer }) {
   const router = useRouter();
@@ -648,8 +639,7 @@ export function HacerEscrita({ prueba }: { prueba: PruebaParaHacer }) {
   }
 
   const cara =
-    prueba.modo === "LIBRE" ? <EscritaLibre prueba={prueba} />
-    : prueba.estado.estado === "SIN_EMPEZAR" ? <AvisoDeLaEscrita prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />
+    prueba.estado.estado === "SIN_EMPEZAR" ? <AvisoDeLaEscrita prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />
     : !estaEntregada(prueba.estado) ? <EscritaHaciendo prueba={prueba} />
     : estaCorregida(prueba) ? <EscritaCorregida prueba={prueba} />
     : <EscritaEsperando prueba={prueba} />;
