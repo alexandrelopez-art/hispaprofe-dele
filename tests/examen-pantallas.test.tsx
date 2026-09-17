@@ -954,12 +954,16 @@ describe("el folio", () => {
   });
 
   // Mutación que la mata: ignorar `bloqueado`. En la prueba entregada el folio
-  // tiene que estar apagado de verdad, no solo parecerlo.
+  // tiene que estar apagado de verdad, no solo parecerlo. Ojo: la propia
+  // clase `disabled:bg-tinta-suave/5` contiene la palabra «disabled», así
+  // que un `toContain("disabled")` a secas pasaría aunque se borrara el
+  // atributo. Hay que mirar el `<textarea>` y su atributo real.
   it("bloqueado no se puede escribir", () => {
     const html = renderToStaticMarkup(
       <Folio texto="Ya está" rango={{ min: null, max: null }} bloqueado alEscribir={() => {}} />,
     );
-    expect(html).toContain("disabled");
+    const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
+    expect(textarea).toContain('disabled=""');
   });
 });
 
@@ -967,13 +971,29 @@ describe("el enunciado de la escrita", () => {
   // Mutación que la mata: pintar todas las opciones como si estuvieran
   // elegidas, o no marcar la elegida. El estudiante no sabría sobre cuál
   // escribe, y es lo único que distingue su tarea 2 de la del de al lado.
+  // Cuenta las apariciones de `checked=""`, no solo si hay alguna: con
+  // `checked={true}` fijo, las DOS opciones saldrían marcadas y una prueba
+  // que solo mirase "hay al menos una" no lo vería.
   it("la tarea 2 marca la opción elegida", () => {
     const html = renderToStaticMarkup(
       <EnunciadoDeEscrita formulario={escritaDos()} opcionElegida={2} alElegir={() => {}} />,
     );
     expect(html).toContain("Opción 1");
     expect(html).toContain("Opción 2");
-    expect(html).toContain('checked=""');
+    expect(html.match(/checked=""/g) ?? []).toHaveLength(1);
+  });
+
+  // Mutación que la mata: dejar el `disabled={bloqueado || !alElegir}` solo
+  // con `!alElegir` (o quitarlo). Con la escrita bloqueada, el estudiante no
+  // debe poder cambiar de opción aunque llegue `alElegir`. Se mira el
+  // atributo de cada `<input>`, no una clase que se llame parecido.
+  it("bloqueado no se puede elegir otra opción", () => {
+    const html = renderToStaticMarkup(
+      <EnunciadoDeEscrita formulario={escritaDos()} opcionElegida={1} alElegir={() => {}} bloqueado />,
+    );
+    const inputs = html.match(/<input[^>]*>/g) ?? [];
+    expect(inputs).toHaveLength(2);
+    expect(inputs.every((tag) => tag.includes('disabled=""'))).toBe(true);
   });
 
   // Mutación que la mata: no pintar el texto recibido. En la tarea 1 es el
