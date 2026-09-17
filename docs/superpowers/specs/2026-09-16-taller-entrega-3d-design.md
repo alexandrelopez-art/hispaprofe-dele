@@ -293,9 +293,17 @@ Dos detalles más que se decidieron al escribirlo:
 
 - **Salir dos veces sin que llegue la vuelta es UNA ausencia**, contada desde la primera
   (`salioEn: null` en el `where`).
-- **Al entregar, la ausencia abierta se cierra sin contarla.** No se sabe cuándo volvió, y
-  apuntarle «estuvo fuera hasta que el reloj cerró» sería inventarle al profesor el dato más
-  gordo del registro. Dejarla puesta sería peor.
+- **La ausencia que sigue abierta cuando la prueba se cierra SÍ se cuenta**, y la línea lo
+  dice con esas palabras: «De esa última no volvió: la prueba se cerró con él fuera». Es el
+  caso más sospechoso de todos —se fue, no volvió, y la prueba la cerró el reloj por él— y
+  antes le llegaba al profesor con CERO salidas: un agujero justo en el sitio donde el
+  registro hace falta. Vale por las dos puertas: el botón «Entregar» y el cierre por reloj.
+- **Pero no se inventa tiempo más allá del cierre.** El cierre por reloj ocurre cuando
+  alguien MIRA la pantalla, que pueden ser tres días después. Esa ausencia se cuenta hasta el
+  momento en que la prueba dejó de poder escribirse —`empezadaEn` más sus minutos— o hasta el
+  cierre si llega antes; lo menor de los dos.
+- **La bandera habla siempre de la ÚLTIMA salida**: se apaga en cuanto vuelve de una
+  posterior. Si no, quien abandonó una vez seguiría saliendo como que abandonó.
 
 ## 10. Errores
 
@@ -363,6 +371,11 @@ Con el examen 1, ya publicado, y un estudiante de verdad:
     entregar y abrirla en «Por corregir», el profesor lee una línea con **cuatro salidas** y
     un tiempo que cuadra con lo que tardó — y la tarea desde la que salió la última vez. Con
     un examen de **práctica libre**, lo mismo no apunta nada.
+12. **El abandono.** Con otro estudiante: empieza la escrita, escribe un par de líneas,
+    **se va y no vuelve**. Cuando el profesor abra «Por corregir» —al día siguiente vale—, esa
+    redacción está entregada por tiempo y su línea dice que salió una vez, con un tiempo que
+    **no pasa de los cincuenta minutos de la prueba** por muchos días que hayan pasado, y que
+    **de esa última no volvió**.
 
 ## 13. Lo que sigue abierto
 

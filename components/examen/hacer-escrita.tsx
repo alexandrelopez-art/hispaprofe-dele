@@ -347,10 +347,24 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     if (!conReloj) return;
     const alCambiarLaVista = () => {
       if (document.visibilityState === "hidden") {
-        // Se apunta la salida Y se manda lo pendiente. Lo segundo es nuevo:
-        // mientras salirse costaba el folio, NO descargar aquí era la regla.
-        // Ahora no se borra nada, así que perder lo tecleado al bloquear el
-        // móvil no defiende nada — es solo trabajo de un chaval tirado.
+        // Se apunta la salida Y se manda lo pendiente.
+        //
+        // Lo segundo tiene historia, y conviene contarla entera porque aquí es
+        // donde alguien, dentro de seis meses, va a creer que encontró un
+        // descuido y lo va a «arreglar» al revés:
+        //
+        // - ANTES, salirse de la pantalla COSTABA la tarea. Entonces no
+        //   descargar aquí era la regla, no un olvido: guardar al ocultarse
+        //   habría sido guardar justo lo que se había decidido no guardar.
+        // - AHORA no se borra nada: las salidas se apuntan y las ve el profesor.
+        //   Sin regla que defender, perder lo tecleado al bloquear el móvil no
+        //   protege a nadie de nada — es trabajo de un chaval tirado por un
+        //   temporizador que se congeló.
+        //
+        // Por eso se descarga. Lo que sigue sin poder prometerse es que la
+        // petición LLEGUE: el navegador puede matarla a medias con la pestaña
+        // muriéndose, y una acción de servidor no se puede mandar por
+        // `sendBeacon`. El tope de quince segundos acota cuánto se pierde.
         avisarDeLaSalida();
         descargar();
         return;

@@ -149,6 +149,8 @@ export type ResumenDeSalidas = {
   segundosFuera: number;
   ultimaSalidaEn: Date | null;
   ultimaSalidaDeTarea: number | null;
+  /** Si de la última salida ya no volvió: la prueba se cerró con él fuera. */
+  ultimaSalidaSinVuelta: boolean;
 };
 
 /**

@@ -328,6 +328,13 @@ model Intento {
   segundosFuera       Int       @default(0)
   ultimaSalidaEn      DateTime?
   ultimaSalidaDeTarea Int?
+  /// Si de esa última salida ya no volvió: la prueba se cerró con él fuera, por
+  /// el botón de otro o por el reloj. Es el caso más sospechoso de todos, y
+  /// antes era justo el que llegaba al profesor con cero salidas — un agujero en
+  /// el sitio exacto donde el registro hace falta. Se pone al cerrar la prueba
+  /// con una ausencia abierta y se quita en cuanto vuelve de una salida
+  /// posterior, así que siempre habla de la ÚLTIMA.
+  ultimaSalidaSinVuelta Boolean @default(false)
 
   /// Cuándo firmó el profesor la corrección de la escrita. null = esperando.
   /// Lo que dice si una escrita está corregida es ESTE campo, no `bandas`:

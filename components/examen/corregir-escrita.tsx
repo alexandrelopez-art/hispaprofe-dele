@@ -33,6 +33,10 @@ export function SalidasDelEstudiante({ resumen }: { resumen: ResumenDeSalidas })
       total
       {resumen.ultimaSalidaEn !== null && `; la última, el ${fechaHoraEnPalabras(resumen.ultimaSalidaEn)}`}
       {resumen.ultimaSalidaDeTarea !== null && `, desde la tarea ${resumen.ultimaSalidaDeTarea}`}.
+      {/* El caso que más le dice: se fue y la prueba se cerró con él fuera. Se
+          nombra con todas las letras, porque el tiempo de esa última ausencia se
+          cuenta solo hasta el cierre y no hasta que alguien miró la pantalla. */}
+      {resumen.ultimaSalidaSinVuelta && " De esa última no volvió: la prueba se cerró con él fuera."}
     </p>
   );
 }

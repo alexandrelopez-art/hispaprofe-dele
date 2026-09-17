@@ -99,6 +99,7 @@ async function cerrarIntento(
   respuestas: readonly { numero: number; letra: string }[],
   ahora: Date,
   porTiempo: boolean,
+  reloj: { empezadaEn: Date; minutos: number | null },
 ): Promise<void> {
   const nota =
     prueba === "EE"
@@ -115,15 +116,63 @@ async function cerrarIntento(
       aciertos: nota?.aciertos ?? null,
       total: nota?.total ?? null,
       fallos: nota ? nota.fallos.map((f) => f.numero) : [],
-      // La ausencia que quedara abierta se cierra aquí, y NO se cuenta: si se
-      // fue y no volvió, no sabemos cuándo volvió, y apuntarle «estuvo fuera
-      // hasta que el reloj cerró» sería inventarle al profesor el dato más
-      // gordo del registro. Dejarla puesta sería peor: la siguiente pantalla
-      // que mirara la contaría entera.
-      salioEn: null,
-      salioDeTarea: null,
+      ...(await ausenciaSinVuelta(intentoId, ahora, reloj)),
     },
   });
+}
+
+/**
+ * La ausencia que sigue ABIERTA cuando la prueba se cierra —por el botón o por
+ * el reloj— y lo que hay que apuntar de ella.
+ *
+ * **Se cuenta.** Es el caso más sospechoso de todos: se fue, no volvió, y la
+ * prueba la cerró el reloj por él. Antes se limpiaba sin contar, y entonces ese
+ * chico le llegaba al profesor con cero salidas — un agujero en el sitio exacto
+ * donde el registro hace falta.
+ *
+ * **Hasta dónde se cuenta, y ni un segundo más.** No hasta `ahora`: el cierre por
+ * reloj ocurre cuando alguien MIRA la pantalla, que pueden ser tres días
+ * después, y apuntarle «estuvo fuera tres días» sería inventar el dato más gordo
+ * del registro. Se cuenta hasta el momento en que la prueba dejó de poder
+ * escribirse —`empezadaEn` más sus minutos—, o hasta `ahora` si el cierre llega
+ * antes (el botón «Entregar»). Lo que salga menor de los dos.
+ *
+ * Sin reloj (`minutos === null`) no hay tope que aplicar, pero tampoco puede
+ * haber marca: la marca solo se pone en modo COMPLETO.
+ *
+ * La misma red que en la vuelta normal: una marca ANTERIOR a la última vuelta es
+ * de una ausencia ya contada —dos peticiones que se cruzaron—, se limpia y no
+ * suma.
+ *
+ * Devuelve el trozo de `data` que hay que añadir al cierre, para que contar la
+ * ausencia y entregar sean UNA escritura: si fueran dos, un cierre a medias
+ * dejaría la marca puesta sobre una prueba ya entregada, y esa no la recoge
+ * nadie (`registrarLasVueltas` solo mira las que siguen abiertas).
+ */
+async function ausenciaSinVuelta(
+  intentoId: string,
+  ahora: Date,
+  reloj: { empezadaEn: Date; minutos: number | null },
+) {
+  const limpia = { salioEn: null, salioDeTarea: null };
+  const marca = await prisma.intento.findUnique({
+    where: { id: intentoId },
+    select: { salioEn: true, salioDeTarea: true, volvioEn: true },
+  });
+  if (!marca?.salioEn) return limpia;
+  if (marca.volvioEn !== null && marca.salioEn <= marca.volvioEn) return limpia;
+
+  const tope =
+    reloj.minutos === null ? ahora.getTime() : reloj.empezadaEn.getTime() + reloj.minutos * 60_000;
+  const acaba = Math.min(ahora.getTime(), tope);
+  return {
+    ...limpia,
+    salidas: { increment: 1 },
+    segundosFuera: { increment: Math.max(0, Math.floor((acaba - marca.salioEn.getTime()) / 1000)) },
+    ultimaSalidaEn: marca.salioEn,
+    ultimaSalidaDeTarea: marca.salioDeTarea,
+    ultimaSalidaSinVuelta: true,
+  };
 }
 
 /**
@@ -182,7 +231,10 @@ async function abrirLaPrueba(
   // redacción de práctica se cerraría sola a los cincuenta minutos.
   const minutos = minutosConReloj(asignacion.modo, asignacion.examen.nivel, prueba);
   if (intento && seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-    await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, true);
+    await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, true, {
+      empezadaEn: intento.empezadaEn,
+      minutos,
+    });
     return { error: SE_ACABO };
   }
 
@@ -374,6 +426,8 @@ async function cerrarLaAusencia(marca: Marca, ahora: Date): Promise<boolean> {
       segundosFuera: { increment: segundos },
       ultimaSalidaEn: marca.salioEn,
       ultimaSalidaDeTarea: marca.salioDeTarea,
+      // De ESTA sí volvió, y la bandera habla siempre de la última.
+      ultimaSalidaSinVuelta: false,
     },
   });
   return true;
@@ -492,7 +546,10 @@ export async function entregarPrueba(
 
   const intento = abierta.intento!;
   const porTiempo = segundosQueQuedan(intento.empezadaEn, abierta.minutos, ahora) === 0;
-  await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, porTiempo);
+  await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, porTiempo, {
+    empezadaEn: intento.empezadaEn,
+    minutos: abierta.minutos,
+  });
   return {};
 }
 
@@ -523,7 +580,10 @@ export async function cerrarLasQueSePasaron(donde: { personaId: string } | { exa
     // práctica libre se cerraría sola igual, aunque la pantalla no pintara reloj.
     const minutos = minutosConReloj(intento.asignacion.modo, intento.asignacion.examen.nivel, intento.prueba);
     if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
-      await cerrarIntento(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true);
+      await cerrarIntento(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true, {
+        empezadaEn: intento.empezadaEn,
+        minutos,
+      });
     }
   }
 }

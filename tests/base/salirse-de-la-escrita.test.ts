@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import type { Asignacion, Examen, Persona } from "@/lib/generated/prisma";
 import { crearExamenDePruebas } from "../ayudas/examen-de-pruebas";
 import {
+  cerrarLasQueSePasaron,
   empezarPrueba,
   entregarPrueba,
   guardarEscrito,
@@ -52,6 +53,7 @@ async function registro() {
     segundosFuera: i.segundosFuera,
     ultimaSalidaEn: i.ultimaSalidaEn,
     ultimaSalidaDeTarea: i.ultimaSalidaDeTarea,
+    ultimaSalidaSinVuelta: i.ultimaSalidaSinVuelta,
   };
 }
 
@@ -114,6 +116,7 @@ describe("lo que se apunta de una salida", () => {
       segundosFuera: 95,
       ultimaSalidaEn: AHORA,
       ultimaSalidaDeTarea: 2,
+      ultimaSalidaSinVuelta: false,
     });
     // Y la marca viva queda limpia: la ausencia ya está contada.
     expect(await marca()).toEqual({ salioEn: null, salioDeTarea: null });
@@ -137,6 +140,7 @@ describe("lo que se apunta de una salida", () => {
       segundosFuera: 5 + 30 + 20,
       ultimaSalidaEn: enSegundos(100),
       ultimaSalidaDeTarea: 2,
+      ultimaSalidaSinVuelta: false,
     });
   });
 
@@ -157,6 +161,7 @@ describe("lo que se apunta de una salida", () => {
       segundosFuera: 60,
       ultimaSalidaEn: AHORA,
       ultimaSalidaDeTarea: 1,
+      ultimaSalidaSinVuelta: false,
     });
   });
 
@@ -341,24 +346,106 @@ describe("con la prueba entregada", () => {
     expect(await registro()).toMatchObject({ salidas: 1, segundosFuera: 60 });
   });
 
-  // Mutación que la mata: no limpiar `salioEn`/`salioDeTarea` al entregar. La
-  // marca quedaría pegada para siempre, y —peor— un intento entregado con marca
-  // es justo el que el resolvedor tendría que ignorar: si alguien quitara ese
-  // filtro, la ausencia se contaría entera. Se limpia y NO se cuenta: no se sabe
-  // cuándo volvió, y apuntarle cincuenta minutos fuera sería inventárselos.
-  it("entregar con una ausencia abierta la cierra sin contarla", async () => {
+  // EL caso que faltaba, y el más sospechoso de todos: se fue, no volvió, y la
+  // prueba la cerró el reloj por él. Antes se limpiaba la marca SIN contarla, y
+  // entonces ese chico le llegaba al profesor con cero salidas — un agujero
+  // justo en el sitio donde el registro hace falta.
+  //
+  // El tiempo se cuenta hasta el CIERRE de la prueba (`empezadaEn` más sus
+  // cincuenta minutos), NO hasta el momento en que alguien miró la pantalla: el
+  // cierre por reloj puede llegar tres días después, y apuntarle tres días fuera
+  // sería inventar el dato más gordo del registro.
+  //
+  // Mutación que la mata: volver a limpiar la marca sin contarla, o contar hasta
+  // `ahora` en vez de hasta el tope del reloj.
+  it("el reloj la cierra con él fuera: la ausencia se cuenta, y solo hasta el cierre", async () => {
+    await conLasDosTareasEscritas();
+    // Se va a los diez minutos y no vuelve nunca.
+    await salirDeLaEscrita(examen.id, ana.id, 2, enSegundos(600));
+
+    // Nadie mira la pantalla hasta tres días después. Ahí la cierra el reloj.
+    const tresDias = new Date(AHORA.getTime() + 3 * 24 * 60 * 60_000);
+    await cerrarLasQueSePasaron({ personaId: ana.id }, tresDias);
+
+    // 50 minutos de prueba menos los 10 que llevaba escritos: 40 minutos fuera.
+    expect(await registro()).toEqual({
+      salidas: 1,
+      segundosFuera: 40 * 60,
+      ultimaSalidaEn: enSegundos(600),
+      ultimaSalidaDeTarea: 2,
+      ultimaSalidaSinVuelta: true,
+    });
+    expect(await marca()).toEqual({ salioEn: null, salioDeTarea: null });
+    // Y lo que hubiera escrito sigue entero: nunca se borra nada.
+    expect(await textos()).toEqual(["Mi carta para el sábado", "Mi día en el instituto"]);
+  });
+
+  // El mismo caso por la otra puerta: la prueba se cierra con el botón mientras
+  // él está fuera. Aquí el cierre llega ANTES del tope del reloj, así que manda
+  // el cierre: no se cuenta ni un segundo más allá.
+  //
+  // Mutación que la mata: contar siempre hasta el tope del reloj en vez de hasta
+  // el menor de los dos. A quien entregó en el minuto doce se le apuntarían
+  // treinta y ocho minutos fuera que no existieron.
+  it("entregar con él fuera también cuenta, y solo hasta la entrega", async () => {
+    await conLasDosTareasEscritas();
+    await salirDeLaEscrita(examen.id, ana.id, 1, enSegundos(120));
+
+    // La entrega la manda la propia pantalla a los cinco minutos.
+    expect(await entregarPrueba(examen.id, "EE", ana.id, enSegundos(300))).toEqual({});
+
+    expect(await registro()).toEqual({
+      salidas: 1,
+      segundosFuera: 180,
+      ultimaSalidaEn: enSegundos(120),
+      ultimaSalidaDeTarea: 1,
+      ultimaSalidaSinVuelta: true,
+    });
+  });
+
+  // Mutación que la mata: dejar `ultimaSalidaSinVuelta` puesta para siempre
+  // (quitar el `ultimaSalidaSinVuelta: false` de la vuelta normal). Un chico que
+  // se fue, no volvió de aquella, y en el examen siguiente salió y volvió bien,
+  // seguiría saliendo como que abandonó. La bandera habla de la ÚLTIMA salida.
+  it("si después vuelve de otra salida, la bandera se apaga", async () => {
+    await conLasDosTareasEscritas();
+    // Una que acaba sin vuelta, forzada a mano sobre la marca.
+    await prisma.intento.update({
+      where: { id: (await intento()).id },
+      data: { salidas: 1, segundosFuera: 30, ultimaSalidaEn: AHORA, ultimaSalidaDeTarea: 1, ultimaSalidaSinVuelta: true },
+    });
+
+    await salirDeLaEscrita(examen.id, ana.id, 2, enSegundos(100));
+    await volverALaEscrita(examen.id, ana.id, enSegundos(140));
+
+    expect(await registro()).toEqual({
+      salidas: 2,
+      segundosFuera: 70,
+      ultimaSalidaEn: enSegundos(100),
+      ultimaSalidaDeTarea: 2,
+      ultimaSalidaSinVuelta: false,
+    });
+  });
+
+  // La red de la marca tardía vale también aquí: una marca de una ausencia ya
+  // contada no puede cobrarse otra vez al cerrar la prueba.
+  //
+  // Mutación que la mata: quitar la comprobación `salioEn <= volvioEn` de
+  // `ausenciaSinVuelta`. Al chico que volvió y siguió escribiendo se le apuntaría
+  // un abandono que no ocurrió, que es la peor línea posible en esa pantalla.
+  it("una marca que llegó tarde no se convierte en un abandono al cerrar", async () => {
     await conLasDosTareasEscritas();
     await salirDeLaEscrita(examen.id, ana.id, 1, AHORA);
-    // Se le acaba el tiempo estando fuera: la cierra el reloj, no él. La guarda
-    // entrega y devuelve el error en la misma noticia.
-    const tarde = new Date(AHORA.getTime() + 51 * 60_000);
-    expect(await entregarPrueba(examen.id, "EE", ana.id, tarde)).toEqual({ error: "Se acabó el tiempo." });
-    expect((await intento()).porTiempo).toBe(true);
+    await volverALaEscrita(examen.id, ana.id, enSegundos(5));
+    // Y ahora aterriza el «me voy» que se había quedado en el aire.
+    await prisma.intento.update({
+      where: { id: (await intento()).id },
+      data: { salioEn: AHORA, salioDeTarea: 1 },
+    });
 
-    expect(await marca()).toEqual({ salioEn: null, salioDeTarea: null });
-    expect(await registro()).toMatchObject({ salidas: 0, segundosFuera: 0 });
-    // Y lo entregado sigue entero: nunca se borra nada.
-    expect(await textos()).toEqual(["Mi carta para el sábado", "Mi día en el instituto"]);
+    expect(await entregarPrueba(examen.id, "EE", ana.id, enSegundos(600))).toEqual({});
+
+    expect(await registro()).toMatchObject({ salidas: 1, segundosFuera: 5, ultimaSalidaSinVuelta: false });
   });
 });
 
@@ -379,6 +466,31 @@ describe("lo que ve el profesor", () => {
       segundosFuera: 60,
       ultimaSalidaEn: enSegundos(10),
       ultimaSalidaDeTarea: 2,
+      ultimaSalidaSinVuelta: false,
+    });
+  });
+
+  // El abandono, de punta a punta: se va, no vuelve, se la cierra el reloj, y el
+  // profesor lo lee. Es el camino entero del caso que antes le llegaba con cero
+  // salidas.
+  //
+  // Mutación que la mata: no llevar `ultimaSalidaSinVuelta` a `escritoParaCorregir`
+  // (dejarlo en `false` fijo). El profesor vería «salió 1 vez, 40 minutos» sin
+  // saber que esos cuarenta minutos acaban en que no volvió — que es lo que
+  // separa una consulta larga de un abandono.
+  it("el abandono llega entero a la pantalla de corregir", async () => {
+    await conLasDosTareasEscritas();
+    await salirDeLaEscrita(examen.id, ana.id, 2, enSegundos(600));
+    await cerrarLasQueSePasaron({ personaId: ana.id }, new Date(AHORA.getTime() + 3 * 24 * 60 * 60_000));
+
+    const para = await escritoParaCorregir((await intento()).id, new Date(AHORA.getTime() + 4 * 24 * 60 * 60_000));
+
+    expect(para!.salidas).toEqual({
+      salidas: 1,
+      segundosFuera: 40 * 60,
+      ultimaSalidaEn: enSegundos(600),
+      ultimaSalidaDeTarea: 2,
+      ultimaSalidaSinVuelta: true,
     });
   });
 
@@ -396,6 +508,7 @@ describe("lo que ve el profesor", () => {
       segundosFuera: 0,
       ultimaSalidaEn: null,
       ultimaSalidaDeTarea: null,
+      ultimaSalidaSinVuelta: false,
     });
   });
 });

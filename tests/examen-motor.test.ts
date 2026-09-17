@@ -88,7 +88,13 @@ describe("el reloj", () => {
 });
 
 describe("el registro de salidas, en palabras", () => {
-  const sinSalidas = { salidas: 0, segundosFuera: 0, ultimaSalidaEn: null, ultimaSalidaDeTarea: null };
+  const sinSalidas = {
+    salidas: 0,
+    segundosFuera: 0,
+    ultimaSalidaEn: null,
+    ultimaSalidaDeTarea: null,
+    ultimaSalidaSinVuelta: false,
+  };
 
   // Mutación que la mata: mirar `segundosFuera > 0` en vez de `salidas > 0`.
   // Tres salidas de un segundo cada una son tres salidas y el profesor tiene que

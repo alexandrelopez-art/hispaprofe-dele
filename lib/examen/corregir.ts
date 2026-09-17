@@ -112,6 +112,7 @@ export async function escritoParaCorregir(intentoId: string, ahora: Date): Promi
     select: {
       id: true, prueba: true, entregadaEn: true, porTiempo: true, corregidaEn: true,
       salidas: true, segundosFuera: true, ultimaSalidaEn: true, ultimaSalidaDeTarea: true,
+      ultimaSalidaSinVuelta: true,
       escritos: { select: { tarea: true, opcion: true, texto: true, palabras: true, bandas: true, comentario: true } },
       asignacion: {
         select: {
@@ -168,6 +169,7 @@ export async function escritoParaCorregir(intentoId: string, ahora: Date): Promi
       segundosFuera: intento.segundosFuera,
       ultimaSalidaEn: intento.ultimaSalidaEn,
       ultimaSalidaDeTarea: intento.ultimaSalidaDeTarea,
+      ultimaSalidaSinVuelta: intento.ultimaSalidaSinVuelta,
     },
     siguiente,
   };

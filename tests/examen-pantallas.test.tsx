@@ -1586,7 +1586,13 @@ function paraCorregirDePrueba(extra: Partial<ParaCorregir> = {}): ParaCorregir {
     porTiempo: false,
     corregidaEn: null,
     puntos: 24,
-    salidas: { salidas: 0, segundosFuera: 0, ultimaSalidaEn: null, ultimaSalidaDeTarea: null },
+    salidas: {
+      salidas: 0,
+      segundosFuera: 0,
+      ultimaSalidaEn: null,
+      ultimaSalidaDeTarea: null,
+      ultimaSalidaSinVuelta: false,
+    },
     tareas: [
       tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null),
       tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2),
@@ -1696,6 +1702,7 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
         segundosFuera: 240,
         ultimaSalidaEn: new Date("2026-09-15T08:42:00.000Z"),
         ultimaSalidaDeTarea: 2,
+        ultimaSalidaSinVuelta: false,
         ...extra,
       },
     });
@@ -1735,12 +1742,41 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
     expect(html).toContain("la última, el 15 de septiembre de 2026");
   });
 
+  // El caso más sospechoso de todos: se fue, no volvió, y la prueba la cerró el
+  // reloj por él. Antes ese chico le llegaba al profesor con CERO salidas, que
+  // era un agujero justo en el sitio donde el registro hace falta.
+  //
+  // Mutación que la mata: no pintar la frase de la última sin vuelta (quitar el
+  // `resumen.ultimaSalidaSinVuelta &&`). El profesor vería «salió 1 vez, 12
+  // minutos» y no sabría que esos doce minutos acaban en que no volvió, que es
+  // lo que separa una consulta larga de un abandono.
+  it("la línea dice cuándo de la última salida ya no volvió", () => {
+    const html = renderToStaticMarkup(<SalidasDelEstudiante resumen={conSalidas({ ultimaSalidaSinVuelta: true }).salidas} />);
+    expect(html).toContain("De esa última no volvió: la prueba se cerró con él fuera.");
+  });
+
+  // Mutación que la mata: pintar la frase siempre. A quien se fue y volvió —que
+  // es lo normal— se le diría que abandonó la prueba, y el profesor hablaría con
+  // él de algo que no pasó.
+  it("quien volvió de su última salida no sale como que abandonó", () => {
+    const html = renderToStaticMarkup(<SalidasDelEstudiante resumen={conSalidas().salidas} />);
+    expect(html).not.toContain("no volvió");
+  });
+
   // Mutación que la mata: pintar la hora y la tarea aunque vengan a null. Un
   // registro que dijera «la última, el null» es exactamente el tipo de línea que
   // hace que el profesor deje de fiarse del dato entero.
   it("sin hora ni tarea de la última salida, no se las inventa", () => {
     const html = renderToStaticMarkup(
-      <SalidasDelEstudiante resumen={{ salidas: 1, segundosFuera: 8, ultimaSalidaEn: null, ultimaSalidaDeTarea: null }} />,
+      <SalidasDelEstudiante
+        resumen={{
+          salidas: 1,
+          segundosFuera: 8,
+          ultimaSalidaEn: null,
+          ultimaSalidaDeTarea: null,
+          ultimaSalidaSinVuelta: false,
+        }}
+      />,
     );
     expect(html).toContain("Salió de la pantalla 1 vez, 8 segundos en total");
     expect(html).not.toContain("la última");
