@@ -10,6 +10,7 @@ import { diasEntre } from "@/lib/tiempo/madrid";
 const NOTA_MALA = "Esa nota no vale.";
 const TAREA_MALA = "Esa tarea no existe.";
 const SIN_ENTREGAR = "Esa prueba todavía no está entregada.";
+const CORRECCION_A_MEDIAS = "Faltan notas en alguna tarea: no se puede firmar a medias.";
 
 export type EnLaCola = {
   intentoId: string;
@@ -161,6 +162,14 @@ export async function escritoParaCorregir(intentoId: string, ahora: Date): Promi
  * La suma se hace sobre TODOS los escritos del intento después de aplicar lo
  * que llega, no solo sobre lo que llega: corregir solo la tarea 2 no puede
  * borrar la nota de la 1.
+ *
+ * Tampoco firma si, tras aplicar lo que llega, a alguna tarea de la escrita
+ * de este examen le faltan sus cuatro bandas: firmar es un acto deliberado, y
+ * `corregidaEn` es del intento entero, no de una tarea suelta. Esta es la
+ * única puerta por la que se guarda una corrección —la pantalla ya obliga a
+ * rellenar las ocho casillas antes de guardar—, así que es aquí donde tiene
+ * que estar la regla de verdad: una llamada a mano a la acción no puede
+ * esquivar la pantalla.
  */
 export async function guardarCorreccion(
   intentoId: string,
@@ -194,6 +203,22 @@ export async function guardarCorreccion(
   // Cómo quedan TODOS los escritos después de esta corrección.
   const despues = new Map(intento.escritos.map((e) => [e.tarea, e.bandas as number[]]));
   for (const t of tareas) despues.set(t.tarea, t.bandas);
+
+  // Firmar es un acto con fecha, y siempre entero: si tras aplicar esta
+  // llamada a ALGUNA tarea de la escrita de este examen le faltan sus cuatro
+  // bandas, no se firma nada. Sin esta guarda, corregir solo la tarea 1 de un
+  // examen de dos dejaba `corregidaEn` puesto sobre una tarea sin nota: el
+  // estudiante salía con una nota a la que le faltan los puntos de una tarea
+  // entera, y la redacción salía de la cola sin que nadie la hubiera
+  // terminado de corregir. Mira cómo queda el intento DESPUÉS de aplicar lo
+  // que llega, no lo que llega en esta llamada: corregir de nuevo solo la
+  // tarea 2 cuando la 1 ya quedó firmada entera en una llamada anterior tiene
+  // que seguir funcionando.
+  for (const numero of numerosDelExamen) {
+    const bandasDeEsaTarea = despues.get(numero);
+    if (!bandasDeEsaTarea || bandasDeEsaTarea.length !== CRITERIOS_EE.length) return { error: CORRECCION_A_MEDIAS };
+  }
+
   const total = puntosDeEscrita(intento.asignacion.examen.nivel);
   const aciertos = sumaDeBandas([...despues.values()].map((bandas) => ({ bandas })));
 
