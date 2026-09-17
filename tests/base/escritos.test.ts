@@ -121,8 +121,9 @@ describe("guardar el borrador", () => {
     expect(await guardarEscrito(examen.id, ana.id, 1, "Hola", null, tarde)).toEqual({ error: "Esta prueba ya está entregada." });
   });
 
-  // Mutación que la mata: no mirar el tope. Una columna de texto sin límite es
-  // una invitación a pegar un libro entero desde una dirección pública.
+  // Mutación que la mata: no mirar el tope, o mirarlo con `>=` en vez de `>`
+  // (que rebotaría también el límite exacto). Una columna de texto sin límite
+  // es una invitación a pegar un libro entero desde una dirección pública.
   it("rebota un texto imposible y una tarea que no existe", async () => {
     await empezada();
     expect(await guardarEscrito(examen.id, ana.id, 1, "x".repeat(10_001), null, AHORA)).toEqual({
@@ -130,14 +131,25 @@ describe("guardar el borrador", () => {
     });
     expect(await guardarEscrito(examen.id, ana.id, 7, "Hola", null, AHORA)).toEqual({ error: "Esa tarea no existe." });
     expect(await prisma.escritoDeIntento.count()).toBe(0);
+    // El límite exacto SÍ se guarda: 10.000 letras no es "demasiado largo".
+    expect(await guardarEscrito(examen.id, ana.id, 1, "x".repeat(10_000), null, AHORA)).toEqual({});
+    const escrito = await prisma.escritoDeIntento.findFirstOrThrow({ where: { tarea: 1 } });
+    expect(escrito.texto).toHaveLength(10_000);
+    expect(escrito.palabras).toBe(1);
   });
 
-  // Mutación que la mata: no validar la opción contra las que tiene la tarea.
-  // Una acción de servidor es pública: cualquiera puede mandar la opción 99.
+  // Mutación que la mata: no validar la opción contra las que tiene la tarea,
+  // o dejar solo el tramo `opcion > opciones` y perder el `Number.isInteger`
+  // o el `opcion < 1`. Una acción de servidor es pública: cualquiera puede
+  // mandar la opción 99, o 1,5, o 0, o -1.
   it("rebota una opción que la tarea no tiene", async () => {
     await empezada();
     expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", 99, AHORA)).toEqual({ error: "Esa opción no existe." });
     // Y en la tarea 1, que no tiene opciones, elegir una también rebota.
     expect(await guardarEscrito(examen.id, ana.id, 1, "Hola", 1, AHORA)).toEqual({ error: "Esa opción no existe." });
+    // No entera, ni cero, ni negativa: tampoco son opciones válidas.
+    expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", 1.5, AHORA)).toEqual({ error: "Esa opción no existe." });
+    expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", 0, AHORA)).toEqual({ error: "Esa opción no existe." });
+    expect(await guardarEscrito(examen.id, ana.id, 2, "Hola", -1, AHORA)).toEqual({ error: "Esa opción no existe." });
   });
 });
