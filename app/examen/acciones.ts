@@ -5,7 +5,7 @@ import { exigirPersona } from "@/lib/puerta/sesion-http";
 import { esPrueba } from "@/lib/dele/estructura";
 import type { Prueba } from "@/lib/generated/prisma";
 import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
-import { corregirEnLibre, empezarPrueba, entregarPrueba, guardarRespuesta, marcarTrozo } from "@/lib/examen/hacer";
+import { corregirEnLibre, empezarPrueba, entregarPrueba, guardarEscrito, guardarRespuesta, marcarTrozo } from "@/lib/examen/hacer";
 import type { Nota } from "@/lib/examen/motor";
 
 // Una acción de servidor es una dirección pública: quien la conozca la llama
@@ -70,4 +70,22 @@ export async function corregirEnLibreAccion(examenId: string, prueba: Prueba, re
   const persona = await exigirPersona();
   if (!pruebaValida(prueba)) return { error: NO_SE_HACE };
   return corregirEnLibre(examenId, prueba, persona.id, respuestas);
+}
+
+/**
+ * El borrador. NO revalida la pantalla: se llama cada pocos segundos mientras
+ * el estudiante escribe, y revalidar aquí sería volver a pintar el servidor
+ * doscientas veces por redacción para nada — el texto que se ve ya es el del
+ * navegador. La pantalla se revalida al entregar, que es cuando cambia de cara.
+ *
+ * Sin `prueba` en la firma: el borrador es de la escrita y de ninguna otra.
+ */
+export async function guardarEscritoAccion(
+  examenId: string,
+  tarea: number,
+  texto: string,
+  opcion: number | null,
+): Promise<{ error?: string }> {
+  const persona = await exigirPersona();
+  return guardarEscrito(examenId, persona.id, tarea, texto, opcion, new Date());
 }

@@ -14,6 +14,7 @@ const dobles = vi.hoisted(() => ({
   marcarTrozo: vi.fn(),
   entregarPrueba: vi.fn(),
   corregirEnLibre: vi.fn(),
+  guardarEscrito: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -31,12 +32,14 @@ vi.mock("@/lib/examen/hacer", () => ({
   marcarTrozo: dobles.marcarTrozo,
   entregarPrueba: dobles.entregarPrueba,
   corregirEnLibre: dobles.corregirEnLibre,
+  guardarEscrito: dobles.guardarEscrito,
 }));
 
 import {
   corregirEnLibreAccion,
   empezarPruebaAccion,
   entregarPruebaAccion,
+  guardarEscritoAccion,
   guardarRespuestaAccion,
   marcarTrozoAccion,
 } from "@/app/examen/acciones";
@@ -148,5 +151,25 @@ describe("lo que hace cada acción con la persona ya en sesión", () => {
     expect(dobles.marcarTrozo).not.toHaveBeenCalled();
     expect(dobles.entregarPrueba).not.toHaveBeenCalled();
     expect(dobles.corregirEnLibre).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: pasarle un personaId que venga de fuera en vez de la
+  // sesión. Es la regla de las seis acciones: una dirección pública no puede
+  // decir por quién escribe.
+  it("guardarEscritoAccion escribe por quien tiene la sesión", async () => {
+    dobles.guardarEscrito.mockResolvedValue({});
+    expect(await guardarEscritoAccion("ex1", 1, "Hola", null)).toEqual({});
+    expect(dobles.guardarEscrito).toHaveBeenCalledWith("ex1", ANA.id, 1, "Hola", null, expect.any(Date));
+  });
+});
+
+// Mutación que la mata: quitar exigirPersona de guardarEscritoAccion. Sin
+// sesión, cualquiera escribiría en el examen de otro con solo conocer la
+// dirección.
+describe("guardarEscritoAccion sin sesión", () => {
+  it("no escribe nada", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(null);
+    await expect(guardarEscritoAccion("ex1", 1, "Hola", null)).rejects.toThrow("REDIRECT:/entrar");
+    expect(dobles.guardarEscrito).not.toHaveBeenCalled();
   });
 });
