@@ -35,6 +35,10 @@ export type PruebaParaHacer = {
   respuestas: Record<string, string>;
   fallos: number[];
   escritos: EscritoParaHacer[];
+  /** Cuándo la mandó el estudiante. null = todavía no la ha entregado. La
+   *  escrita pasa días en ESPERANDO, y sin esta fecha su pantalla no puede
+   *  decirle que su redacción llegó (ni cuándo). */
+  entregadaEn: Date | null;
   /** Cuándo firmó el profesor. null = sin corregir (o no es la escrita). */
   corregidaEn: Date | null;
   /** Cómo van las DEMÁS pruebas de este examen: la pantalla de resultado dice qué queda por hacer. */
@@ -123,6 +127,7 @@ export async function pruebaParaHacer(
     respuestas: Object.fromEntries((intento?.respuestas ?? []).map((r) => [String(r.numero), r.letra])),
     fallos: intento?.fallos ?? [],
     escritos,
+    entregadaEn: intento?.entregadaEn ?? null,
     corregidaEn: firmada,
     otras: PRUEBAS_QUE_SE_HACEN.filter((otra) => otra !== prueba).map((otra) => ({
       prueba: otra,

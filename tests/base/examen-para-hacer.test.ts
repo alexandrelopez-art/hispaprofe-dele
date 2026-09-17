@@ -132,6 +132,11 @@ describe("la escrita para hacer", () => {
 
     const sinFirmar = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
     expect(sinFirmar!.estado.estado).toBe("ESPERANDO");
+    // Mutación que mata esto solo: devolver `entregadaEn: null` (o la fecha de
+    // la firma). La cara de espera de la escrita dice «la mandaste el …», y sin
+    // esta fecha un chico que lleva días esperando no sabe si su redacción
+    // llegó. El estado no lo cubre: ESPERANDO sale igual con fecha o sin ella.
+    expect(sinFirmar!.entregadaEn).toEqual(AHORA);
     expect(sinFirmar!.escritos[0]!.correccion).toBeNull();
     // Mutación que mata esto solo: cambiar `corregidaEn: firmada` por
     // `corregidaEn: null` en paraHacer.ts. El resto de la prueba seguiría en
@@ -157,6 +162,8 @@ describe("la escrita para hacer", () => {
     await guardarEscrito(examen.id, ana.id, 2, "Elijo la dos", 2, AHORA);
     const leida = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
     expect(leida!.escritos).toEqual([{ tarea: 2, opcion: 2, texto: "Elijo la dos", palabras: 3, correccion: null }]);
+    // El otro lado de la fecha: empezada y sin entregar, no hay fecha que dar.
+    expect(leida!.entregadaEn).toBeNull();
     expect(leida!.minutos).toBe(50);
     expect(leida!.tareas.map((t) => t.numero)).toEqual([1, 2]);
   });

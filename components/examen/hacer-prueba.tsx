@@ -16,19 +16,15 @@ import {
   marcarTrozoAccion,
 } from "@/app/examen/acciones";
 import { Cinta } from "@/components/examen/cinta";
+// Las piezas comunes con la escrita viven en su propio fichero: ver el
+// comentario de piezas.tsx (era un círculo de imports entre las dos pantallas).
+import { AVISO_DE_ERROR, BOTON, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
 import { HacerEscrita } from "@/components/examen/hacer-escrita";
 import { Reloj } from "@/components/examen/reloj";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 
 type Marcadas = Record<string, string>;
 type NotaDeTarea = { aciertos: number; total: number; fallos: number[] };
-
-// Exportadas para que hacer-escrita.tsx vista sus cuatro caras igual que estas:
-// son la misma pantalla del mismo examen, y dos cajas que se parezcan «casi»
-// se notan en cuanto se pasa de la lectura a la escrita.
-export const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
-export const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
-export const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
 
 function totalDePreguntas(tareas: TareaParaHacer[]): number {
   return tareas.reduce((n, t) => n + (t.regla.items ?? 0), 0);
@@ -144,45 +140,6 @@ function AvisoPrevio({
         Empezar
       </button>
     </section>
-  );
-}
-
-/**
- * Las pestañas de las cuatro tareas. Cambiar de pestaña es solo estado local:
- * no va al servidor.
- *
- * `bloqueadas` las apaga mientras suena un trozo racionado. Cambiar de tarea
- * con el audio sonando desmonta la cinta (le cambia la `key`), y ese trozo ya
- * está apuntado como oído en el servidor: se perdería sin haber sonado entero
- * y sin ningún aviso. No se pregunta con un `confirm` a propósito: un cartel a
- * mitad de una audición es justo lo que no puede pasar mientras se escucha.
- *
- * Exportada para poder pintarla sola en las pruebas: `renderToStaticMarkup`
- * solo ve el estado inicial de `PruebaHaciendo`, donde nada suena todavía.
- */
-export function PestanasDeTarea({
-  tareas, abierta, alElegir, bloqueadas = false,
-}: {
-  tareas: TareaParaHacer[];
-  abierta: number;
-  alElegir: (numero: number) => void;
-  bloqueadas?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {tareas.map((t) => (
-        <button
-          key={t.numero}
-          type="button"
-          aria-current={t.numero === abierta ? "true" : undefined}
-          disabled={bloqueadas}
-          onClick={() => alElegir(t.numero)}
-          className={`rounded-full px-4 py-2 font-bold disabled:opacity-50 ${t.numero === abierta ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
-        >
-          Tarea {t.numero}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -477,32 +434,5 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
       <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
       {cara}
     </div>
-  );
-}
-
-/**
- * La salida. Sin esto la pantalla del examen es un callejón: no hay cabecera
- * común en el sitio, así que al terminar la lectura no había forma de volver
- * a Inicio para empezar la auditiva más que con el botón de atrás del
- * navegador. Lo cazó el profesor en la aceptación, no las pruebas.
- *
- * Va en las cuatro caras, también mientras se hace una prueba con reloj: lo
- * que NO se puede hacer es irse creyendo que el reloj se para, y por eso ahí
- * lo dice. Es un enlace y no un formulario porque no cambia nada: las
- * respuestas ya están guardadas en el servidor según se marcan.
- *
- * Exportada: la escrita se encamina antes de llegar aquí y necesita la misma
- * salida, con el mismo aviso del reloj.
- */
-export function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
-  return (
-    <p>
-      <Link href="/" className="text-hp-600 underline">
-        ← Volver a Inicio
-      </Link>
-      {haciendoConReloj && (
-        <span className="ml-2 text-sm text-tinta-suave">El reloj sigue corriendo.</span>
-      )}
-    </p>
   );
 }

@@ -8,12 +8,7 @@ import { estaEntregada } from "@/lib/examen/motor";
 import { empezarPruebaAccion, entregarPruebaAccion, guardarEscritoAccion } from "@/app/examen/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
-// Del fichero hermano: las pestañas y la salida a Inicio son las mismas de la
-// lectura y de la auditiva, y tienen que seguir siéndolo. Sí, hacer-prueba.tsx
-// importa a su vez `HacerEscrita` de aquí: el círculo es a propósito y no
-// muerde, porque ninguno de los dos lee nada del otro mientras se cargan los
-// módulos — solo al pintar, que es mucho después.
-import { AVISO_DE_ERROR, BOTON, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/hacer-prueba";
+import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
 import { Reloj } from "@/components/examen/reloj";
 
 /** Lo que el estudiante lleva escrito en UNA tarea: su folio y, si la tarea
@@ -22,14 +17,33 @@ export type Borrador = { texto: string; opcion: number | null };
 
 const BORRADOR_VACIO: Borrador = { texto: "", opcion: null };
 
-const BOTON_SUAVE = "self-start rounded-2xl border border-tinta-suave/30 px-6 py-3 font-bold disabled:opacity-50";
-
 /** Los dos segundos de calma antes de mandar el borrador al servidor. */
 const CALMA = 2000;
+
+/**
+ * El tope: aunque no haya dos segundos de calma, se guarda igual cada quince
+ * segundos. Sin él, quien escribe sin levantar los dedos reinicia el
+ * temporizador con cada tecla y no guarda en varios minutos — justo el
+ * estudiante aplicado, y justo en la prueba donde todo es teclear.
+ */
+const TOPE = 15_000;
 
 /** Nada que mandar si no ha cambiado nada desde el último guardado. */
 export function hayQueGuardar(guardado: Borrador, actual: Borrador): boolean {
   return guardado.texto !== actual.texto || guardado.opcion !== actual.opcion;
+}
+
+/**
+ * ¿Queda algo sin mandar, en CUALQUIERA de las tareas? Es lo que decide el
+ * cartelito: decir «Guardado» con texto sin guardar es peor que no decir nada,
+ * porque es justo lo que invita a cerrar la pestaña.
+ */
+export function hayAlgoSinGuardar(
+  guardados: Record<number, Borrador>,
+  actuales: Record<number, Borrador>,
+): boolean {
+  return Object.keys(actuales).some((tarea) =>
+    hayQueGuardar(guardados[Number(tarea)] ?? BORRADOR_VACIO, actuales[Number(tarea)] ?? BORRADOR_VACIO));
 }
 
 /**
@@ -47,6 +61,13 @@ export function loQueFalta(prueba: PruebaParaHacer, borradores: Record<number, B
     }
   }
   return falta;
+}
+
+/** «a», «a y b», «a, b y c». Lo lee un chaval de catorce años justo antes de
+ *  entregar: ahí no valen las listas pegadas con comas. */
+export function enLista(cosas: string[]): string {
+  if (cosas.length <= 1) return cosas[0] ?? "";
+  return `${cosas.slice(0, -1).join(", ")} y ${cosas[cosas.length - 1]}`;
 }
 
 /**
@@ -77,6 +98,17 @@ export function conOpcion(borrador: Borrador, opcion: number): Borrador {
   return { ...borrador, opcion };
 }
 
+/**
+ * Corregida de verdad: el profesor FIRMÓ (`corregidaEn`) y la nota está puesta
+ * ENTERA. Las tres condiciones hacen falta y cada una tapa un agujero distinto:
+ * sin firma, las bandas ni siquiera han salido de `pruebaParaHacer` y la cara
+ * pintaría cuatro ceros; sin `aciertos`, la cabecera diría «null de 24»; sin
+ * `total`, «18 de null».
+ */
+export function estaCorregida(prueba: PruebaParaHacer): boolean {
+  return prueba.corregidaEn !== null && prueba.estado.aciertos !== null && prueba.estado.total !== null;
+}
+
 /** Cuántas palabras piden en esta tarea. Solo las redacciones lo dicen. */
 function rangoDe(tarea: TareaParaHacer): Rango {
   const f = tarea.formulario;
@@ -87,16 +119,156 @@ function rangoDe(tarea: TareaParaHacer): Rango {
 const escritoDe = (prueba: PruebaParaHacer, tarea: number): EscritoParaHacer | undefined =>
   prueba.escritos.find((e) => e.tarea === tarea);
 
-/**
- * Corregida de verdad: el profesor FIRMÓ (`corregidaEn`) y la nota está puesta.
- * No basta con que esté entregada — la escrita pasa días en ESPERANDO —, y
- * tampoco basta la firma sola: sin `aciertos`, la cabecera diría «null de 24».
- */
-function estaCorregida(prueba: PruebaParaHacer): boolean {
-  return prueba.corregidaEn !== null && prueba.estado.aciertos !== null;
-}
+const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Madrid" });
 
-const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeZone: "Europe/Madrid" });
+/** Qué enseña el cartelito del guardado. `nada` = callado, que es como nace. */
+type EstadoDelGuardado = "nada" | "pendiente" | "guardando" | "hecho";
+
+const TEXTO_DEL_GUARDADO: Record<EstadoDelGuardado, string | null> = {
+  nada: null,
+  pendiente: "Sin guardar…",
+  guardando: "Guardando…",
+  hecho: "Guardado",
+};
+
+/**
+ * El almacén de borradores de la escrita: lo que hay escrito, lo que el
+ * servidor ya tiene, y todas las formas en que lo uno acaba siendo lo otro.
+ *
+ * Está aquí fuera, y no dentro de `EscritaHaciendo`, porque son cinco caminos
+ * distintos hacia el mismo guardado —el temporizador, el cambio de pestaña, la
+ * entrega, el desmontaje y el `pagehide`— y repartidos por una pantalla de
+ * doscientas líneas se olvida uno. Perder lo escrito por una redacción de un
+ * chaval no se arregla después.
+ *
+ * `alFallar` avisa de lo que el servidor rechace. Se guarda en una ref y no
+ * viaja en las dependencias de nada (igual que `<Reloj>` hace con `alAcabarse`):
+ * así quien lo llama puede pasar una función nueva en cada render sin rearmar
+ * los temporizadores de aquí dentro.
+ */
+export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alFallar: (mensaje: string) => void) {
+  const examenId = prueba.examen.id;
+  const [borradores, setBorradores] = useState<Record<number, Borrador>>(() => borradoresDe(prueba));
+  const [estado, setEstado] = useState<EstadoDelGuardado>("nada");
+  // Lo último tecleado, sin pasar por el ciclo de pintado: es lo que lee la
+  // descarga del desmontaje, que ocurre cuando ya no hay más renders.
+  const ultimo = useRef<Record<number, Borrador>>(borradoresDe(prueba));
+  // Lo que el servidor YA tiene. En una ref y no en estado: no se pinta, y si
+  // fuera estado cada guardado provocaría otro render y con él otro temporizador.
+  const guardadoEnServidor = useRef<Record<number, Borrador>>(borradoresDe(prueba));
+  // Cuándo se mandó algo por última vez, para el tope. Empieza en null y no en
+  // `Date.now()`: leer el reloj mientras se pinta es impuro (lo caza el lint del
+  // compilador de React) y además no hace falta, porque el tope solo cuenta
+  // desde que hay algo que mandar. Se siembra en el efecto de abajo.
+  const horaDelUltimoGuardado = useRef<number | null>(null);
+  const avisar = useRef(alFallar);
+  useEffect(() => {
+    avisar.current = alFallar;
+  }, [alFallar]);
+
+  /**
+   * Manda el borrador de una tarea, y solo si ha cambiado. Devuelve el error si
+   * lo hubo, para que quien llama decida: la entrega a mano se para, la entrega
+   * por reloj sigue, y el temporizador lo enseña y apaga los folios.
+   */
+  const guardar = useCallback(async (tarea: number): Promise<string | null> => {
+    const b = ultimo.current[tarea] ?? BORRADOR_VACIO;
+    const yaEstaba = guardadoEnServidor.current[tarea] ?? BORRADOR_VACIO;
+    if (!hayQueGuardar(yaEstaba, b)) return null;
+    // Se apunta ANTES de la vuelta del servidor: mientras esta llamada está en
+    // el aire, otra tecla puede armar un segundo temporizador, y sin esto las
+    // dos mandarían lo mismo. Si falla, se deshace.
+    guardadoEnServidor.current = { ...guardadoEnServidor.current, [tarea]: b };
+    horaDelUltimoGuardado.current = Date.now();
+    setEstado("guardando");
+    const r = await guardarEscritoAccion(examenId, tarea, b.texto, b.opcion);
+    if (r.error) {
+      guardadoEnServidor.current = { ...guardadoEnServidor.current, [tarea]: yaEstaba };
+      setEstado("pendiente");
+      return r.error;
+    }
+    // «Guardado» solo si de verdad no queda nada: mientras esta llamada viajaba
+    // se ha podido teclear más, y decir «Guardado» con texto sin mandar es
+    // exactamente lo que hace que alguien cierre la pestaña y lo pierda.
+    setEstado(hayAlgoSinGuardar(guardadoEnServidor.current, ultimo.current) ? "pendiente" : "hecho");
+    return null;
+  }, [examenId]);
+
+  /** El guardado de siempre: si el servidor dice que no, avisa quien nos llamó. */
+  const guardarYAvisar = useCallback((tarea: number) => {
+    void guardar(tarea).then((fallo) => {
+      if (fallo) avisar.current(fallo);
+    });
+  }, [guardar]);
+
+  const abierto = borradores[tareaAbierta] ?? BORRADOR_VACIO;
+
+  // El borrador viaja al servidor dos segundos después de dejar de teclear, y
+  // como muy tarde cada TOPE aunque no se pare nunca. No en cada tecla: serían
+  // cientos de escrituras por redacción. El temporizador se limpia al desmontar
+  // (y lo pendiente lo manda entonces el efecto de descarga de abajo).
+  //
+  // Las dependencias son el texto y la opción sueltos, no el objeto borrador:
+  // el objeto se construye en cada render y el temporizador volvería a empezar
+  // de cero cada vez que la pantalla se repintara por cualquier otra cosa.
+  const { texto: textoAbierto, opcion: opcionAbierta } = abierto;
+  useEffect(() => {
+    const actual = { texto: textoAbierto, opcion: opcionAbierta };
+    if (!hayQueGuardar(guardadoEnServidor.current[tareaAbierta] ?? BORRADOR_VACIO, actual)) return;
+    horaDelUltimoGuardado.current ??= Date.now();
+    const loQueQuedaDelTope = TOPE - (Date.now() - horaDelUltimoGuardado.current);
+    const espera = Math.max(0, Math.min(CALMA, loQueQuedaDelTope));
+    const t = setTimeout(() => { guardarYAvisar(tareaAbierta); }, espera);
+    return () => clearTimeout(t);
+  }, [textoAbierto, opcionAbierta, tareaAbierta, guardarYAvisar]);
+
+  /** Todo lo que quede sin mandar, de todas las tareas, ya. */
+  const descargar = useCallback(() => {
+    for (const tarea of Object.keys(ultimo.current)) void guardar(Number(tarea));
+  }, [guardar]);
+
+  // La descarga: lo pendiente se manda al desmontar esta pantalla y al esconder
+  // la pestaña.
+  //
+  // El desmontaje NO es raro: «← Volver a Inicio» es un <Link>, o sea una
+  // navegación de cliente —la pantalla se desmonta, la aplicación sigue viva—, y
+  // es justo la salida que la pantalla anima a usar. Sin esto, los hasta dos
+  // segundos pendientes no llegaban nunca.
+  //
+  // `pagehide` cubre cerrar la pestaña y bloquear el móvil, donde encima los
+  // temporizadores se congelan: ahí lo pendiente no son dos segundos, es todo lo
+  // escrito desde el último guardado. Es lo mejor que se puede hacer sin
+  // reescribir el guardado como `navigator.sendBeacon` (una acción de servidor
+  // no se manda por beacon): si el navegador mata la petición a medias, se
+  // pierde — pero el tope de quince segundos acota cuánto.
+  useEffect(() => {
+    window.addEventListener("pagehide", descargar);
+    return () => {
+      window.removeEventListener("pagehide", descargar);
+      descargar();
+    };
+  }, [descargar]);
+
+  /** Tocar un borrador: se apunta primero en la ref (la fuente) y luego en el
+   *  estado (la copia que se pinta), y el cartelito pasa a «Sin guardar…». */
+  const cambiar = useCallback((tarea: number, nuevo: (b: Borrador) => Borrador) => {
+    const siguiente = { ...ultimo.current, [tarea]: nuevo(ultimo.current[tarea] ?? BORRADOR_VACIO) };
+    ultimo.current = siguiente;
+    setBorradores(siguiente);
+    setEstado("pendiente");
+  }, []);
+
+  const escribir = useCallback((tarea: number, texto: string) => {
+    cambiar(tarea, (b) => conTexto(b, texto));
+  }, [cambiar]);
+
+  const elegir = useCallback((tarea: number, opcion: number) => {
+    // conOpcion, y no un borrador nuevo: cambiar de tema NO borra el folio.
+    cambiar(tarea, (b) => conOpcion(b, opcion));
+  }, [cambiar]);
+
+  return { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar };
+}
 
 /**
  * El aviso previo de la escrita. Dice las dos cosas que la separan de la
@@ -118,7 +290,7 @@ function AvisoDeLaEscrita({
         {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
       </h1>
       <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
-      <p>Lo que escribas se guarda solo mientras escribes. La nota no sale al entregar: la pone tu profesor.</p>
+      <p>Lo que escribas se va guardando mientras escribes. La nota no sale al entregar: la pone tu profesor.</p>
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
         Empezar
@@ -157,102 +329,83 @@ function TareaDeEscrita({
 }
 
 /**
+ * La pregunta de antes de entregar. Va en la pantalla y no en un `confirm` del
+ * navegador: en el móvil ese cartel sale sin decir qué falta y con dos botones
+ * del sistema, y aquí hace falta leer una lista.
+ *
+ * Pieza aparte y exportada para poder pintarla sin tocar nada: es la única
+ * forma de probar lo que dice, porque dentro de la pantalla solo aparece
+ * después de un clic y aquí no hay jsdom.
+ */
+export function PreguntaDeEntrega({
+  falta, enviando, alSi, alNo,
+}: {
+  falta: string[];
+  enviando: boolean;
+  alSi: () => void;
+  alNo: () => void;
+}) {
+  return (
+    <section className={CAJA}>
+      {falta.length > 0 ? (
+        <p>Ojo: {enLista(falta)}. ¿Entregar de todas formas?</p>
+      ) : (
+        <p>Entregar no se puede deshacer. ¿Entregar?</p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <button type="button" disabled={enviando} onClick={alSi} className={BOTON}>
+          Sí, entregar
+        </button>
+        <button type="button" disabled={enviando} onClick={alNo} className={BOTON_SUAVE}>
+          Seguir escribiendo
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
  * A medias: el reloj, las pestañas de las dos tareas, y el folio abierto con su
- * enunciado al lado. Lo que se escribe viaja solo al servidor; «Entregar»
- * pregunta antes, y dice lo que falta.
+ * enunciado al lado. Lo que se escribe viaja solo al servidor (`useBorradores`);
+ * «Entregar» pregunta antes, y dice lo que falta.
  */
 function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const router = useRouter();
   const examenId = prueba.examen.id;
-  const [borradores, setBorradores] = useState<Record<number, Borrador>>(() => borradoresDe(prueba));
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
   const [error, setError] = useState<string | null>(null);
   const [bloqueadaPorError, setBloqueadaPorError] = useState(false);
-  const [guardado, setGuardado] = useState<"nada" | "guardando" | "hecho">("nada");
   const [confirmando, setConfirmando] = useState(false);
   const [procesando, empezarTransicion] = useTransition();
-  // Lo que el servidor YA tiene, tarea por tarea. En una ref y no en estado: no
-  // se pinta, y si fuera estado cada guardado provocaría otro render y con él
-  // otro temporizador.
-  const guardadoEnServidor = useRef<Record<number, Borrador>>(borradoresDe(prueba));
-  // Una sola entrega automática, igual que en PruebaHaciendo: sin esto, cada
-  // re-render (uno por cada guardado en curso) le pasa a <Reloj> una
-  // `alAcabarse` con identidad nueva, su efecto se re-dispara con la cuenta ya
-  // en cero, y entregarPruebaAccion se llamaría una y otra vez.
+  // Una sola entrega automática. Lo que defiende la bandera no es la identidad
+  // de `alAcabarse` (de eso se defiende el propio <Reloj>, que se la guarda en
+  // una ref): es que el aviso del reloj puede llegar MÁS DE UNA VEZ. `<Reloj>`
+  // rearma su aviso cada vez que el servidor manda una cuenta nueva, y aquí se
+  // refresca la pantalla al entregar: si el refresco vuelve a caer en esta cara
+  // con la cuenta ya en cero, el reloj avisaría otra vez y entregaríamos dos
+  // veces. Con la bandera, la segunda llamada no sale de aquí.
   const entregadaPorTiempo = useRef(false);
 
-  /**
-   * Manda el borrador de una tarea, y solo si ha cambiado. Devuelve el error
-   * si lo hubo, para que quien llama decida: el temporizador y el cambio de
-   * pestaña lo enseñan y apagan los folios; la entrega automática lo deja
-   * pasar, porque va a entregar de todas formas.
-   */
-  const guardar = useCallback(async (tarea: number, b: Borrador): Promise<string | null> => {
-    const yaEstaba = guardadoEnServidor.current[tarea] ?? BORRADOR_VACIO;
-    if (!hayQueGuardar(yaEstaba, b)) return null;
-    // Se apunta ANTES de la vuelta del servidor: mientras esta llamada está en
-    // el aire, otra tecla puede armar un segundo temporizador, y sin esto las
-    // dos mandarían lo mismo. Si falla, se deshace.
-    guardadoEnServidor.current = { ...guardadoEnServidor.current, [tarea]: b };
-    setGuardado("guardando");
-    const r = await guardarEscritoAccion(examenId, tarea, b.texto, b.opcion);
-    if (r.error) {
-      guardadoEnServidor.current = { ...guardadoEnServidor.current, [tarea]: yaEstaba };
-      setGuardado("nada");
-      return r.error;
-    }
-    setGuardado("hecho");
-    return null;
-  }, [examenId]);
-
-  /**
-   * El guardado de siempre: si el servidor dice que no —«Se acabó el tiempo.»
-   * es el caso de verdad—, se enseña, se apagan los folios y se refresca. El
-   * refresco es lo que lleva a la cara de entregada: seguir escribiendo en una
-   * prueba que el servidor ya cerró sería escribir en el aire.
-   */
-  const guardarYAvisar = useCallback((tarea: number, b: Borrador) => {
-    empezarTransicion(async () => {
-      const fallo = await guardar(tarea, b);
-      if (!fallo) return;
-      setError(fallo);
+  const { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar } = useBorradores(
+    prueba,
+    tareaAbierta,
+    // Lo que el servidor rechace mientras se escribe: se enseña, se apagan los
+    // folios y se refresca. El único error de verdad aquí es «Se acabó el
+    // tiempo.», y entonces el refresco es lo que lleva a la cara de entregada:
+    // seguir escribiendo en una prueba que el servidor ya cerró es escribir en
+    // el aire.
+    (mensaje: string) => {
+      setError(mensaje);
       setBloqueadaPorError(true);
       router.refresh();
-    });
-  }, [guardar, router]);
-
-  const borradorAbierto = borradores[tareaAbierta] ?? BORRADOR_VACIO;
-  const { texto: textoAbierto, opcion: opcionAbierta } = borradorAbierto;
-
-  // El borrador viaja al servidor dos segundos después de dejar de teclear, al
-  // cambiar de pestaña y antes de entregar. No en cada tecla: serían cientos de
-  // escrituras por redacción. El temporizador se limpia al desmontar.
-  //
-  // Las dependencias son el texto y la opción sueltos, no el objeto borrador:
-  // el objeto se construye en cada render y el temporizador volvería a empezar
-  // de cero cada vez que la pantalla se repintara por cualquier otra cosa.
-  useEffect(() => {
-    const actual = { texto: textoAbierto, opcion: opcionAbierta };
-    if (!hayQueGuardar(guardadoEnServidor.current[tareaAbierta] ?? BORRADOR_VACIO, actual)) return;
-    const t = setTimeout(() => { guardarYAvisar(tareaAbierta, actual); }, CALMA);
-    return () => clearTimeout(t);
-  }, [textoAbierto, opcionAbierta, tareaAbierta, guardarYAvisar]);
-
-  function alEscribir(texto: string) {
-    setBorradores((b) => ({ ...b, [tareaAbierta]: conTexto(b[tareaAbierta] ?? BORRADOR_VACIO, texto) }));
-  }
-
-  function alElegirOpcion(opcion: number) {
-    // conOpcion, y no un borrador nuevo: cambiar de tema NO borra el folio.
-    setBorradores((b) => ({ ...b, [tareaAbierta]: conOpcion(b[tareaAbierta] ?? BORRADOR_VACIO, opcion) }));
-  }
+    },
+  );
 
   function alCambiarDeTarea(numero: number) {
     if (numero === tareaAbierta) return;
     // Lo que se deja atrás se manda ya, sin esperar los dos segundos: el
-    // temporizador de la tarea vieja se va a limpiar en cuanto cambie la
-    // pestaña, y lo escrito en los últimos segundos se quedaría sin mandar.
-    guardarYAvisar(tareaAbierta, borradorAbierto);
+    // temporizador de la tarea vieja se limpia en cuanto cambie la pestaña.
+    guardarYAvisar(tareaAbierta);
     setTareaAbierta(numero);
   }
 
@@ -262,19 +415,30 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
     empezarTransicion(async () => {
       // El último borrador, antes de nada: el servidor da unos segundos de
       // gracia, y en esos segundos cabe lo que se escribió tras el último
-      // guardado. Si ya no lo acepta, da igual: se entrega igualmente.
-      await guardar(tareaAbierta, borradores[tareaAbierta] ?? BORRADOR_VACIO);
+      // guardado. Si ya no lo acepta, da igual: se entrega igualmente, porque
+      // aquí el tiempo ya se acabó y no hay nada que reintentar.
+      await guardar(tareaAbierta);
       const r = await entregarPruebaAccion(examenId, prueba.prueba);
       // Se refresca también con error, como en PruebaHaciendo: los errores que
       // llegan aquí significan que la prueba YA está cerrada por el servidor.
       if (r.error) setError(r.error);
       router.refresh();
     });
-  }, [examenId, prueba.prueba, guardar, borradores, tareaAbierta, router]);
+  }, [examenId, prueba.prueba, guardar, tareaAbierta, router]);
 
   function alEntregar() {
     empezarTransicion(async () => {
-      await guardar(tareaAbierta, borradorAbierto);
+      // Lo último escrito, antes de entregar. Y si el servidor no lo acepta NO
+      // se entrega: a diferencia de la entrega por reloj, aquí no hay ninguna
+      // prisa, y entregar sin el último párrafo —por un corte de red de un
+      // segundo— es perder trabajo sin decirlo. Se enseña el fallo, se cierra la
+      // pregunta y el botón vuelve a estar ahí para intentarlo otra vez.
+      const fallo = await guardar(tareaAbierta);
+      if (fallo) {
+        setError(fallo);
+        setConfirmando(false);
+        return;
+      }
       const r = await entregarPruebaAccion(examenId, prueba.prueba);
       if (r.error) setError(r.error);
       router.refresh();
@@ -282,7 +446,7 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   }
 
   const tarea = prueba.tareas.find((t) => t.numero === tareaAbierta) ?? prueba.tareas[0];
-  const falta = loQueFalta(prueba, borradores);
+  const cartel = TEXTO_DEL_GUARDADO[estado];
 
   return (
     <div className="flex flex-col gap-4">
@@ -291,41 +455,27 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
           <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
         )}
         {/* El cartelito del guardado, al lado del reloj: es lo que le dice al
-            chico que puede irse tranquilo. Callado hasta el primer guardado. */}
-        {guardado !== "nada" && (
-          <span className="text-sm text-tinta-suave">{guardado === "guardando" ? "Guardando…" : "Guardado"}</span>
-        )}
+            chico si puede irse tranquilo. Callado hasta que toca algo. */}
+        {cartel && <span className="text-sm text-tinta-suave">{cartel}</span>}
       </div>
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={alCambiarDeTarea} />
       {tarea && (
         <TareaDeEscrita
           tarea={tarea}
-          borrador={borradorAbierto}
+          borrador={abierto}
           bloqueado={bloqueadaPorError}
-          alEscribir={alEscribir}
-          alElegir={alElegirOpcion}
+          alEscribir={(texto) => escribir(tareaAbierta, texto)}
+          alElegir={(opcion) => elegir(tareaAbierta, opcion)}
         />
       )}
-      {/* La pregunta va en la pantalla y no en un `confirm` del navegador: en el
-          móvil ese cartel sale sin decir qué falta y con dos botones del
-          sistema, y aquí hace falta leer una lista. */}
       {confirmando ? (
-        <section className={CAJA}>
-          {falta.length > 0 ? (
-            <p>Te falta {falta.join(" y ")}. ¿Entregar de todas formas?</p>
-          ) : (
-            <p>Entregar no se puede deshacer. ¿Entregar?</p>
-          )}
-          <div className="flex flex-wrap gap-3">
-            <button type="button" disabled={procesando} onClick={alEntregar} className={BOTON}>
-              Sí, entregar
-            </button>
-            <button type="button" disabled={procesando} onClick={() => setConfirmando(false)} className={BOTON_SUAVE}>
-              Seguir escribiendo
-            </button>
-          </div>
-        </section>
+        <PreguntaDeEntrega
+          falta={loQueFalta(prueba, borradores)}
+          enviando={procesando}
+          alSi={alEntregar}
+          alNo={() => setConfirmando(false)}
+        />
       ) : (
         // Sin `bloqueadaPorError`, igual que en la lectura: un fallo al guardar
         // apaga los folios, no la salida.
@@ -350,6 +500,10 @@ function EscritaEsperando({ prueba }: { prueba: PruebaParaHacer }) {
           {NOMBRE_DE_PRUEBA[prueba.prueba]} · {prueba.examen.titulo}
         </p>
         <p className="text-2xl font-extrabold">Entregada. Esperando corrección</p>
+        {/* La fecha no es adorno: es el acuse de recibo. Quien lleva tres días
+            viendo «esperando corrección» sin fecha no sabe si su redacción
+            llegó o si se perdió por el camino. */}
+        {prueba.entregadaEn && <p>La mandaste el {FECHA_LARGA.format(prueba.entregadaEn)}.</p>}
         {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
         <p>
           La corrige tu profesor, a mano: no hay nota automática. Cuando la firme, verás aquí las cuatro notas de cada

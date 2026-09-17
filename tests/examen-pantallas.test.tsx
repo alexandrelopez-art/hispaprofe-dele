@@ -7,12 +7,22 @@ import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { palabras } from "@/lib/examen/motor";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
-import { corregirTareaEnLibre, HacerPrueba, PestanasDeTarea } from "@/components/examen/hacer-prueba";
+import { corregirTareaEnLibre, HacerPrueba } from "@/components/examen/hacer-prueba";
+import { PestanasDeTarea } from "@/components/examen/piezas";
 import { Cinta } from "@/components/examen/cinta";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
 import { avisoDePalabras, Folio } from "@/components/examen/folio";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
-import { borradoresDe, conOpcion, conTexto, hayQueGuardar, loQueFalta } from "@/components/examen/hacer-escrita";
+import {
+  borradoresDe,
+  conOpcion,
+  conTexto,
+  estaCorregida,
+  hayAlgoSinGuardar,
+  hayQueGuardar,
+  loQueFalta,
+  PreguntaDeEntrega,
+} from "@/components/examen/hacer-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -380,6 +390,7 @@ function pruebaDePrueba(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
     respuestas: {},
     fallos: [],
     escritos: [],
+    entregadaEn: null,
     corregidaEn: null,
     // Por defecto, la otra prueba sin empezar: es lo normal al terminar la primera.
     otras: [{ prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } }],
@@ -520,24 +531,28 @@ function escritaSinEmpezar(): PruebaParaHacer {
 // Entregada y sin firmar: ESPERANDO es el estado que la lectura no tiene nunca
 // —una lectura entregada ya trae su nota—, y es donde vive la escrita hasta que
 // el profesor la corrige.
-function escritaEsperando(): PruebaParaHacer {
+function escritaEsperando(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
   return escritaParaHacer({
     estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false },
     segundosQueQuedan: null,
+    entregadaEn: new Date("2026-09-15T09:30:00.000Z"),
     escritos: [escritoDe(1, CARTA, null), escritoDe(2, FIN_DE_SEMANA, 2)],
+    ...extra,
   });
 }
 
 // Firmada: 8 + 10 = 18 de 24 (dos tareas × cuatro criterios × banda 3).
-function escritaCorregida(): PruebaParaHacer {
+function escritaCorregida(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
   return escritaParaHacer({
     estado: { estado: "ENTREGADA", aciertos: 18, total: 24, porTiempo: false },
     segundosQueQuedan: null,
+    entregadaEn: new Date("2026-09-15T09:30:00.000Z"),
     escritos: [
       escritoDe(1, CARTA, null, { bandas: [3, 2, 2, 1], comentario: "Muy bien el saludo" }),
       escritoDe(2, FIN_DE_SEMANA, 2, { bandas: [3, 3, 2, 2], comentario: "Cuida los acentos" }),
     ],
     corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+    ...extra,
   });
 }
 
@@ -1231,5 +1246,67 @@ describe("la escrita", () => {
     for (const cara of [escritaSinEmpezar(), escritaEsperando(), escritaCorregida(), escritaLibre()]) {
       expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).not.toContain("El reloj sigue corriendo.");
     }
+  });
+
+  // Mutación que la mata: dar por corregida la escrita con solo la firma (o con
+  // solo la nota). Con la firma sola y sin `aciertos` la cabecera pinta «null de
+  // 24»; sin `total`, «18 de null»; y con la nota puesta pero sin firmar, las
+  // bandas ni siquiera han salido de `pruebaParaHacer` y saldrían cuatro ceros.
+  // Es pura y se prueba sola: la cara de la pantalla no distingue los tres casos.
+  it("corregida es la firma Y la nota entera, no una de las dos", () => {
+    expect(estaCorregida(escritaCorregida())).toBe(true);
+    expect(estaCorregida(escritaCorregida({ estado: { estado: "ENTREGADA", aciertos: null, total: 24, porTiempo: false } }))).toBe(false);
+    expect(estaCorregida(escritaCorregida({ estado: { estado: "ENTREGADA", aciertos: 18, total: null, porTiempo: false } }))).toBe(false);
+    expect(estaCorregida(escritaCorregida({ corregidaEn: null }))).toBe(false);
+    expect(estaCorregida(escritaEsperando())).toBe(false);
+  });
+
+  // Mutación que la mata: mirar solo la tarea abierta al decidir el cartelito.
+  // Quien escribe en la tarea 1, cambia a la 2 y ve «Guardado» mientras lo de la
+  // 1 sigue sin mandarse, cierra la pestaña tranquilo y lo pierde.
+  it("sabe si queda algo sin mandar en CUALQUIER tarea", () => {
+    const enServidor = { 1: { texto: "Hola", opcion: null }, 2: { texto: "", opcion: 2 } };
+    expect(hayAlgoSinGuardar(enServidor, enServidor)).toBe(false);
+    expect(hayAlgoSinGuardar(enServidor, { ...enServidor, 1: { texto: "Hola Juan", opcion: null } })).toBe(true);
+    expect(hayAlgoSinGuardar(enServidor, { ...enServidor, 2: { texto: "", opcion: 1 } })).toBe(true);
+    // Una tarea que el servidor todavía no conoce y ya tiene texto: sin mandar.
+    expect(hayAlgoSinGuardar({}, { 1: { texto: "Algo", opcion: null } })).toBe(true);
+  });
+
+  // Mutación que la mata: volver a «Te falta {falta.join(" y ")}», que con las
+  // cadenas de `loQueFalta` sale «Te falta la tarea 1 está en blanco.». Lo lee un
+  // chaval de catorce años justo antes de entregar. La pieza se pinta sola
+  // porque dentro de la pantalla solo aparece tras un clic, y aquí no hay jsdom.
+  it("la pregunta de entrega está escrita en castellano", () => {
+    const html = renderToStaticMarkup(
+      <PreguntaDeEntrega
+        falta={["la tarea 1 está en blanco", "no has elegido opción en la tarea 2"]}
+        enviando={false}
+        alSi={() => {}}
+        alNo={() => {}}
+      />,
+    );
+    expect(html).toContain("Ojo: la tarea 1 está en blanco y no has elegido opción en la tarea 2. ¿Entregar de todas formas?");
+    expect(html).toContain("Sí, entregar");
+    expect(html).toContain("Seguir escribiendo");
+  });
+
+  // Mutación que la mata: enseñar la lista de lo que falta aunque esté vacía
+  // («Ojo: . ¿Entregar de todas formas?»), o callarse el «no se puede deshacer»
+  // cuando está todo hecho, que es cuando más de verdad va la entrega.
+  it("con todo hecho, la pregunta avisa de que no se puede deshacer", () => {
+    const html = renderToStaticMarkup(
+      <PreguntaDeEntrega falta={[]} enviando={false} alSi={() => {}} alNo={() => {}} />,
+    );
+    expect(html).toContain("Entregar no se puede deshacer. ¿Entregar?");
+    expect(html).not.toContain("Ojo:");
+  });
+
+  // Mutación que la mata: no pintar `entregadaEn` en la cara de espera. Un chico
+  // que lleva días viendo «esperando corrección» sin fecha no sabe si su
+  // redacción llegó o se perdió por el camino.
+  it("la que espera dice cuándo la mandó", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
+    expect(html).toContain("La mandaste el 15 de septiembre de 2026");
   });
 });
