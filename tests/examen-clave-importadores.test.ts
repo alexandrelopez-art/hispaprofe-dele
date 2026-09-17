@@ -49,15 +49,20 @@ function ficherosDeCodigo(dir: string): string[] {
 }
 
 describe("quién puede leer la clave (claveDeLaPrueba)", () => {
-  it("solo la llaman los ficheros de la lista blanca", () => {
-    // `claveDeLaPrueba(` y no solo `claveDeLaPrueba`: así una prosa que
-    // NOMBRE la función en un comentario (hay una en hacer-prueba.tsx, sin
-    // llamarla) no cuenta como llamador. Lo que importa es quién la invoca
-    // (o la define, que también lleva esa forma en su propia firma).
-    const conLlamadas = RAICES.flatMap((raiz) => ficherosDeCodigo(raiz))
-      .filter((ruta) => readFileSync(ruta, "utf8").includes("claveDeLaPrueba("))
+  it("solo la mencionan los ficheros de la lista blanca", () => {
+    // El identificador a secas, sin exigir el paréntesis pegado: buscar
+    // `claveDeLaPrueba(` se dejaba escapar el descuido más normal de todos,
+    // un import con alias (`import { claveDeLaPrueba as otroNombre } from
+    // "./hacer"`, y luego `otroNombre(...)`), que no deja esa cadena en
+    // ningún sitio. El precio es que una PROSA que solo nombre la función
+    // en un comentario (sin llamarla) también cuenta como mención — por eso
+    // el comentario de hacer-prueba.tsx que la nombraba se reescribió para
+    // no usar el identificador, en vez de colar ese fichero en la lista
+    // blanca por una razón que no es la de estar ahí.
+    const conMenciones = RAICES.flatMap((raiz) => ficherosDeCodigo(raiz))
+      .filter((ruta) => readFileSync(ruta, "utf8").includes("claveDeLaPrueba"))
       .map((ruta) => ruta.split("/").join("/")); // rutas ya vienen con "/" en POSIX
 
-    expect(new Set(conLlamadas)).toEqual(LISTA_BLANCA);
+    expect(new Set(conMenciones)).toEqual(LISTA_BLANCA);
   });
 });
