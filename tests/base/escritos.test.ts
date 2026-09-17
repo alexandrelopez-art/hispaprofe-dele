@@ -171,8 +171,11 @@ describe("entregar la escrita", () => {
     expect(intento.porTiempo).toBe(false);
   });
 
-  // Mutación que la mata: borrar o ignorar los escritos al cerrar por tiempo.
-  // Lo que escribió hasta ese momento es justo lo que hay que corregir.
+  // Mutación que la mata: quitar la bifurcación de `cerrarIntento` en el
+  // camino del reloj (`cerrarLasQueSePasaron`), de forma que también calcule
+  // nota para la escrita. Comprueba que los dos caminos de cierre —el botón y
+  // el reloj— la dejan igual de sin nota, y que cerrar no toca lo escrito
+  // (cerrarIntento no lee ni escribe la tabla de escritos).
   it("el reloj la cierra y conserva lo escrito", async () => {
     await empezarPrueba(examen.id, "EE", ana.id, AHORA);
     await guardarEscrito(examen.id, ana.id, 1, "Iba por aquí", null, AHORA);
@@ -185,9 +188,12 @@ describe("entregar la escrita", () => {
     expect(escrito.texto).toBe("Iba por aquí");
   });
 
-  // Mutación que la mata: quitar el `entregadaEn: null` del where del updateMany.
-  // Dos entregas a la vez (doble clic, o el reloj a la vez que el botón)
-  // pisarían la primera.
+  // Mutación que la mata: quitar `if (intento?.entregadaEn) return { error:
+  // YA_ENTREGADA }` de `abrirLaPrueba`. Con dos llamadas en serie es esta
+  // guarda la que corta la segunda antes de llegar a `cerrarIntento`, no el
+  // `entregadaEn: null` del `where` del `updateMany` — ese protege, aparte,
+  // dos peticiones EN VUELO a la vez, algo que esta prueba (en serie) no
+  // ejerce.
   it("entregar dos veces no cambia la primera entrega", async () => {
     await empezarPrueba(examen.id, "EE", ana.id, AHORA);
     await entregarPrueba(examen.id, "EE", ana.id, AHORA);

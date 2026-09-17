@@ -104,8 +104,8 @@ async function cerrarIntento(
 /**
  * La única guarda de las cuatro escrituras que tocan un intento
  * (`corregirEnLibre` no pasa por aquí: no hay intento en modo libre, y hace
- * su propia comprobación). Comprueba, EN ESTE ORDEN: que la prueba es CE o
- * CO, que hay asignación, que el examen está publicado, que el intento no
+ * su propia comprobación). Comprueba, EN ESTE ORDEN: que la prueba es CE, CO
+ * o EE, que hay asignación, que el examen está publicado, que el intento no
  * está entregado y que no se acabó el tiempo. Si se acabó, cierra la prueba
  * (la entrega con `porTiempo`) antes de devolver el error: el error y el
  * cierre son la misma noticia.
