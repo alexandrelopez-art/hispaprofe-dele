@@ -31,7 +31,12 @@ const LISTA_BLANCA = new Set([
   "lib/examen/hoja.ts",
 ]);
 
-const RAICES = ["app", "lib", "components"];
+// Todas las carpetas con código de la aplicación, más los ficheros sueltos de
+// la raíz. `scripts/` y la raíz no son un adorno: `scripts/primer-profesor.ts`
+// corre con la base delante y `proxy.ts` decide quién entra a cada dirección.
+// Un llamador nuevo en cualquiera de los dos se colaba sin que esta prueba se
+// enterara, que es justo lo contrario de lo que existe para hacer.
+const RAICES = ["app", "lib", "components", "scripts"];
 const IGNORADOS = new Set(["generated", "node_modules", ".next"]);
 
 function ficherosDeCodigo(dir: string): string[] {
@@ -46,6 +51,14 @@ function ficherosDeCodigo(dir: string): string[] {
     }
   }
   return encontrados;
+}
+
+/** Los .ts y .tsx sueltos en la raíz del repo (proxy.ts, next.config.ts…), sin
+ *  bajar a ninguna carpeta: de eso ya se encargan las RAICES. */
+function ficherosDeLaRaiz(): string[] {
+  return readdirSync(".", { withFileTypes: true })
+    .filter((e) => e.isFile() && /\.(ts|tsx)$/.test(e.name))
+    .map((e) => e.name);
 }
 
 /**
@@ -68,7 +81,7 @@ describe("quién puede leer la clave (claveDeLaPrueba)", () => {
     // ningún sitio. Y se busca sobre el texto SIN comentarios, para que una
     // prosa que solo nombre la función (documentación, no una llamada) no
     // cuente como mención.
-    const conMenciones = RAICES.flatMap((raiz) => ficherosDeCodigo(raiz))
+    const conMenciones = [...RAICES.flatMap((raiz) => ficherosDeCodigo(raiz)), ...ficherosDeLaRaiz()]
       .filter((ruta) => sinComentarios(readFileSync(ruta, "utf8")).includes("claveDeLaPrueba"))
       .map((ruta) => ruta.split("/").join("/")); // rutas ya vienen con "/" en POSIX
 

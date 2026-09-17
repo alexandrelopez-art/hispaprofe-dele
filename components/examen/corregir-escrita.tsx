@@ -6,8 +6,7 @@ import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
 import { BANDA_MAXIMA, CRITERIOS_EE } from "@/lib/dele/estructura";
 import { guardarCorreccionAccion } from "@/app/corregir/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
-import { enLista } from "@/components/examen/hacer-escrita";
-import { AVISO_DE_ERROR, AVISO_SUAVE, BOTON, BOTON_SUAVE, CAJA } from "@/components/examen/piezas";
+import { AVISO_DE_ERROR, AVISO_SUAVE, BOTON, BOTON_SUAVE, CAJA, enLista } from "@/components/examen/piezas";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /** Una banda por criterio. `null` = todavía sin nota: es distinto de un 0, que

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prueba } from "@/lib/generated/prisma";
 import { minutosConReloj } from "@/lib/dele/estructura";
-import { formularioDePiezas } from "@/lib/taller/piezas";
+import { formularioDePiezas, SELECT_DE_PIEZAS } from "@/lib/taller/piezas";
 import { LETRAS_TOPE, notaDePrueba, palabras, seAcaboElTiempo, SE_ACABO_EL_TIEMPO, segundosQueQuedan, type Nota } from "./motor";
 
 // Los mensajes de error, literales (spec §9). Otras pantallas y otras tareas
@@ -229,7 +229,7 @@ export async function guardarRespuesta(
 async function opcionesDeLaTarea(examenId: string, tarea: number): Promise<number | null> {
   const fila = await prisma.tarea.findUnique({
     where: { examenId_prueba_numero: { examenId, prueba: "EE", numero: tarea } },
-    select: { piezas: { select: { orden: true, tipo: true, texto: true, etiqueta: true, ficheroId: true, cortes: true, actividad: { select: { datos: true } } } } },
+    select: { piezas: SELECT_DE_PIEZAS },
   });
   if (!fila) return null;
   const formulario = formularioDePiezas(fila.piezas);

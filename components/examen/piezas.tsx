@@ -18,6 +18,22 @@ import type { TareaParaHacer } from "@/lib/examen/paraHacer";
  * dos no tiene ese filo.
  */
 
+/**
+ * «a», «a y b», «a, b y c». Lo leen el estudiante justo antes de entregar («Ojo:
+ * la tarea 1 está en blanco y no has elegido opción en la tarea 2») y el
+ * profesor al firmar («Te faltan notas en las tareas 1 y 2»): en ninguno de los
+ * dos sitios valen las listas pegadas con comas.
+ *
+ * Vive aquí, y no en `hacer-escrita.tsx`, porque es castellano y nada más: no
+ * sabe de folios ni de bandas. Mientras estuvo allí, la pantalla del PROFESOR
+ * se arrastraba el módulo entero de la pantalla del estudiante para usar cinco
+ * líneas.
+ */
+export function enLista(cosas: string[]): string {
+  if (cosas.length <= 1) return cosas[0] ?? "";
+  return `${cosas.slice(0, -1).join(", ")} y ${cosas[cosas.length - 1]}`;
+}
+
 export const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
 export const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
 export const BOTON_SUAVE = "self-start rounded-2xl border border-tinta-suave/30 px-6 py-3 font-bold disabled:opacity-50";

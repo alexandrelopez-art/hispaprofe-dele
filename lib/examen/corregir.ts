@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Nivel } from "@/lib/generated/prisma";
 import { BANDA_MAXIMA, CRITERIOS_EE, puntosDeEscrita } from "@/lib/dele/estructura";
 import { sumaDeBandas } from "./motor";
-import { formularioDePiezas } from "@/lib/taller/piezas";
+import { formularioDePiezas, SELECT_DE_PIEZAS } from "@/lib/taller/piezas";
 import type { Formulario } from "@/lib/taller/formas";
 import { diasEntre } from "@/lib/tiempo/madrid";
 
@@ -119,7 +119,7 @@ export async function escritoParaCorregir(intentoId: string, ahora: Date): Promi
                 orderBy: { numero: "asc" },
                 select: {
                   numero: true,
-                  piezas: { select: { orden: true, tipo: true, texto: true, etiqueta: true, ficheroId: true, cortes: true, actividad: { select: { datos: true } } } },
+                  piezas: SELECT_DE_PIEZAS,
                 },
               },
             },

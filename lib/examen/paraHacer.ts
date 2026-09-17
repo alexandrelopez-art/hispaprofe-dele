@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
 import { minutosConReloj, reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
-import { formularioDePiezas } from "@/lib/taller/piezas";
+import { formularioDePiezas, SELECT_DE_PIEZAS } from "@/lib/taller/piezas";
 import type { Formulario } from "@/lib/taller/formas";
 import { estadoDePrueba, segundosQueQuedan, type EstadoDePrueba } from "./motor";
 
@@ -87,7 +87,7 @@ export async function pruebaParaHacer(
             select: {
               numero: true,
               // Sin `clave`: la respuesta correcta no sale de su tabla.
-              piezas: { select: { orden: true, tipo: true, texto: true, etiqueta: true, ficheroId: true, cortes: true, actividad: { select: { datos: true } } } },
+              piezas: SELECT_DE_PIEZAS,
             },
           },
         },

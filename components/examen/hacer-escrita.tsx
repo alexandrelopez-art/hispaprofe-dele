@@ -8,7 +8,7 @@ import { estaEntregada, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import { empezarPruebaAccion, entregarPruebaAccion, guardarEscritoAccion } from "@/app/examen/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
-import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
+import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, enLista, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
 import { Reloj } from "@/components/examen/reloj";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
@@ -62,13 +62,6 @@ export function loQueFalta(prueba: PruebaParaHacer, borradores: Record<number, B
     }
   }
   return falta;
-}
-
-/** «a», «a y b», «a, b y c». Lo lee un chaval de catorce años justo antes de
- *  entregar: ahí no valen las listas pegadas con comas. */
-export function enLista(cosas: string[]): string {
-  if (cosas.length <= 1) return cosas[0] ?? "";
-  return `${cosas.slice(0, -1).join(", ")} y ${cosas[cosas.length - 1]}`;
 }
 
 /**

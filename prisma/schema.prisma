@@ -140,7 +140,7 @@ model Pieza {
   ficheroId String?
 
   /// Solo AUDIO: los segundos de cada marca, en orden. Parten la pista en trozos.
-  cortes    Float[]  @default([])
+  cortes Float[] @default([])
 
   @@unique([tareaId, orden])
   @@index([tareaId])
@@ -306,7 +306,7 @@ model Intento {
   /// Lo que dice si una escrita está corregida es ESTE campo, no `bandas`:
   /// una corrección legítima puede ser cuatro ceros.
   corregidaEn    DateTime?
-  corregidaPor   Persona?  @relation("correcciones", fields: [corregidaPorId], references: [id], onDelete: SetNull)
+  corregidaPor   Persona?           @relation("correcciones", fields: [corregidaPorId], references: [id], onDelete: SetNull)
   corregidaPorId String?
   escritos       EscritoDeIntento[]
 
@@ -334,15 +334,15 @@ model RespuestaDeIntento {
 /// Una fila por tarea (la 1 y la 2): nace en cuanto se guarda el primer
 /// borrador y se reescribe en cada guardado automático.
 model EscritoDeIntento {
-  id        String  @id @default(cuid())
-  intento   Intento @relation(fields: [intentoId], references: [id], onDelete: Cascade)
-  intentoId String
-  tarea     Int
+  id         String   @id @default(cuid())
+  intento    Intento  @relation(fields: [intentoId], references: [id], onDelete: Cascade)
+  intentoId  String
+  tarea      Int
   /// Solo la tarea 2: cuál de las opciones eligió (1..n). null mientras no elige.
-  opcion    Int?
-  texto     String
+  opcion     Int?
+  texto      String
   /// Las cuenta el SERVIDOR sobre el texto que llegó, nunca el navegador.
-  palabras  Int      @default(0)
+  palabras   Int      @default(0)
   guardadoEn DateTime @updatedAt
 
   /// La corrección: cuatro valores 0-3, en el orden de CRITERIOS_EE. Vacío
