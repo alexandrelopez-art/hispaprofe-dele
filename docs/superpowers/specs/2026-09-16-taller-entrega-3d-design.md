@@ -232,6 +232,61 @@ Consecuencias, escritas para que no sorprendan:
   vale para la lectura y la auditiva, que se corrigen solas.
 - La lista del profesor no distingue el modo en la cola; sí lo dice la ficha del examen.
 
+## 9 bis. Salirse de la pantalla cuesta la tarea
+
+Añadido el 17 de septiembre, **decidido por el profesor y fuera del alcance original**. Hoy,
+si el estudiante se va de la pantalla a media redacción, lo que haya tecleado desde el
+último guardado automático se pierde por azar: unas veces sí y otras no, según lo que
+tarden los temporizadores. Eso deja de ser un azar y pasa a ser una regla, dicha por
+delante.
+
+Sus dos decisiones, literales:
+
+- **Se borra lo escrito, y se le avisa antes de empezar.** El aviso va en la misma pantalla
+  que el de los cincuenta minutos, ANTES de «Empezar», con todas las letras y en castellano
+  para un chaval de catorce años. Perder un folio sin haber sido avisado es un castigo; con
+  el aviso delante, es una regla del examen.
+- **Se borra la tarea entera, pero solo si tarda más de diez segundos en volver.** Si vuelve
+  enseguida —una notificación, mirar la hora— no pasa nada. Y lo que se pierde es la tarea
+  entera, no solo lo tecleado desde el último guardado: en la tarea 2, también el tema
+  elegido.
+
+Y cuatro decisiones de diseño, que van con ellas:
+
+- **Solo en modo COMPLETO.** En práctica libre no se marca ni se borra nada: ahí se
+  practica, y castigar a quien practica no tiene sentido. La regla se escribe una sola vez,
+  en el `where` del resolvedor.
+- **La salida se apunta EN EL SERVIDOR**, en dos columnas nuevas de `Intento` (`salioEn` y
+  `salioDeTarea`), no solo en el navegador. Si solo lo supiera el navegador, cerrar la
+  pestaña y volver a entrar sería el agujero obvio, y a un chaval de catorce años ese truco
+  le dura media tarde. Por eso cargar la pantalla YA cuenta como volver: la página llama al
+  resolvedor antes de leer nada, igual que hace con `cerrarLasQueSePasaron`.
+- **El reloj NO se para** mientras está fuera. Ya estaba decidido para esta prueba, y el
+  cartel de la vuelta se lo recuerda: si no, se pone a reescribir con calma creyendo que le
+  han devuelto el tiempo.
+- **Solo se borra la tarea que tenía abierta**, no las dos. La otra no la ha abandonado.
+
+Cómo se monta, en corto:
+
+- Un número con nombre junto a los demás del DELE: `SEGUNDOS_FUERA_PERDONADOS = 10`
+  (`lib/dele/estructura.ts`). Mismo valor que `SEGUNDOS_DE_GRACIA` y a propósito NO la misma
+  constante: aquel perdona el viaje de la última respuesta por la red, este perdona al
+  estudiante que vuelve enseguida.
+- Dos acciones de servidor, con las reglas de siempre —la persona sale de la sesión, nunca
+  de un argumento; solo la escrita; solo modo completo; solo con el intento abierto y sin
+  entregar—: **salir** (marca la hora y la tarea, y **no pisa** una marca ya puesta: la
+  cuenta va desde la primera salida) y **volver** (resuelve y devuelve si borró).
+- El resolvedor es idempotente y limpia siempre las marcas, haya borrado o no: son marcas
+  vivas, no un historial.
+- En la pantalla, con `visibilitychange`: al ocultarse se marca la salida y **no** se
+  descarga el borrador —que es justo lo que no se quiere—; al volver se resuelve, y si borró
+  se vacía ese folio en el navegador y sale el cartel.
+
+Un orden que importa: **el reloj se cierra ANTES de resolver la salida.** Si se le acabó el
+tiempo estando fuera, la prueba se entrega con lo que tuviera y a partir de ahí no se le
+borra nada — eso es lo que el profesor tiene que corregir. Lo que no se le devuelve es el
+tiempo.
+
 ## 10. Errores
 
 Los mismos textos y el mismo orden de comprobaciones que la 3c —hay sesión, la asignación
@@ -290,6 +345,14 @@ Con el examen 1, ya publicado, y un estudiante de verdad:
 9. En «Quién lo hace» pone «Corregida, 18 de 24», y el «Entregada, 19 de 25» de la lectura
    abre la ficha con las 25 preguntas.
 10. En el móvil: el folio se escribe cómodo y el enunciado se pliega.
+11. **En el móvil, la regla de la sentada (§9 bis), que es lo único que no se puede probar
+    sin navegador**: antes de «Empezar» lee el aviso. Ya dentro, escribe media tarea 1,
+    **bloquea la pantalla y desbloquéala enseguida**: no pasa nada, su texto sigue. Luego
+    **cambia a otra aplicación medio minuto y vuelve**: la tarea 1 está en blanco, sale el
+    cartel explicándolo, y el reloj ha seguido corriendo. La tarea 2 no se ha tocado.
+    Repítelo **cerrando la pestaña entera** en vez de cambiar de aplicación: al volver a
+    entrar por la dirección pasa lo mismo, que es lo que prueba que la marca vive en el
+    servidor. Y en un examen de **práctica libre**, lo mismo no pasa nada de nada.
 
 ## 13. Lo que sigue abierto
 
