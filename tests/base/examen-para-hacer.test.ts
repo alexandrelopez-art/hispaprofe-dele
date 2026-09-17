@@ -133,6 +133,11 @@ describe("la escrita para hacer", () => {
     const sinFirmar = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
     expect(sinFirmar!.estado.estado).toBe("ESPERANDO");
     expect(sinFirmar!.escritos[0]!.correccion).toBeNull();
+    // Mutación que mata esto solo: cambiar `corregidaEn: firmada` por
+    // `corregidaEn: null` en paraHacer.ts. El resto de la prueba seguiría en
+    // verde (el estado se deduce de `aciertos`, no de este campo), así que
+    // `corregidaEn` necesita su propia aserción a los dos lados de la firma.
+    expect(sinFirmar!.corregidaEn).toBeNull();
     expect(JSON.stringify(sinFirmar)).not.toContain("Muy bien");
 
     await prisma.intento.update({
@@ -142,6 +147,7 @@ describe("la escrita para hacer", () => {
     const firmada = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
     expect(firmada!.escritos[0]!.correccion).toEqual({ bandas: [3, 2, 2, 1], comentario: "Muy bien" });
     expect(firmada!.estado).toEqual({ estado: "ENTREGADA", aciertos: 8, total: 24, porTiempo: false });
+    expect(firmada!.corregidaEn).toEqual(AHORA);
   });
 
   // Mutación que la mata: no devolver los escritos. Al volver de un corte, el

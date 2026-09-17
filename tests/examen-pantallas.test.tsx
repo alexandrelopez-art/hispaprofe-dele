@@ -348,6 +348,8 @@ function pruebaDePrueba(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
     segundosQueQuedan: null,
     respuestas: {},
     fallos: [],
+    escritos: [],
+    corregidaEn: null,
     // Por defecto, la otra prueba sin empezar: es lo normal al terminar la primera.
     otras: [{ prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } }],
     ...extra,
@@ -671,14 +673,17 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).not.toContain("Entregar");
   });
 
-  // Antes se llamaba «la escrita y la oral contestan 404», pero eso no es lo
-  // que prueba: "EE" ya pasa la guarda `esPrueba` (es una prueba real del
-  // DELE, solo que sin pantalla propia todavía), así que la 404 de aquí sale
-  // de `pruebaParaHacer` devolviendo null — doblado más abajo — no de
-  // `esPrueba`. Esa guarda tiene su propia prueba justo debajo.
+  // "EE" ya pasa la guarda `esPrueba` (es una prueba real del DELE), y desde
+  // la Task 5 también pasa `PRUEBAS_QUE_SE_HACEN` de verdad: `pruebaParaHacer`
+  // ya no devuelve null para ella sola por estar excluida. Aquí `pruebaParaHacer`
+  // está DOBLADO y se hace devolver null a propósito — no es la función real
+  // filtrando por la lista —, así que esta prueba no comprueba que "EE" esté
+  // excluida (ya no lo está): comprueba que la página trata «sin datos», venga
+  // de donde venga, como 404. "EE" queda como ejemplo porque la pantalla
+  // (`HacerPrueba`) todavía no sabe pintar una redacción, no por su guarda.
   // Mutación que la mata: quitar el `if (!leida) notFound();` de la página.
   // Sería una pantalla a medias, con `prueba={null}`.
-  it("si pruebaParaHacer no encuentra nada (aquí, EE, que aún no tiene pantalla propia) la pantalla contesta 404", async () => {
+  it("si pruebaParaHacer no encuentra nada la pantalla contesta 404", async () => {
     dobles.pruebaParaHacer.mockResolvedValue(null);
     await expect(pintarPaginaDe("EE")).rejects.toThrow("NOT_FOUND");
   });
