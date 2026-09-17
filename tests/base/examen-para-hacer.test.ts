@@ -168,6 +168,33 @@ describe("la escrita para hacer", () => {
     expect(leida!.tareas.map((t) => t.numero)).toEqual([1, 2]);
   });
 
+  // Mutación que la mata: volver a `minutosDePrueba(nivel, prueba)` a secas,
+  // sin el modo. Los cincuenta minutos del nivel viajarían al navegador de una
+  // práctica libre que no se cierra nunca, y cada pantalla tendría que volver
+  // a mirar el `modo` por su cuenta para no pintar un reloj falso. Se afirma
+  // también el modo COMPLETO al lado: una mutación que devolviera null siempre
+  // pasaría con solo la mitad.
+  it("en práctica libre no manda minutos ni cuenta atrás", async () => {
+    await prisma.asignacion.update({
+      where: { examenId_personaId: { examenId: examen.id, personaId: ana.id } },
+      data: { modo: "LIBRE" },
+    });
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+
+    const libre = (await pruebaParaHacer(examen.id, "EE", ana.id, AHORA))!;
+    expect(libre.modo).toBe("LIBRE");
+    expect(libre.minutos).toBeNull();
+    expect(libre.segundosQueQuedan).toBeNull();
+
+    await prisma.asignacion.update({
+      where: { examenId_personaId: { examenId: examen.id, personaId: ana.id } },
+      data: { modo: "COMPLETO" },
+    });
+    const completo = (await pruebaParaHacer(examen.id, "EE", ana.id, AHORA))!;
+    expect(completo.minutos).toBe(50);
+    expect(completo.segundosQueQuedan).toBe(50 * 60);
+  });
+
   // Mutación que la mata: dejar "EO" dentro de PRUEBAS_QUE_SE_HACEN. La oral no
   // tiene pantalla hasta la 3e, y media pantalla es peor que ninguna.
   it("la oral sigue sin poderse hacer", async () => {

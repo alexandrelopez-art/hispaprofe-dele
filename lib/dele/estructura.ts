@@ -1,4 +1,4 @@
-import type { Nivel, Prueba } from "@/lib/generated/prisma";
+import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
 
 /** Cómo es el formulario de una tarea. Una por formato del DELE. */
 export type Forma =
@@ -148,6 +148,20 @@ export const MINUTOS_DE_PRUEBA: Readonly<Record<Nivel, Readonly<Record<Prueba, n
 
 export function minutosDePrueba(nivel: Nivel, prueba: Prueba): number | null {
   return MINUTOS_DE_PRUEBA[nivel][prueba];
+}
+
+/**
+ * Los minutos que CORREN de verdad, ya contando el modo: en práctica libre no
+ * hay reloj ninguno (se practica sin cronómetro), así que null.
+ *
+ * Existe para que «aquí no hay reloj» se escriba una sola vez. Antes la misma
+ * idea estaba repartida en cinco sitios y con tres formas distintas —`modo ===
+ * "LIBRE" ? null : …`, `modo === "COMPLETO" && minutos !== null`, `modo !==
+ * "LIBRE" && …`—, y era cuestión de tiempo que una se quedara atrás. Con esto,
+ * quien quiera saber si hay reloj pregunta `minutos !== null` y ya está.
+ */
+export function minutosConReloj(modo: ModoDeExamen, nivel: Nivel, prueba: Prueba): number | null {
+  return modo === "LIBRE" ? null : minutosDePrueba(nivel, prueba);
 }
 
 /**

@@ -240,22 +240,38 @@ describe("Inicio del estudiante", () => {
     expect(marcado).toContain("Seguir");
   });
 
-  // Mutación que la mata: pintar también el estado en modo libre (ahí no hay
-  // intento nunca, así que un estado sería mentira), o no ofrecer «Practicar».
+  // Esta prueba pedía TRES «Practicar» en libre, y con eso defendía un fallo:
+  // en práctica libre la escrita sí crea intento y se entrega (spec §9), así
+  // que su fila tiene estado y botón propios. `asignacionesDe` ya se lo manda
+  // (ver tests/base/asignaciones.test.ts); la portada solo tiene que pintar lo
+  // que le llega.
   //
-  // Tres filas, no dos: desde esta entrega PRUEBAS_QUE_SE_HACEN trae también
-  // la escrita (Task 5), y la portada pinta una fila por cada una.
-  it("en modo libre, las tres filas sin estado y con Practicar", async () => {
+  // Mutación que la mata: ignorar el estado que viene y pintar «Practicar» en
+  // las tres filas por el hecho de ser modo libre — que era exactamente lo de
+  // antes: el chaval veía «Practicar» sobre una redacción ya corregida.
+  it("en modo libre, la lectura y la auditiva sin estado; la escrita, con el suyo", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    asignacionesDe.mockResolvedValue([{ ...ASIGNADO, modo: "LIBRE" as const, pruebas: [] }]);
+    asignacionesDe.mockResolvedValue([
+      {
+        ...ASIGNADO,
+        modo: "LIBRE" as const,
+        pruebas: [
+          { prueba: "EE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 18, total: 24, porTiempo: false }, texto: "Entregada, 18 de 24" },
+        ],
+      },
+    ]);
 
     const marcado = await html();
 
     expect(marcado).toContain("Lectura");
     expect(marcado).toContain("Auditiva");
     expect(marcado).toContain("Escrita");
-    expect(marcado.match(/Practicar/g) ?? []).toHaveLength(3);
+    // Dos «Practicar» (lectura y auditiva, que no dejan rastro) y la escrita
+    // con su estado y su «Ver resultado».
+    expect(marcado.match(/Practicar/g) ?? []).toHaveLength(2);
+    expect(marcado).toContain("Entregada, 18 de 24");
+    expect(marcado).toContain("Ver resultado");
     expect(marcado).not.toContain("Sin empezar");
   });
 

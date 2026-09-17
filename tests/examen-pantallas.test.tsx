@@ -580,22 +580,25 @@ function escritaCorregida(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer
 }
 
 // Práctica libre de la escrita, antes de empezar: el aviso es otro —dice
-// «sin reloj», no «Tienes 50 minutos»— aunque `minutos` siga viniendo del
-// nivel (paraHacer.ts no lo pone a null; es el `modo`, no el campo, quien
-// decide qué se pinta).
+// «sin reloj», no «Tienes 50 minutos»—. `minutos: null` y `segundosQueQuedan:
+// null` no son adorno de la fixture: es lo que `pruebaParaHacer` manda de
+// verdad en libre (ver tests/base/examen-para-hacer.test.ts). Antes llegaban
+// los del nivel y cada pantalla tenía que volver a mirar el `modo` para no
+// pintar un reloj que no corre.
 function escritaLibre(): PruebaParaHacer {
   return escritaParaHacer({
     modo: "LIBRE",
+    minutos: null,
     estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false },
     segundosQueQuedan: null,
     escritos: [],
   });
 }
 
-// La misma, ya empezada: con `minutos` y `estado: HACIENDO` a propósito, para
-// que decidir el reloj por ellos y no por `modo` se note.
+// La misma, ya empezada: `estado: HACIENDO` sin minutos, que es justo donde un
+// reloj de más se notaría.
 function escritaLibreHaciendo(): PruebaParaHacer {
-  return escritaParaHacer({ modo: "LIBRE" });
+  return escritaParaHacer({ modo: "LIBRE", minutos: null, segundosQueQuedan: null });
 }
 
 async function pintarPagina(prueba: PruebaParaHacer): Promise<string> {

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prueba } from "@/lib/generated/prisma";
-import { minutosDePrueba } from "@/lib/dele/estructura";
+import { minutosConReloj } from "@/lib/dele/estructura";
 import { formularioDePiezas } from "@/lib/taller/piezas";
 import { LETRAS_TOPE, notaDePrueba, palabras, seAcaboElTiempo, SE_ACABO_EL_TIEMPO, segundosQueQuedan, type Nota } from "./motor";
 
@@ -166,13 +166,10 @@ async function abrirLaPrueba(
 
   // Los minutos salen de aquí, y no cada quien por su cuenta: es la única
   // consulta que ya trae el nivel del examen. `entregarPrueba` los necesita
-  // para saber si la entrega la manda el reloj.
-  //
-  // En modo libre no hay reloj: se practica sin cronómetro. Importa solo en la
-  // escrita, que es la única prueba que crea intento en libre (la lectura y la
-  // auditiva se corrigen al vuelo y no guardan nada); sin esto, una redacción
-  // de práctica se cerraría sola a los cincuenta minutos.
-  const minutos = asignacion.modo === "LIBRE" ? null : minutosDePrueba(asignacion.examen.nivel, prueba);
+  // para saber si la entrega la manda el reloj. El modo entra en la cuenta
+  // dentro de `minutosConReloj`: en libre no hay cronómetro, y sin eso una
+  // redacción de práctica se cerraría sola a los cincuenta minutos.
+  const minutos = minutosConReloj(asignacion.modo, asignacion.examen.nivel, prueba);
   if (intento && seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
     await cerrarIntento(examenId, prueba, intento.id, intento.respuestas, ahora, true);
     return { error: SE_ACABO };
@@ -341,12 +338,11 @@ export async function cerrarLasQueSePasaron(donde: { personaId: string } | { exa
     },
   });
   for (const intento of intentos) {
-    // Mismo modo que en abrirLaPrueba, y por la misma razón: esta es la otra
-    // mitad del cierre automático (la que corre sin que nadie haya pulsado
-    // nada, sobre una clase entera). Sin la comprobación del modo, una
-    // escrita de práctica libre se cerraría sola aquí igual, aunque la
-    // pantalla ya no pintara reloj.
-    const minutos = intento.asignacion.modo === "LIBRE" ? null : minutosDePrueba(intento.asignacion.examen.nivel, intento.prueba);
+    // La MISMA cuenta que en abrirLaPrueba, por la misma función: esta es la
+    // otra mitad del cierre automático (la que corre sin que nadie haya pulsado
+    // nada, sobre una clase entera). Si aquí el modo no contara, una escrita de
+    // práctica libre se cerraría sola igual, aunque la pantalla no pintara reloj.
+    const minutos = minutosConReloj(intento.asignacion.modo, intento.asignacion.examen.nivel, intento.prueba);
     if (seAcaboElTiempo(intento.empezadaEn, minutos, ahora)) {
       await cerrarIntento(intento.asignacion.examenId, intento.prueba, intento.id, intento.respuestas, ahora, true);
     }

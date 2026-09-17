@@ -6,7 +6,7 @@ import { NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { bloquearExamen } from "@/lib/taller/publicado";
 import { diasDeRetraso, estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
 import { estadoDePrueba, textoDelEstado, type EstadoDePrueba } from "./motor";
-import { PRUEBAS_QUE_SE_HACEN } from "./paraHacer";
+import { PRUEBAS_CON_RASTRO_EN_LIBRE, PRUEBAS_QUE_SE_HACEN } from "./paraHacer";
 
 export type ResultadoDeAsignar = { asignados: number; sinAviso: string[] } | { error: string };
 
@@ -138,13 +138,20 @@ type IntentoParaEstado = { prueba: Prueba; entregadaEn: Date | null; aciertos: n
 const CAMPOS_DEL_INTENTO = { prueba: true, entregadaEn: true, aciertos: true, total: true, porTiempo: true } as const;
 
 /**
- * El estado de las dos pruebas que hoy tienen pantalla, para una asignación.
- * En modo LIBRE no hay intento nunca (corregirEnLibre corrige al vuelo y no
- * deja rastro): un estado ahí sería mentira, así que se devuelve vacío.
+ * El estado de las pruebas que hoy tienen pantalla, para una asignación.
+ *
+ * En modo COMPLETO son las tres. En LIBRE, solo la ESCRITA: es la única que
+ * también allí crea intento, se entrega y entra en la cola del profesor, y de
+ * la lectura y la auditiva no hay nada que contar porque se corrigen al vuelo
+ * sin dejar rastro. Devolver la lista vacía en libre —como se hacía— escondía
+ * justo eso: en el Inicio del estudiante la escrita salía sin estado y con el
+ * botón «Practicar» aunque ya la hubiera mandado y el profesor la hubiera
+ * corregido, y en «Quién lo hace» el profesor no veía nada de una asignación
+ * libre.
  */
 function pruebasDeLaAsignacion(modo: ModoDeExamen, intentos: readonly IntentoParaEstado[]): EstadoDeUnaPrueba[] {
-  if (modo === "LIBRE") return [];
-  return PRUEBAS_QUE_SE_HACEN.map((prueba) => {
+  const pruebas = modo === "LIBRE" ? PRUEBAS_CON_RASTRO_EN_LIBRE : PRUEBAS_QUE_SE_HACEN;
+  return pruebas.map((prueba) => {
     const estado = estadoDePrueba(intentos.find((i) => i.prueba === prueba) ?? null);
     return { prueba, estado, texto: textoDelEstado(estado) };
   });

@@ -100,8 +100,14 @@ export function QuienLoHace({
                   <button type="submit" className="text-hp-600 underline">Quitárselo</button>
                 </form>
               </div>
-              {/* En modo libre no hay intento nunca, y `pruebas` llega vacío: no se
-                  pinta ningún estado, porque uno inventado sería mentira. */}
+              {/* `pruebas` trae solo las que dejan rastro: las tres en un examen
+                  completo, y en práctica libre únicamente la escrita (la
+                  lectura y la auditiva se corrigen al vuelo y no guardan nada,
+                  así que un estado suyo sería inventado). Puede llegar vacía
+                  —una libre sin escrita empezada—, y entonces no se pinta la
+                  línea. Hoy nunca llega vacía; la guarda es para que un
+                  <QuienLoHace> pintado con una lista vacía no deje un renglón
+                  suelto. */}
               {a.pruebas.length > 0 && (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-tinta-suave">
                   {a.pruebas.map((p) => (

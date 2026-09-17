@@ -314,13 +314,17 @@ function AvisoDeLaEscrita({
   enviando: boolean;
   error: string | null;
 }) {
-  const libre = prueba.modo === "LIBRE";
+  // `minutos === null` y no `modo === "LIBRE"`: es la MISMA pregunta —¿hay
+  // reloj?— y en esta pantalla se hace en tres sitios. `pruebaParaHacer` ya
+  // pone los minutos a null en libre, así que preguntar por el modo aquí sería
+  // preguntarlo dos veces y poder contestarlo distinto.
+  const sinReloj = prueba.minutos === null;
   return (
     <section className={CAJA}>
       <h1 className="text-xl font-bold">
         {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
       </h1>
-      {libre ? (
+      {sinReloj ? (
         <p>
           Esto es práctica: escribes <strong>sin reloj</strong> y lo mandas cuando quieras. Cuando lo mandes, ya no
           se puede cambiar.
@@ -410,8 +414,9 @@ export function PreguntaDeEntrega({
 function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const router = useRouter();
   const examenId = prueba.examen.id;
-  // El reloj es del examen de verdad. En libre no hay ninguno que enseñar.
-  const conReloj = prueba.modo === "COMPLETO" && prueba.minutos !== null;
+  // El reloj es del examen de verdad. En libre `pruebaParaHacer` no manda
+  // minutos, así que esta sola pregunta ya lo dice todo.
+  const conReloj = prueba.minutos !== null;
   const [tareaAbierta, setTareaAbierta] = useState(prueba.tareas[0]?.numero ?? 1);
   const [error, setError] = useState<string | null>(null);
   const [bloqueadaPorError, setBloqueadaPorError] = useState(false);
@@ -644,13 +649,12 @@ function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
  * escrita nacería con el mismo callejón sin salida que ya costó una ronda en
  * la lectura.
  *
- * `modo` NO añade una quinta cara. La escrita es la única prueba que en
- * práctica libre crea intento y se entrega de verdad (spec §9): las mismas
- * cuatro caras del examen completo sirven igual, sin reloj —eso lo deciden
- * `AvisoDeLaEscrita` y `EscritaHaciendo` mirando `prueba.modo`, no el
- * encaminado de aquí—. Una cara aparte que dijera «no se guarda» estaría
- * mintiendo: en libre la escrita se guarda y se manda igual que en un examen
- * de verdad.
+ * La práctica libre NO añade una quinta cara. La escrita es la única prueba
+ * que en libre crea intento y se entrega de verdad (spec §9): las mismas
+ * cuatro caras del examen completo sirven igual, sin reloj —y eso se decide
+ * mirando `prueba.minutos`, que en libre llega null, no el encaminado de
+ * aquí—. Una cara aparte que dijera «no se guarda» estaría mintiendo: en libre
+ * la escrita se guarda y se manda igual que en un examen de verdad.
  */
 export function HacerEscrita({ prueba }: { prueba: PruebaParaHacer }) {
   const router = useRouter();
@@ -673,11 +677,10 @@ export function HacerEscrita({ prueba }: { prueba: PruebaParaHacer }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* El reloj solo corre en un examen de verdad ya empezado: en la práctica
-          libre hay minutos en la ficha, pero nadie los cuenta. */}
-      <VolverAInicio
-        haciendoConReloj={prueba.modo !== "LIBRE" && prueba.estado.estado === "HACIENDO" && prueba.minutos !== null}
-      />
+      {/* El reloj solo corre en un examen de verdad ya empezado. En práctica
+          libre no llegan minutos (los pone a null `pruebaParaHacer`), así que
+          basta con preguntar por ellos: el modo no hace falta otra vez. */}
+      <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
       {cara}
     </div>
   );

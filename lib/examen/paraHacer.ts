@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
-import { minutosDePrueba, reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
+import { minutosConReloj, reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioDePiezas } from "@/lib/taller/piezas";
 import type { Formulario } from "@/lib/taller/formas";
 import { estadoDePrueba, segundosQueQuedan, type EstadoDePrueba } from "./motor";
@@ -47,6 +47,16 @@ export type PruebaParaHacer = {
 
 /** Las tres pruebas que el estudiante puede hacer hoy. La oral llega con la 3e. */
 export const PRUEBAS_QUE_SE_HACEN: readonly Prueba[] = ["CE", "CO", "EE"];
+
+/**
+ * Las que en práctica libre dejan rastro: solo la escrita. Es la decisión del
+ * profesor (spec §9): en libre la escrita crea intento igual, se entrega de
+ * verdad y entra en la cola de corrección, porque una redacción sin corregir no
+ * sirve de nada. La lectura y la auditiva, en cambio, se corrigen al vuelo
+ * (`corregirEnLibre`) y no escriben nada en la base: de esas no hay estado que
+ * contar, y contarlo sería mentir.
+ */
+export const PRUEBAS_CON_RASTRO_EN_LIBRE: readonly Prueba[] = ["EE"];
 
 /**
  * La única puerta por la que una prueba sale hacia el navegador del estudiante.
@@ -98,7 +108,11 @@ export async function pruebaParaHacer(
     return [{ numero: t.numero, regla, formulario, trozos: regla.trozos ?? 0, oidos: oidosDe(t.numero) }];
   });
 
-  const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
+  // Con el modo dentro: en libre no hay reloj, y entonces `minutos` y
+  // `segundosQueQuedan` salen null hacia el navegador. Antes viajaban los del
+  // nivel aunque la pantalla no los pintara, y eso obligaba a cada pantalla a
+  // volver a mirar `modo` por su cuenta para no mentir.
+  const minutos = minutosConReloj(asignacion.modo, asignacion.examen.nivel, prueba);
 
   // Campo a campo, como las respuestas: la fila de EscritoDeIntento lleva
   // `bandas` y `comentario` dentro, y mientras no esté FIRMADA no pueden salir
