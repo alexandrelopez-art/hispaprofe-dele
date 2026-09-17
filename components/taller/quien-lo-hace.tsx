@@ -6,11 +6,14 @@ import { asignarExamenAccion, quitarAsignacionAccion } from "@/app/examenes/acci
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";
+import type { Prueba } from "@/lib/generated/prisma";
 
 // Solo lectura y auditiva tienen ficha: la escrita se corrige en /corregir,
 // que es otra pantalla, y una escrita ESPERANDO (entregada sin firmar) no
-// tiene nada congelado que enseñar todavía.
-const PRUEBAS_CON_FICHA = ["CE", "CO"];
+// tiene nada congelado que enseñar todavía. Tipada como Prueba[] (no
+// inferida como string[]) para que una errata aquí ("CO" mal escrito, o un
+// valor que no es una prueba de verdad) la cace el compilador, no una prueba.
+const PRUEBAS_CON_FICHA: Prueba[] = ["CE", "CO"];
 
 type Estudiante = { id: string; nombre: string };
 type Asignada = { personaId: string; nombre: string; fechaTope: Date; pruebas: EstadoDeUnaPrueba[] };

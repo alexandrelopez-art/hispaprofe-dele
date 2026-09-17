@@ -230,4 +230,50 @@ describe("la ficha pregunta a pregunta", () => {
     await empezarPrueba(examen.id, "CE", ana.id, AHORA);
     expect(await hojaDeRespuestas(examen.id, ana.id, "CE")).toBeNull();
   });
+
+  // Mutación que la mata: comparar o devolver la letra cruda en vez de
+  // normalizada con `limpia` (la MISMA regla de motor.ts que usa la nota).
+  // Sin esto, "a" minúscula o " B " con espacios cuentan como acierto para
+  // `notaDePrueba` pero saldrían como fallo aquí: la ficha que existe para
+  // explicar la nota la contradiría delante del profesor.
+  it("normaliza minúsculas y espacios igual que la nota, para no contradecirla", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    await guardarRespuesta(examen.id, "CE", ana.id, 7, "a", AHORA); // clave real: "A"
+    await guardarRespuesta(examen.id, "CE", ana.id, 8, " B ", AHORA); // clave real: "B"
+    await entregarPrueba(examen.id, "CE", ana.id, AHORA);
+    const hoja = await hojaDeRespuestas(examen.id, ana.id, "CE");
+    expect(hoja!.filas).toContainEqual({ numero: 7, marcada: "A", correcta: "A" });
+    expect(hoja!.filas).toContainEqual({ numero: 8, marcada: "B", correcta: "B" });
+  });
+
+  // Mutación que la mata: recalcular aciertos/total sumando las filas (o
+  // devolver `intento.aciertos`/`total` a secas sin que nada distinga esto
+  // de un recálculo). Se toca el intento a mano DESPUÉS de entregar para que
+  // la nota de verdad (si se recalculara desde las filas: 2 aciertos de 6)
+  // sea distinta de la que se lee de la base, y la ficha tiene que enseñar
+  // esta última.
+  it("enseña la nota que quedó congelada en el intento, no la recalculada de las filas", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    await guardarRespuesta(examen.id, "CE", ana.id, 7, "A", AHORA); // acierto real
+    await guardarRespuesta(examen.id, "CE", ana.id, 8, "B", AHORA); // acierto real
+    await entregarPrueba(examen.id, "CE", ana.id, AHORA);
+    const intento = await prisma.intento.findFirstOrThrow({ where: { prueba: "CE", asignacion: { personaId: ana.id } } });
+    // Nota inventada, deliberadamente distinta de lo que darían las filas (2/6).
+    await prisma.intento.update({ where: { id: intento.id }, data: { aciertos: 99, total: 100 } });
+    const hoja = await hojaDeRespuestas(examen.id, ana.id, "CE");
+    expect(hoja!.aciertos).toBe(99);
+    expect(hoja!.total).toBe(100);
+  });
+
+  // Mutación que la mata: quitar el `if (prueba === "EE") return null` (o
+  // moverlo solo a la pantalla de cliente). La escrita se corrige en
+  // /corregir, y una entregada sin firmar no tiene nota que enseñar; la
+  // guarda tiene que estar aquí, donde no se pueda esquivar escribiendo la
+  // dirección a mano.
+  it("la escrita no tiene ficha: se corrige en /corregir, no aquí", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await guardarEscrito(examen.id, ana.id, 1, "Hola, qué tal", null, AHORA);
+    await entregarPrueba(examen.id, "EE", ana.id, AHORA);
+    expect(await hojaDeRespuestas(examen.id, ana.id, "EE")).toBeNull();
+  });
 });

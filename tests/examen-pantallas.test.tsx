@@ -1658,6 +1658,12 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("la ficha no se le enseña a un estudiante", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(ana);
     const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    // El `rejects.toThrow()` de aquí abajo NO basta solo: sin `exigirProfesor`,
+    // `hojaDeRespuestas` (doblada, sin mockResolvedValue) da `undefined`, y
+    // `if (!hoja) notFound()` también tira — la pantalla seguiría rechazando
+    // por el motivo EQUIVOCADO. La aserción que de verdad mata «quitar
+    // exigirProfesor» es la siguiente: sin la puerta, sí se llegaría a llamar
+    // a hojaDeRespuestas. Que nadie la borre por parecer redundante.
     await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow();
     expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
   });

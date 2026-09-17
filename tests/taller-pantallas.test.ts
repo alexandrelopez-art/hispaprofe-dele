@@ -578,11 +578,25 @@ describe("la caja de quién hace el examen", () => {
           { prueba: "EE" as const, estado: { estado: "ESPERANDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "Esperando corrección" },
         ],
       },
+      // El caso que rebotaba antes por el estado (ESPERANDO) no basta para
+      // probar la guarda de la prueba: sin `&& PRUEBAS_CON_FICHA.includes(...)`,
+      // una escrita ENTREGADA (que sí pasa el filtro de estado) enlazaría a
+      // una ficha que hojaDeRespuestas nunca da para "EE".
+      {
+        personaId: "e2",
+        nombre: "Luis",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "EE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 20, total: 24, porTiempo: false }, texto: "Entregada, 20 de 24" },
+        ],
+      },
     ]);
 
     const marcado = await pintar("PUBLICADO");
 
     expect(marcado).toContain("Esperando corrección");
     expect(marcado).not.toContain('href="/examenes/x1/hoja/e1/EE"');
+    expect(marcado).toContain("Entregada, 20 de 24");
+    expect(marcado).not.toContain('href="/examenes/x1/hoja/e2/EE"');
   });
 });

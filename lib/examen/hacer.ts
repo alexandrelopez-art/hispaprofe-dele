@@ -40,9 +40,18 @@ type AsignacionAbierta = { id: string };
  * cuadernillo: el cuadernillo puede cambiar y no tiene por qué arrastrar la
  * nota de un examen ya publicado.
  *
- * Exportada por una única razón: `lib/examen/hoja.ts` la reutiliza para
- * pintar la ficha del profesor (la única pantalla fuera del taller que lee la
- * `Clave`). Fuera de esas dos, ningún otro sitio tiene motivo para llamarla.
+ * Exportada, y con TRES llamadores autorizados, ni uno más — la lista blanca
+ * de `tests/examen-clave-importadores.test.ts` («quién puede leer la clave»)
+ * la vigila:
+ *
+ * - `cerrarIntento`, en este mismo fichero: calcula la nota al entregar y la
+ *   congela. Nunca devuelve la clave en sí, solo `aciertos`/`total`/`fallos`.
+ * - `corregirEnLibre`, aquí también: es camino de ESTUDIANTE (práctica
+ *   libre). Tampoco devuelve la clave: `notaDePrueba` da `fallos` con lo que
+ *   el estudiante marcó, nunca con lo que tenía que marcar.
+ * - `hojaDeRespuestas`, en `lib/examen/hoja.ts`: la ficha del profesor, la
+ *   única de las tres que SÍ enseña la letra correcta — y por eso su página
+ *   exige PROFESOR y ella misma exige la prueba entregada.
  */
 export async function claveDeLaPrueba(examenId: string, prueba: Prueba): Promise<Record<string, string>> {
   const tareas = await prisma.tarea.findMany({

@@ -21,7 +21,14 @@ export type EstadoDePrueba = {
   porTiempo: boolean;
 };
 
-const limpia = (letra: string | undefined): string | null => {
+/**
+ * Cómo se compara una letra marcada contra la clave: sin espacios y en
+ * mayúscula, `null` si queda vacía. Exportada porque `lib/examen/hoja.ts`
+ * tiene que comparar con esta MISMA regla — si comparara crudo, una «b»
+ * minúscula contaría como acierto aquí y como fallo en la ficha del
+ * profesor, y las dos pantallas se contradirían sobre la misma respuesta.
+ */
+export const limpia = (letra: string | undefined): string | null => {
   const s = (letra ?? "").trim().toUpperCase();
   return s === "" ? null : s;
 };
