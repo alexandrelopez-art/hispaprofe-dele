@@ -48,19 +48,28 @@ function ficherosDeCodigo(dir: string): string[] {
   return encontrados;
 }
 
+/**
+ * Quita los comentarios (`/* * /` y `//`) antes de buscar. Sin esto, un
+ * comentario que solo NOMBRA la función —hay uno legítimo en
+ * hacer-prueba.tsx— cuenta como mención, y obligaría a esos comentarios a
+ * dejar de decir el nombre con tal de que la prueba calle. Un comentario no
+ * tiene por qué perder precisión para que una prueba de código pase.
+ */
+function sinComentarios(texto: string): string {
+  return texto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
 describe("quién puede leer la clave (claveDeLaPrueba)", () => {
-  it("solo la mencionan los ficheros de la lista blanca", () => {
+  it("solo la llaman, o la importan, los ficheros de la lista blanca", () => {
     // El identificador a secas, sin exigir el paréntesis pegado: buscar
     // `claveDeLaPrueba(` se dejaba escapar el descuido más normal de todos,
     // un import con alias (`import { claveDeLaPrueba as otroNombre } from
     // "./hacer"`, y luego `otroNombre(...)`), que no deja esa cadena en
-    // ningún sitio. El precio es que una PROSA que solo nombre la función
-    // en un comentario (sin llamarla) también cuenta como mención — por eso
-    // el comentario de hacer-prueba.tsx que la nombraba se reescribió para
-    // no usar el identificador, en vez de colar ese fichero en la lista
-    // blanca por una razón que no es la de estar ahí.
+    // ningún sitio. Y se busca sobre el texto SIN comentarios, para que una
+    // prosa que solo nombre la función (documentación, no una llamada) no
+    // cuente como mención.
     const conMenciones = RAICES.flatMap((raiz) => ficherosDeCodigo(raiz))
-      .filter((ruta) => readFileSync(ruta, "utf8").includes("claveDeLaPrueba"))
+      .filter((ruta) => sinComentarios(readFileSync(ruta, "utf8")).includes("claveDeLaPrueba"))
       .map((ruta) => ruta.split("/").join("/")); // rutas ya vienen con "/" en POSIX
 
     expect(new Set(conMenciones)).toEqual(LISTA_BLANCA);

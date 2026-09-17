@@ -83,8 +83,7 @@ function contarContestadas(marcadas: Marcadas): number {
 /**
  * La corrección de una tarea, en modo libre. `corregirEnLibreAccion` corrige
  * la PRUEBA entera (lib/examen/hacer.ts no admite corregir una tarea sola: la
- * clave sale de la función que junta las cuatro de la prueba en una sola,
- * en `lib/examen/hacer.ts`), así que sus fallos
+ * clave sale de `claveDeLaPrueba`, que junta las cuatro), así que sus fallos
  * cubren las 25 preguntas de golpe. Aquí se recorta el resultado a la tarea
  * que lo pidió: sus propios números (de `itemsDelFormulario`, la misma
  * fuente que usa `letrasPosibles`), su propio total, su propia nota.
