@@ -237,7 +237,10 @@ describe("Inicio del estudiante", () => {
 
   // Mutación que la mata: pintar también el estado en modo libre (ahí no hay
   // intento nunca, así que un estado sería mentira), o no ofrecer «Practicar».
-  it("en modo libre, las dos filas sin estado y con Practicar", async () => {
+  //
+  // Tres filas, no dos: desde esta entrega PRUEBAS_QUE_SE_HACEN trae también
+  // la escrita (Task 5), y la portada pinta una fila por cada una.
+  it("en modo libre, las tres filas sin estado y con Practicar", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
     asignacionesDe.mockResolvedValue([{ ...ASIGNADO, modo: "LIBRE" as const, pruebas: [] }]);
@@ -246,7 +249,8 @@ describe("Inicio del estudiante", () => {
 
     expect(marcado).toContain("Lectura");
     expect(marcado).toContain("Auditiva");
-    expect(marcado.match(/Practicar/g) ?? []).toHaveLength(2);
+    expect(marcado).toContain("Escrita");
+    expect(marcado.match(/Practicar/g) ?? []).toHaveLength(3);
     expect(marcado).not.toContain("Sin empezar");
   });
 

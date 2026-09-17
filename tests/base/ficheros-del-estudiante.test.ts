@@ -5,7 +5,10 @@ import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
 import { guardarTarea } from "@/lib/taller/examenes";
 import { ficherosDeLasPruebasAbiertas } from "@/lib/ficheros/abiertos";
+import { empezarPrueba } from "@/lib/examen/hacer";
 import { crearExamenDePruebas } from "@/tests/ayudas/examen-de-pruebas";
+
+const AHORA = new Date("2026-09-20T09:00:00Z");
 
 /**
  * El agujero que estas pruebas cierran, encontrado por el profesor haciendo la
@@ -160,5 +163,37 @@ describe("los ficheros que un estudiante puede abrir", () => {
     await empezarLa("CO");
     const abiertos = await ficherosDeLasPruebasAbiertas(luis.id);
     expect(abiertos.size).toBe(0);
+  });
+
+  // Mutación que la mata: volver a escribir a mano la lista de pruebas dentro de
+  // ficherosDeLasPruebasAbiertas (por ejemplo, ["CE","CO"]). Las fotos de la
+  // escrita darían 404 en cuanto la tarea las llevara — que es exactamente el
+  // fallo que el profesor encontró en la aceptación de la 3c con la auditiva 1.
+  //
+  // La escrita 1 es REDACCION_UNA, y hoy `huecosDeImagen` (lib/taller/medios.ts)
+  // no da NINGUNA clave para esa forma: `guardarTarea` rechazaría cualquier
+  // clave dentro de `medios.imagenes` con «no es de ninguna opción con
+  // imagen», así que no se puede meter la foto por el camino normal del
+  // taller. Lo que prueba el candado es que lee `datos.imagenes` de la
+  // Actividad tal como queda en la base (lib/ficheros/abiertos.ts), así que
+  // aquí se escribe esa clave directamente sobre la fila que ya dejó
+  // `crearExamenDePruebas` (la escrita 1 del montaje), con la forma real que
+  // deja `piezasDelFormulario`. Lo que importa es el candado, no si el taller
+  // sabe hoy poner esa foto.
+  it("la foto de la escrita se abre al empezarla, y no antes", async () => {
+    const fotoDeLaSituacion = await ficheroDePrueba("material/foto-escrita.jpg", "image/jpeg");
+    const pieza = await prisma.pieza.findFirstOrThrow({
+      where: { tarea: { examenId: examen.id, prueba: "EE", numero: 1 }, tipo: "ACTIVIDAD" },
+      select: { actividad: { select: { id: true, datos: true } } },
+    });
+    const datos = pieza.actividad!.datos as Record<string, unknown>;
+    await prisma.actividad.update({
+      where: { id: pieza.actividad!.id },
+      data: { datos: { ...datos, imagenes: { situacion: fotoDeLaSituacion } } },
+    });
+
+    expect((await ficherosDeLasPruebasAbiertas(ana.id)).has(fotoDeLaSituacion)).toBe(false);
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    expect((await ficherosDeLasPruebasAbiertas(ana.id)).has(fotoDeLaSituacion)).toBe(true);
   });
 });

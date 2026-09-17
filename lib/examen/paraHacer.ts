@@ -13,6 +13,16 @@ export type TareaParaHacer = {
   oidos: number[];
 };
 
+/** Lo poco que el navegador necesita de un escrito. La corrección va aparte y
+ *  solo cuando está FIRMADA: ver `pruebaParaHacer`. */
+export type EscritoParaHacer = {
+  tarea: number;
+  opcion: number | null;
+  texto: string;
+  palabras: number;
+  correccion: { bandas: number[]; comentario: string } | null;
+};
+
 export type PruebaParaHacer = {
   examen: { id: string; titulo: string; nivel: Nivel };
   prueba: Prueba;
@@ -24,12 +34,15 @@ export type PruebaParaHacer = {
   segundosQueQuedan: number | null;
   respuestas: Record<string, string>;
   fallos: number[];
+  escritos: EscritoParaHacer[];
+  /** Cuándo firmó el profesor. null = sin corregir (o no es la escrita). */
+  corregidaEn: Date | null;
   /** Cómo van las DEMÁS pruebas de este examen: la pantalla de resultado dice qué queda por hacer. */
   otras: { prueba: Prueba; estado: EstadoDePrueba }[];
 };
 
-/** Las únicas dos pruebas que el estudiante puede hacer hoy. La 3d y la 3e traerán las otras. */
-export const PRUEBAS_QUE_SE_HACEN: readonly Prueba[] = ["CE", "CO"];
+/** Las tres pruebas que el estudiante puede hacer hoy. La oral llega con la 3e. */
+export const PRUEBAS_QUE_SE_HACEN: readonly Prueba[] = ["CE", "CO", "EE"];
 
 /**
  * La única puerta por la que una prueba sale hacia el navegador del estudiante.
@@ -65,7 +78,7 @@ export async function pruebaParaHacer(
           },
         },
       },
-      intentos: { include: { respuestas: true, trozosOidos: true } },
+      intentos: { include: { respuestas: true, trozosOidos: true, escritos: true } },
     },
   });
   if (!asignacion || asignacion.examen.estado !== "PUBLICADO") return null;
@@ -82,6 +95,22 @@ export async function pruebaParaHacer(
   });
 
   const minutos = minutosDePrueba(asignacion.examen.nivel, prueba);
+
+  // Campo a campo, como las respuestas: la fila de EscritoDeIntento lleva
+  // `bandas` y `comentario` dentro, y mientras no esté FIRMADA no pueden salir
+  // de aquí. Lo que decide es `corregidaEn`, no que las bandas estén puestas:
+  // el profesor puede haber guardado y no haber firmado.
+  const firmada = intento?.corregidaEn ?? null;
+  const escritos: EscritoParaHacer[] = (intento?.escritos ?? [])
+    .sort((a, b) => a.tarea - b.tarea)
+    .map((e) => ({
+      tarea: e.tarea,
+      opcion: e.opcion,
+      texto: e.texto,
+      palabras: e.palabras,
+      correccion: firmada ? { bandas: e.bandas, comentario: e.comentario } : null,
+    }));
+
   return {
     examen: { id: asignacion.examen.id, titulo: asignacion.examen.titulo, nivel: asignacion.examen.nivel },
     prueba,
@@ -93,6 +122,8 @@ export async function pruebaParaHacer(
     segundosQueQuedan: intento && !intento.entregadaEn ? segundosQueQuedan(intento.empezadaEn, minutos, ahora) : null,
     respuestas: Object.fromEntries((intento?.respuestas ?? []).map((r) => [String(r.numero), r.letra])),
     fallos: intento?.fallos ?? [],
+    escritos,
+    corregidaEn: firmada,
     otras: PRUEBAS_QUE_SE_HACEN.filter((otra) => otra !== prueba).map((otra) => ({
       prueba: otra,
       estado: estadoDePrueba(asignacion.intentos.find((i) => i.prueba === otra) ?? null),

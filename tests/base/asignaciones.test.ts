@@ -204,6 +204,10 @@ describe("quitar y listar", () => {
 
   // Mutación que la mata: devolver la fila entera de la base en asignacionesDe.
   // Lo que viaja al navegador del estudiante se construye campo a campo.
+  //
+  // Tres pruebas, no dos: desde la Task 5 de la 3d, PRUEBAS_QUE_SE_HACEN trae
+  // también la escrita, y pruebasDeLaAsignacion (lib/examen/asignar.ts) recorre
+  // esa misma lista.
   it("lo del estudiante trae lo justo para pintar", async () => {
     await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
     const sinEmpezar = { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false };
@@ -218,6 +222,7 @@ describe("quitar y listar", () => {
         pruebas: [
           { prueba: "CE", estado: sinEmpezar, texto: "Sin empezar" },
           { prueba: "CO", estado: sinEmpezar, texto: "Sin empezar" },
+          { prueba: "EE", estado: sinEmpezar, texto: "Sin empezar" },
         ],
       },
     ]);
@@ -229,6 +234,7 @@ describe("quitar y listar", () => {
         pruebas: [
           { prueba: "CE", estado: sinEmpezar, texto: "Sin empezar" },
           { prueba: "CO", estado: sinEmpezar, texto: "Sin empezar" },
+          { prueba: "EE", estado: sinEmpezar, texto: "Sin empezar" },
         ],
       },
     ]);
