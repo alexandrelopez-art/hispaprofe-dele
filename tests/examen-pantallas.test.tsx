@@ -5,7 +5,7 @@ import type { Persona } from "@/lib/generated/prisma";
 import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
-import { palabras } from "@/lib/examen/motor";
+import { LETRAS_TOPE, palabras, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 import { corregirTareaEnLibre, HacerPrueba } from "@/components/examen/hacer-prueba";
 import { PestanasDeTarea } from "@/components/examen/piezas";
@@ -14,6 +14,7 @@ import { Reloj, segundosHasta } from "@/components/examen/reloj";
 import { avisoDePalabras, Folio } from "@/components/examen/folio";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import {
+  apagaLosFolios,
   borradoresDe,
   conOpcion,
   conTexto,
@@ -1094,6 +1095,20 @@ describe("el folio", () => {
     const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
     expect(textarea).toContain('disabled=""');
   });
+
+  // Mutación que la mata: quitar `maxLength={LETRAS_TOPE}` del <textarea>. Sin
+  // él, un pegado largo entra en el folio, el servidor lo rechaza con «Ese
+  // texto es demasiado largo.» y el estudiante se queda con un texto que no se
+  // guarda. El tope es el MISMO que comprueba `guardarEscrito`: se afirma
+  // contra la constante, no contra un número escrito a mano, para que no pueda
+  // quedarse desparejado.
+  it("no deja pegar más letras de las que el servidor acepta", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto="Hola" rango={{ min: null, max: null }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
+    expect(textarea).toContain(`maxLength="${LETRAS_TOPE}"`);
+  });
 });
 
 describe("el enunciado de la escrita", () => {
@@ -1169,6 +1184,24 @@ describe("la escrita", () => {
       1: { texto: "", opcion: null },
       2: { texto: "", opcion: null },
     });
+  });
+
+  // Mutación que la mata: devolver `true` para cualquier mensaje (que es como
+  // estaba: un pestillo de un solo sentido que apagaba los folios con el primer
+  // error, fuera el que fuera, y no los volvía a abrir nunca). El caso agudo es
+  // «Ese texto es demasiado largo.»: el folio apagado con el texto largo dentro
+  // deja al estudiante sin poder ni seguir ni recortar.
+  //
+  // Se afirma contra la constante compartida, no contra el literal escrito otra
+  // vez aquí: si el mensaje del servidor cambiara, esta prueba tiene que seguir
+  // hablando del mismo error, no de una cadena que ya no existe.
+  it("solo el error del tiempo apaga los folios", () => {
+    expect(apagaLosFolios(SE_ACABO_EL_TIEMPO)).toBe(true);
+    expect(apagaLosFolios("Ese texto es demasiado largo.")).toBe(false);
+    expect(apagaLosFolios("Esa tarea no existe.")).toBe(false);
+    expect(apagaLosFolios("Esa opción no existe.")).toBe(false);
+    expect(apagaLosFolios("Este examen ya no está disponible.")).toBe(false);
+    expect(apagaLosFolios("Este examen no es tuyo.")).toBe(false);
   });
 
   // Mutación que la mata: al elegir otra opción, devolver un borrador nuevo

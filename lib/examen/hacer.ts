@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Prueba } from "@/lib/generated/prisma";
 import { minutosDePrueba } from "@/lib/dele/estructura";
 import { formularioDePiezas } from "@/lib/taller/piezas";
-import { notaDePrueba, palabras, seAcaboElTiempo, segundosQueQuedan, type Nota } from "./motor";
+import { LETRAS_TOPE, notaDePrueba, palabras, seAcaboElTiempo, SE_ACABO_EL_TIEMPO, segundosQueQuedan, type Nota } from "./motor";
 
 // Los mensajes de error, literales (spec §9). Otras pantallas y otras tareas
 // los comparan por texto: cambiar una coma aquí las rompe.
@@ -10,7 +10,9 @@ const NO_SE_HACE = "Esa prueba todavía no se puede hacer.";
 const NO_ES_TUYO = "Este examen no es tuyo.";
 const NO_DISPONIBLE = "Este examen ya no está disponible.";
 const YA_ENTREGADA = "Esta prueba ya está entregada.";
-const SE_ACABO = "Se acabó el tiempo.";
+// SE_ACABO vive en ./motor y no aquí: la pantalla de la escrita lo compara
+// para saber si apagar los folios, y no puede importar este módulo (Prisma).
+const SE_ACABO = SE_ACABO_EL_TIEMPO;
 // El sexto mensaje: una server action es una dirección pública, cualquiera que
 // la conozca puede llamarla. Una excepción ahí es un 500 sin explicación para
 // una pestaña vieja; esto es un error como los otros cinco, no un fallo.
@@ -23,8 +25,8 @@ const NO_LIBRE = "Este examen no es de práctica libre.";
 const TEXTO_LARGO = "Ese texto es demasiado largo.";
 const TAREA_MALA = "Esa tarea no existe.";
 const OPCION_MALA = "Esa opción no existe.";
-/** Unas 1.500 palabras: siete veces lo más largo que pide el examen. */
-export const LETRAS_TOPE = 10_000;
+// El tope de letras también vive en ./motor: lo comparten esta guarda y el
+// `maxLength` del folio.
 
 type IntentoAbierto = {
   id: string;

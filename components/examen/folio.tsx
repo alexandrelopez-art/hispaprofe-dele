@@ -1,6 +1,6 @@
 "use client";
 
-import { palabras } from "@/lib/examen/motor";
+import { LETRAS_TOPE, palabras } from "@/lib/examen/motor";
 
 export type Rango = { min: number | null; max: number | null };
 
@@ -31,9 +31,13 @@ export function Folio({
   const aviso = avisoDePalabras(palabras(texto), rango);
   return (
     <div className="flex min-w-0 flex-col gap-2">
+      {/* `maxLength`, el MISMO tope que comprueba `guardarEscrito`: sin él, un
+          pegado largo lo rechaza el servidor («Ese texto es demasiado largo.»)
+          y lo de más ya está dentro del folio. Aquí ni siquiera entra. */}
       <textarea
         value={texto}
         disabled={bloqueado}
+        maxLength={LETRAS_TOPE}
         onChange={(e) => alEscribir(e.target.value)}
         rows={16}
         className="w-full rounded-2xl border border-tinta-suave/30 p-4 leading-relaxed disabled:bg-tinta-suave/5"

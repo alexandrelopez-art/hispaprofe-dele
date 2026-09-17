@@ -8,6 +8,24 @@
 /** Lo que se le perdona a la red para que la última respuesta no se pierda por el viaje. */
 export const SEGUNDOS_DE_GRACIA = 10;
 
+/**
+ * El único mensaje del servidor que una pantalla compara por texto: es lo que
+ * separa «esta prueba ya la cerró el servidor» —y entonces no queda nada que
+ * escribir— de un rechazo que el estudiante todavía puede arreglar tecleando.
+ * Vive aquí, con los demás literales de `lib/examen/hacer.ts` (spec §9), porque
+ * ese módulo importa Prisma y un componente de cliente no puede importarlo.
+ */
+export const SE_ACABO_EL_TIEMPO = "Se acabó el tiempo.";
+
+/**
+ * El tope de letras de un folio: unas 1.500 palabras, siete veces lo más largo
+ * que pide el examen. Lo comprueba `guardarEscrito` (una dirección pública no
+ * puede meter un libro en una columna) y lo lleva puesto el propio `<textarea>`
+ * como `maxLength`: sin eso, un pegado largo solo se entera del tope cuando el
+ * servidor lo rechaza, y el texto de más ya no cabe para poder recortarlo.
+ */
+export const LETRAS_TOPE = 10_000;
+
 export type Fallo = { numero: number; marcada: string | null };
 export type Nota = { aciertos: number; total: number; fallos: Fallo[] };
 

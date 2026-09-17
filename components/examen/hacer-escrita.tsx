@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { BANDA_MAXIMA, CRITERIOS_EE, NOMBRE_DE_PRUEBA } from "@/lib/dele/estructura";
-import { estaEntregada } from "@/lib/examen/motor";
+import { estaEntregada, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import { empezarPruebaAccion, entregarPruebaAccion, guardarEscritoAccion } from "@/app/examen/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
@@ -69,6 +69,22 @@ export function loQueFalta(prueba: PruebaParaHacer, borradores: Record<number, B
 export function enLista(cosas: string[]): string {
   if (cosas.length <= 1) return cosas[0] ?? "";
   return `${cosas.slice(0, -1).join(", ")} y ${cosas[cosas.length - 1]}`;
+}
+
+/**
+ * ¿Este error del servidor apaga los folios? SOLO el del tiempo. Es el único
+ * que significa que la prueba ya está cerrada y que seguir escribiendo es
+ * escribir en el aire.
+ *
+ * Los otros cuatro que `guardarEscrito` puede devolver —texto demasiado largo,
+ * tarea u opción que no existen, examen retirado— son rechazos de ESTE
+ * guardado, y varios se arreglan escribiendo: apagar el folio con ellos deja
+ * al estudiante encerrado con el aviso y sin poder ni seguir ni recortar. El
+ * pegado largo era el caso agudo: «Ese texto es demasiado largo.» y el folio
+ * apagado con el texto largo dentro.
+ */
+export function apagaLosFolios(mensaje: string): boolean {
+  return mensaje === SE_ACABO_EL_TIEMPO;
 }
 
 /**
@@ -226,20 +242,30 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     for (const tarea of Object.keys(ultimo.current)) void guardar(Number(tarea));
   }, [guardar]);
 
-  // La descarga: lo pendiente se manda al desmontar esta pantalla y al esconder
-  // la pestaña.
+  // La descarga: lo pendiente se manda por DOS caminos, y cada uno cubre una
+  // salida. Qué cubre cada cosa, exactamente:
   //
-  // El desmontaje NO es raro: «← Volver a Inicio» es un <Link>, o sea una
-  // navegación de cliente —la pantalla se desmonta, la aplicación sigue viva—, y
-  // es justo la salida que la pantalla anima a usar. Sin esto, los hasta dos
-  // segundos pendientes no llegaban nunca.
+  // - El desmontaje, que NO es raro: «← Volver a Inicio» es un <Link>, o sea una
+  //   navegación de cliente —la pantalla se desmonta, la aplicación sigue viva—,
+  //   y es justo la salida que la pantalla anima a usar. Sin esto, los hasta dos
+  //   segundos pendientes no llegaban nunca.
+  // - `pagehide`: cerrar la pestaña, recargar o navegar fuera del sitio, donde
+  //   ya no va a haber desmontaje de React que valga.
   //
-  // `pagehide` cubre cerrar la pestaña y bloquear el móvil, donde encima los
-  // temporizadores se congelan: ahí lo pendiente no son dos segundos, es todo lo
-  // escrito desde el último guardado. Es lo mejor que se puede hacer sin
-  // reescribir el guardado como `navigator.sendBeacon` (una acción de servidor
-  // no se manda por beacon): si el navegador mata la petición a medias, se
-  // pierde — pero el tope de quince segundos acota cuánto.
+  // Lo que NO cubre, y es a propósito: cambiar de aplicación o bloquear la
+  // pantalla del móvil. Eso dispara `visibilitychange` a `hidden`, y Chrome en
+  // Android no garantiza `pagehide` ahí; como además los temporizadores se
+  // congelan, lo que se pierde no son dos segundos, es todo lo escrito desde el
+  // último guardado. Está DECIDIDO que se pierda: la redacción se hace de una
+  // sentada, y que salirse cueste es el aviso de que esto es un examen. NO es
+  // un descuido, así que no se «arregla» añadiendo aquí un oyente de
+  // `visibilitychange`.
+  //
+  // El otro límite, este sí técnico: el guardado es una acción de servidor y una
+  // acción de servidor NO se puede mandar por `navigator.sendBeacon`, que es lo
+  // único que el navegador promete entregar aunque la página se muera. Una
+  // petición lanzada al cerrar la puede matar el navegador a medias, y entonces
+  // se pierde igual; el tope de quince segundos acota cuánto.
   useEffect(() => {
     window.addEventListener("pagehide", descargar);
     return () => {
@@ -403,14 +429,16 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   const { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar } = useBorradores(
     prueba,
     tareaAbierta,
-    // Lo que el servidor rechace mientras se escribe: se enseña, se apagan los
-    // folios y se refresca. El único error de verdad aquí es «Se acabó el
-    // tiempo.», y entonces el refresco es lo que lleva a la cara de entregada:
-    // seguir escribiendo en una prueba que el servidor ya cerró es escribir en
-    // el aire.
+    // Lo que el servidor rechace mientras se escribe: se enseña siempre, y solo
+    // apaga los folios si es el del tiempo (ver `apagaLosFolios`), que es
+    // además el caso en que el refresco lleva a la cara de entregada. Con
+    // cualquier otro el folio sigue vivo: son rechazos de ESTE guardado, no el
+    // fin de la prueba, y es tecleando como se arreglan. Y no es un pestillo:
+    // si el siguiente guardado va bien y luego falla el del tiempo, se apaga
+    // igual.
     (mensaje: string) => {
       setError(mensaje);
-      setBloqueadaPorError(true);
+      setBloqueadaPorError(apagaLosFolios(mensaje));
       router.refresh();
     },
   );
