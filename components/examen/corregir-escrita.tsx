@@ -6,8 +6,36 @@ import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
 import { BANDA_MAXIMA, CRITERIOS_EE } from "@/lib/dele/estructura";
 import { guardarCorreccionAccion } from "@/app/corregir/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
+import { huboSalidas, tiempoFueraEnPalabras, vecesEnPalabras, type ResumenDeSalidas } from "@/lib/examen/motor";
 import { AVISO_DE_ERROR, AVISO_SUAVE, BOTON, BOTON_SUAVE, CAJA, enLista } from "@/components/examen/piezas";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
+
+/**
+ * El registro de salidas, para el profesor y solo aquí: una línea, y **solo si
+ * hubo salidas**. Si el chico no se salió no se pinta nada — una línea diciendo
+ * «salió 0 veces» es ruido en la pantalla donde lo que importa es la redacción.
+ *
+ * Para qué sirve: le explica un folio corto o en blanco sin tener que suponer
+ * que el chico no sabía. Por eso lleva el tiempo además de la cuenta, y la
+ * tarea de la última salida: tres salidas de cinco segundos y una de doce
+ * minutos son dos cosas muy distintas y no se pueden contar igual.
+ *
+ * Lleva el aviso SUAVE y no el de error: no se ha roto nada, y el registro no es
+ * una acusación. Que el chico se saliera puede ser una llamada de su madre.
+ *
+ * Pieza aparte y exportada para poder pintarla sin montar la pantalla entera.
+ */
+export function SalidasDelEstudiante({ resumen }: { resumen: ResumenDeSalidas }) {
+  if (!huboSalidas(resumen)) return null;
+  return (
+    <p role="status" data-salidas className={AVISO_SUAVE}>
+      Salió de la pantalla {vecesEnPalabras(resumen.salidas)}, {tiempoFueraEnPalabras(resumen.segundosFuera)} en
+      total
+      {resumen.ultimaSalidaEn !== null && `; la última, el ${fechaHoraEnPalabras(resumen.ultimaSalidaEn)}`}
+      {resumen.ultimaSalidaDeTarea !== null && `, desde la tarea ${resumen.ultimaSalidaDeTarea}`}.
+    </p>
+  );
+}
 
 /** Una banda por criterio. `null` = todavía sin nota: es distinto de un 0, que
  *  es una nota válida. Confundir los dos es justo el agujero que esta forma
@@ -136,6 +164,7 @@ export function CorregirEscrita({ para }: { para: ParaCorregir }) {
             Ya la corregiste el {fechaHoraEnPalabras(para.corregidaEn)}; si guardas, se cambia.
           </p>
         )}
+        <SalidasDelEstudiante resumen={para.salidas} />
       </header>
 
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}

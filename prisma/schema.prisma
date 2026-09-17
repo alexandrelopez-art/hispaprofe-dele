@@ -302,16 +302,32 @@ model Intento {
   /// la clave no vuelve a salir de su tabla después de entregar.
   fallos       Int[]      @default([])
 
-  /// Cuándo se fue de la pantalla de la escrita, y de qué tarea. La salida se
-  /// apunta AQUÍ, en el servidor, y no solo en el navegador: si solo lo supiera
-  /// el navegador, cerrar la pestaña y volver a entrar sería el agujero obvio, y
-  /// a un chaval de catorce años ese truco le dura media tarde.
+  /// El registro de salidas de la escrita. No se borra nada por salirse: se
+  /// apunta, y el profesor lo ve al corregir. La disuasión es saber que lo ve.
   ///
-  /// Las dos son marcas VIVAS, no un historial: se ponen al irse y se limpian al
-  /// resolver la vuelta. null = está aquí (o ya se resolvió la salida anterior).
-  salioEn      DateTime?
-  /// La tarea que tenía abierta al irse: es la única que se borra, no las dos.
-  salioDeTarea Int?
+  /// Se apunta AQUÍ, en el servidor, y no en el navegador: si el rastro viviera
+  /// en el navegador, cerrar la pestaña lo borraría, y a un chaval de catorce
+  /// años ese truco le dura media tarde. Solo en modo COMPLETO.
+  ///
+  /// Las dos primeras son la marca VIVA de una ausencia en curso: se ponen al
+  /// irse y se limpian al volver, cuando la ausencia pasa a los contadores.
+  /// null = está aquí.
+  salioEn             DateTime?
+  /// De qué tarea estaba cuando se fue.
+  salioDeTarea        Int?
+  /// La última vuelta registrada. Es la red contra una marca que llega tarde:
+  /// una salida con fecha ANTERIOR a la última vuelta es de una ausencia ya
+  /// contada —dos peticiones que se cruzaron—, y contarla otra vez inventaría
+  /// minutos fuera que nunca ocurrieron. Un registro que miente es peor que no
+  /// tenerlo: el profesor va a hablar con un alumno con esto delante.
+  volvioEn            DateTime?
+  /// Los contadores, que es lo que el profesor lee: «salió 3 veces, 4 minutos en
+  /// total, la última a las 10:42». No hay tabla de salidas: con esto basta para
+  /// la línea que él quiere, y una fila por ausencia no le diría nada más.
+  salidas             Int       @default(0)
+  segundosFuera       Int       @default(0)
+  ultimaSalidaEn      DateTime?
+  ultimaSalidaDeTarea Int?
 
   /// Cuándo firmó el profesor la corrección de la escrita. null = esperando.
   /// Lo que dice si una escrita está corregida es ESTE campo, no `bandas`:

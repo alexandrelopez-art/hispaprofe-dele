@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Nivel } from "@/lib/generated/prisma";
 import { BANDA_MAXIMA, CRITERIOS_EE, puntosDeEscrita } from "@/lib/dele/estructura";
-import { sumaDeBandas } from "./motor";
+import { sumaDeBandas, type ResumenDeSalidas } from "./motor";
 import { formularioDePiezas, SELECT_DE_PIEZAS } from "@/lib/taller/piezas";
 import type { Formulario } from "@/lib/taller/formas";
 import { diasEntre } from "@/lib/tiempo/madrid";
@@ -90,6 +90,10 @@ export type ParaCorregir = {
   corregidaEn: Date | null;
   puntos: number;
   tareas: TareaParaCorregir[];
+  /** El registro de salidas de esta redacción. Se lee AQUÍ y en ningún otro
+   *  sitio: no está en la cola —no es un criterio para elegir a quién corregir
+   *  antes— y no sale nunca hacia la pantalla del estudiante. */
+  salidas: ResumenDeSalidas;
   /** El siguiente de la cola, para «Guardar y seguir». null si no queda nadie. */
   siguiente: string | null;
 };
@@ -107,6 +111,7 @@ export async function escritoParaCorregir(intentoId: string, ahora: Date): Promi
     where: { id: intentoId },
     select: {
       id: true, prueba: true, entregadaEn: true, porTiempo: true, corregidaEn: true,
+      salidas: true, segundosFuera: true, ultimaSalidaEn: true, ultimaSalidaDeTarea: true,
       escritos: { select: { tarea: true, opcion: true, texto: true, palabras: true, bandas: true, comentario: true } },
       asignacion: {
         select: {
@@ -158,6 +163,12 @@ export async function escritoParaCorregir(intentoId: string, ahora: Date): Promi
     corregidaEn: intento.corregidaEn,
     puntos: puntosDeEscrita(examen.nivel),
     tareas,
+    salidas: {
+      salidas: intento.salidas,
+      segundosFuera: intento.segundosFuera,
+      ultimaSalidaEn: intento.ultimaSalidaEn,
+      ultimaSalidaDeTarea: intento.ultimaSalidaDeTarea,
+    },
     siguiente,
   };
 }

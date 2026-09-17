@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
-import type { Prueba } from "@/lib/generated/prisma";
-import { minutosConReloj } from "@/lib/dele/estructura";
+import type { Nivel, Prueba } from "@/lib/generated/prisma";
+import { minutosConReloj, reglaDe } from "@/lib/dele/estructura";
 import { formularioDePiezas, SELECT_DE_PIEZAS } from "@/lib/taller/piezas";
-import { LETRAS_TOPE, notaDePrueba, palabras, seAcaboElTiempo, SE_ACABO_EL_TIEMPO, segundosQueQuedan, tardoEnVolver, type Nota } from "./motor";
+import { LETRAS_TOPE, notaDePrueba, palabras, seAcaboElTiempo, SE_ACABO_EL_TIEMPO, segundosQueQuedan, type Nota } from "./motor";
 
 // Los mensajes de error, literales (spec §9). Otras pantallas y otras tareas
 // los comparan por texto: cambiar una coma aquí las rompe.
@@ -115,6 +115,13 @@ async function cerrarIntento(
       aciertos: nota?.aciertos ?? null,
       total: nota?.total ?? null,
       fallos: nota ? nota.fallos.map((f) => f.numero) : [],
+      // La ausencia que quedara abierta se cierra aquí, y NO se cuenta: si se
+      // fue y no volvió, no sabemos cuándo volvió, y apuntarle «estuvo fuera
+      // hasta que el reloj cerró» sería inventarle al profesor el dato más
+      // gordo del registro. Dejarla puesta sería peor: la siguiente pantalla
+      // que mirara la contaría entera.
+      salioEn: null,
+      salioDeTarea: null,
     },
   });
 }
@@ -142,7 +149,7 @@ async function abrirLaPrueba(
   personaId: string,
   ahora: Date,
   opciones: { exigirEmpezada: boolean },
-): Promise<{ asignacion: AsignacionAbierta; intento: IntentoAbierto | null; minutos: number | null } | { error: string }> {
+): Promise<{ asignacion: AsignacionAbierta; intento: IntentoAbierto | null; minutos: number | null; nivel: Nivel } | { error: string }> {
   // La oral (EO) sigue fuera hasta la 3e: su pantalla no existe.
   if (prueba !== "CE" && prueba !== "CO" && prueba !== "EE") return { error: NO_SE_HACE };
 
@@ -179,7 +186,7 @@ async function abrirLaPrueba(
     return { error: SE_ACABO };
   }
 
-  return { asignacion: { id: asignacion.id }, intento, minutos };
+  return { asignacion: { id: asignacion.id }, intento, minutos, nivel: asignacion.examen.nivel };
 }
 
 /**
@@ -273,27 +280,37 @@ export async function guardarEscrito(
 }
 
 /**
- * Salirse de la pantalla a media redacción. Decisión del profesor: la escrita se
- * hace de una sentada, y salirse a buscar la respuesta cuesta el folio. Esto
- * solo APUNTA la salida; quien borra es `resolverLasSalidas`, al volver.
+ * Salirse de la pantalla a media redacción. **No se borra nada, nunca**: se
+ * apunta, y el profesor lo ve al corregir. Ese es el precio, y es el que se le
+ * anuncia antes de empezar.
  *
- * Se apunta en el SERVIDOR y no solo en el navegador a propósito. Si la marca
- * viviera en el navegador, cerrar la pestaña y volver a entrar la borraría, y a
- * un chaval de catorce años ese truco le dura media tarde.
+ * Por qué apuntar y no castigar: el navegador no sabe distinguir «se fue a
+ * buscar la respuesta» de «le entró una llamada». Un borrado lo acabaría
+ * pagando un chaval que no hizo nada, mientras que quien quiere copiar de verdad
+ * tiene el móvil de al lado. El registro disuade igual —saben que se ve— y
+ * cuando se equivoca no le cuesta el trabajo a nadie.
  *
- * Tres cosas más, y cada una tapa un agujero:
+ * Esto solo abre la ausencia. La cierra `registrarLasVueltas`, al volver.
  *
- * - Pasa por `abrirLaPrueba` con `exigirEmpezada: true`, o sea las mismas cinco
- *   comprobaciones que guardar un folio: solo la escrita, solo si es suya, solo
- *   con el examen publicado, solo con el intento empezado y sin entregar. Una
- *   prueba YA ENTREGADA no se marca: no hay nada que se pueda perder.
- * - Solo en modo COMPLETO. En práctica libre no se marca NADA: ahí se practica,
- *   y castigar a quien practica no tiene sentido. Se pregunta por los minutos
- *   (`abierta.minutos`), que es como se pregunta «¿hay reloj?» en todo el
- *   módulo, y no por el modo otra vez.
- * - `salioEn: null` en el `where`: si ya estaba marcado NO se pisa. La cuenta va
- *   desde la PRIMERA salida, así que salir, asomarse un segundo y volver a
- *   salir no reinicia el contador.
+ * Se apunta en el SERVIDOR y no en el navegador: si el rastro viviera ahí,
+ * cerrar la pestaña lo borraría.
+ *
+ * Es la petición con menos tiempo para llegar —sale con la pestaña ya
+ * ocultándose—, así que son DOS viajes a la base y ni uno más: la lectura de la
+ * guarda y la escritura de la marca. La tarea se comprueba contra la estructura
+ * del DELE, que está en memoria, y no preguntándole al examen por sus opciones.
+ *
+ * Tres reglas más, y cada una tapa un agujero:
+ *
+ * - Las cinco comprobaciones de `abrirLaPrueba` con `exigirEmpezada: true`: solo
+ *   la escrita, solo si es suya, solo con el examen publicado, solo con el
+ *   intento empezado y sin entregar. Lo que ya está entregado no registra
+ *   salidas: la prueba se acabó.
+ * - Solo en modo COMPLETO. En práctica libre no se apunta NADA: ahí se practica,
+ *   y un registro de la práctica no le dice nada a nadie.
+ * - `salioEn: null` en el `where`: si ya hay una ausencia abierta NO se pisa. La
+ *   cuenta va desde la PRIMERA salida, así que salir, asomarse un segundo sin
+ *   que llegue la vuelta y volver a salir sigue siendo una sola ausencia.
  */
 export async function salirDeLaEscrita(
   examenId: string,
@@ -304,10 +321,9 @@ export async function salirDeLaEscrita(
   const abierta = await abrirLaPrueba(examenId, "EE", personaId, ahora, { exigirEmpezada: true });
   if ("error" in abierta) return abierta;
   if (abierta.minutos === null) return {};
-
-  // La tarea, comprobada como en `guardarEscrito`: una acción de servidor es una
+  // Contra la estructura del nivel, en memoria: una acción de servidor es una
   // dirección pública y puede llegar un número que esta escrita no tiene.
-  if ((await opcionesDeLaTarea(examenId, tarea)) === null) return { error: TAREA_MALA };
+  if (reglaDe(abierta.nivel, "EE", tarea) === null) return { error: TAREA_MALA };
 
   await prisma.intento.updateMany({
     where: { id: abierta.intento!.id, salioEn: null },
@@ -316,88 +332,119 @@ export async function salirDeLaEscrita(
   return {};
 }
 
-type Marca = { id: string; salioEn: Date | null; salioDeTarea: number | null };
+/** Una ausencia ABIERTA. `salioEn` no es nulo por construcción: lo garantiza el
+ *  `where` de `registrarLasVueltas`, que es el único que la fabrica. */
+type Marca = { id: string; salioEn: Date; salioDeTarea: number | null; volvioEn: Date | null };
 
 /**
- * Resuelve UNA salida y dice qué tarea borró (null = ninguna). Es el corazón de
- * la regla, y es idempotente: sin marca no hace nada, y al terminar deja las
- * marcas limpias, así que la segunda llamada ya no encuentra qué resolver.
+ * Cierra UNA ausencia y la pasa a los contadores. Idempotente: sin marca no hace
+ * nada, y al terminar la marca queda limpia, así que la segunda llamada ya no
+ * encuentra qué cerrar.
  *
- * Se borra la FILA entera del escrito, no solo su texto: la decisión del
- * profesor es que se pierde «la tarea entera», y eso incluye la opción elegida
- * en la tarea 2. Borrar la fila tiene además una ventaja que no es de adorno:
- * da igual que un guardado automático haya llegado mientras estaba fuera (en el
- * ordenador los temporizadores siguen corriendo con la pestaña oculta). La
- * tarea se pierde igual, que es la regla.
+ * **La red contra una marca que llega tarde.** Las dos peticiones del navegador
+ * —«me voy» y «he vuelto»— pueden cruzarse: si «me voy» aterriza DESPUÉS de que
+ * se haya registrado la vuelta, la marca queda puesta con el chaval delante, y
+ * la siguiente carga de página la contaría como una ausencia de veinte minutos
+ * que nunca ocurrió. Una salida con fecha anterior o igual a la última vuelta es
+ * exactamente eso: se limpia y no suma. Un registro que miente es peor que no
+ * tenerlo, porque el profesor va a hablar con un alumno con esto delante.
  *
- * Y solo la tarea que tenía ABIERTA: la otra ni se toca.
+ * `Math.max(0, …)` sobre los segundos por la misma razón: el registro no puede
+ * restar tiempo.
+ *
+ * Todo en una escritura: sumar la ausencia y limpiar la marca son la misma
+ * noticia. Una mitad sin la otra deja la ausencia contada con la marca puesta
+ * (se volvería a contar) o la marca limpia sin haberla contado (se perdió).
  */
-async function resolverUnaSalida(marca: Marca, ahora: Date): Promise<number | null> {
-  if (marca.salioEn === null) return null;
-  const borra = tardoEnVolver(marca.salioEn, ahora) && marca.salioDeTarea !== null;
-  if (borra) {
-    await prisma.escritoDeIntento.deleteMany({ where: { intentoId: marca.id, tarea: marca.salioDeTarea! } });
+async function cerrarLaAusencia(marca: Marca, ahora: Date): Promise<boolean> {
+  const limpia = { salioEn: null, salioDeTarea: null, volvioEn: ahora };
+
+  // Llegó tarde: es de una ausencia ya contada. Se limpia y no suma.
+  if (marca.volvioEn !== null && marca.salioEn <= marca.volvioEn) {
+    await prisma.intento.update({ where: { id: marca.id }, data: limpia });
+    return false;
   }
-  // Las marcas se limpian SIEMPRE, haya borrado o no: son marcas vivas, no un
-  // historial. Si no se limpiaran, el siguiente vistazo a la pantalla volvería a
-  // contar desde la misma salida y borraría la tarea nueva.
-  await prisma.intento.updateMany({ where: { id: marca.id }, data: { salioEn: null, salioDeTarea: null } });
-  return borra ? marca.salioDeTarea : null;
-}
 
-/**
- * Para las pantallas que solo leen, igual que `cerrarLasQueSePasaron`: resuelve
- * las salidas pendientes de ese ámbito ANTES de que nadie lea nada. Es lo que
- * cierra el agujero de cerrar la pestaña y volver a entrar — no hace falta que
- * el navegador avise de la vuelta, porque cargar la pantalla YA es la vuelta.
- *
- * Dos filtros, y cada uno es una decisión:
- *
- * - Solo intentos SIN ENTREGAR. Una escrita ya entregada no pierde nunca lo que
- *   mandó: si al estudiante se le acabó el tiempo estando fuera y el reloj la
- *   cerró, lo entregado es lo entregado y es lo que el profesor va a corregir.
- * - Solo modo COMPLETO. En práctica libre no se borra nada, y la regla se
- *   escribe UNA vez, aquí: `salirDeLaEscrita` ni siquiera marca en libre, pero
- *   una marca vieja de un examen que luego pasó a libre no puede colarse por
- *   este camino.
- */
-export async function resolverLasSalidas(
-  donde: { personaId: string } | { examenId: string },
-  ahora: Date,
-): Promise<{ borradas: { intentoId: string; tarea: number }[] }> {
-  const marcas = await prisma.intento.findMany({
-    where: { entregadaEn: null, salioEn: { not: null }, asignacion: { ...donde, modo: "COMPLETO" } },
-    select: { id: true, salioEn: true, salioDeTarea: true },
+  const segundos = Math.max(0, Math.floor((ahora.getTime() - marca.salioEn.getTime()) / 1000));
+  await prisma.intento.update({
+    where: { id: marca.id },
+    data: {
+      ...limpia,
+      salidas: { increment: 1 },
+      segundosFuera: { increment: segundos },
+      ultimaSalidaEn: marca.salioEn,
+      ultimaSalidaDeTarea: marca.salioDeTarea,
+    },
   });
-  const borradas: { intentoId: string; tarea: number }[] = [];
-  for (const marca of marcas) {
-    const tarea = await resolverUnaSalida(marca, ahora);
-    if (tarea !== null) borradas.push({ intentoId: marca.id, tarea });
-  }
-  return { borradas };
+  return true;
 }
 
 /**
- * Volver a la pantalla. Resuelve y devuelve qué tarea se borró, para que la
- * pantalla pueda vaciar ese folio y explicar lo que ha pasado. Mismas reglas que
- * salir: la persona sale de la sesión, solo la escrita, solo modo completo, solo
- * con el intento abierto y sin entregar.
+ * Para las pantallas que solo leen, igual que `cerrarLasQueSePasaron`: cierra las
+ * ausencias abiertas ANTES de que nadie lea nada. Es lo que hace que cerrar la
+ * pestaña y volver a entrar quede registrado — no hace falta que el navegador
+ * avise de la vuelta, porque cargar la pantalla YA es la vuelta.
  *
- * Quien resuelve es `resolverLasSalidas`, el MISMO que llama la página, y no una
+ * Acotado a UN examen y a UNA persona, no a todos los exámenes de esa persona:
+ * entrar en la lectura del examen B no puede cerrar —y contar— una ausencia de
+ * la escrita del examen A, que sigue abierta en otra pestaña.
+ *
+ * Tres filtros, y cada uno es una decisión:
+ *
+ * - Solo intentos SIN ENTREGAR. Lo entregado se acabó.
+ * - Solo modo COMPLETO. En práctica libre no se registra nada, y la regla se
+ *   escribe UNA vez, aquí.
+ * - Solo con el examen PUBLICADO, la misma condición que exige `abrirLaPrueba`:
+ *   si no, los dos caminos de vuelta acabarían distinto con un examen retirado.
+ */
+export async function registrarLasVueltas(
+  donde: { personaId: string; examenId: string },
+  ahora: Date,
+): Promise<{ cerradas: number }> {
+  const filas = await prisma.intento.findMany({
+    where: {
+      entregadaEn: null,
+      // Sin ausencia abierta no hay nada que cerrar. Es el `where` quien lo
+      // decide, y no una guarda dentro de `cerrarLaAusencia`: si no, cada carga
+      // de la pantalla apuntaría una salida de cero segundos, y el profesor
+      // leería veinte salidas de un chico que no se movió.
+      salioEn: { not: null },
+      asignacion: { ...donde, modo: "COMPLETO", examen: { estado: "PUBLICADO" } },
+    },
+    select: { id: true, salioEn: true, salioDeTarea: true, volvioEn: true },
+  });
+  // El `!` es el eco, en el tipo, de ese `salioEn: { not: null }` de arriba —el
+  // mismo `!` que usan las demás funciones de aquí con `abierta.intento`—. Una
+  // segunda comprobación en JavaScript sería una rama que nadie puede alcanzar,
+  // y una rama inalcanzable es un sitio donde esconder un fallo.
+  const marcas: Marca[] = filas.map((f) => ({ ...f, salioEn: f.salioEn! }));
+  let cerradas = 0;
+  for (const marca of marcas) if (await cerrarLaAusencia(marca, ahora)) cerradas++;
+  return { cerradas };
+}
+
+/**
+ * Volver a la pantalla. Cierra la ausencia y ya está: el estudiante **no ve
+ * ningún cartel**, porque no ha perdido nada y no hay nada que anunciarle.
+ *
+ * Mismas reglas que salir: la persona sale de la sesión, solo la escrita, solo
+ * modo completo, solo con el intento abierto y sin entregar.
+ *
+ * Quien registra es `registrarLasVueltas`, el MISMO que llama la página, y no una
  * copia de la regla aquí dentro: los dos caminos de vuelta —el aviso del
- * navegador y volver a cargar la dirección— tienen que acabar en el mismo sitio,
- * o el que menos borrara sería el atajo.
+ * navegador y volver a cargar la dirección— tienen que contar igual, o el
+ * registro diría una cosa u otra según por dónde volviera.
  */
 export async function volverALaEscrita(
   examenId: string,
   personaId: string,
   ahora: Date,
-): Promise<{ error?: string; borrada?: number | null }> {
+): Promise<{ error?: string }> {
   const abierta = await abrirLaPrueba(examenId, "EE", personaId, ahora, { exigirEmpezada: true });
   if ("error" in abierta) return abierta;
 
-  const { borradas } = await resolverLasSalidas({ personaId }, ahora);
-  return { borrada: borradas.find((b) => b.intentoId === abierta.intento!.id)?.tarea ?? null };
+  await registrarLasVueltas({ personaId, examenId }, ahora);
+  return {};
 }
 
 /** Un trozo oído se apunta una vez. Pedirlo otra vez no lo borra ni lo reescribe. */

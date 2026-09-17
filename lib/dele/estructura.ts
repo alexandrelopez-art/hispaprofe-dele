@@ -164,18 +164,6 @@ export function minutosConReloj(modo: ModoDeExamen, nivel: Nivel, prueba: Prueba
   return modo === "LIBRE" ? null : minutosDePrueba(nivel, prueba);
 }
 
-/**
- * Cuánto se puede estar FUERA de la pantalla de la escrita sin perder la tarea.
- * Decisión del profesor: la redacción se hace de una sentada, y salirse a buscar
- * la respuesta cuesta el folio. Pero una notificación o mirar la hora no son
- * salirse, y por eso hay un margen.
- *
- * Mismo número que `SEGUNDOS_DE_GRACIA` (lib/examen/motor.ts) y a propósito NO
- * es la misma constante: aquel perdona el VIAJE de la última respuesta por la
- * red, este perdona al estudiante que vuelve enseguida. Si mañana la red va
- * peor, se sube aquel sin que un chaval pierda su redacción por ello.
- */
-export const SEGUNDOS_FUERA_PERDONADOS = 10;
 
 /**
  * Los cuatro criterios con que se corrige la expresión escrita, en el orden en

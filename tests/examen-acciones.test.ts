@@ -178,34 +178,36 @@ describe("lo que hace cada acción con la persona ya en sesión", () => {
   });
 
   // Mutación que la mata: pasarle a `salirDeLaEscrita` un personaId que venga de
-  // fuera, o meterle la prueba por argumento. Salirse marca el intento de quien
-  // tiene la sesión y de nadie más: con un personaId de fuera, cualquiera le
-  // dejaría a otro una salida puesta y, al volver, le borraría el folio.
-  it("salir marca por quien tiene la sesión, y no revalida nada", async () => {
+  // fuera, o meterle la prueba por argumento. La salida se le apunta a quien
+  // tiene la sesión y a nadie más: con un personaId de fuera, cualquiera podría
+  // dejarle a otro un registro de salidas que su profesor va a leer.
+  it("salir apunta por quien tiene la sesión, y no revalida nada", async () => {
     dobles.salirDeLaEscrita.mockResolvedValue({});
     expect(await salirDeLaEscritaAccion("ex1", 2)).toEqual({});
     expect(dobles.salirDeLaEscrita).toHaveBeenCalledWith("ex1", ANA.id, 2, expect.any(Date));
-    // Se llama justo cuando la pestaña se oculta: no hay pantalla que repintar.
+    // Sale con la pantalla ya dejándose atrás: no hay nada que repintar, y
+    // revalidar solo añadiría trabajo al viaje que menos tiempo tiene.
     expect(dobles.revalidatePath).not.toHaveBeenCalled();
   });
 
-  // Mutación que la mata: comerse lo que devuelva `volverALaEscrita` y contestar
-  // `{}` fijo. La pantalla no sabría que le han borrado la tarea, dejaría el
-  // texto viejo en el folio y el chaval creería que sigue escrito.
-  it("volver devuelve la tarea borrada y refresca la pantalla", async () => {
-    dobles.volverALaEscrita.mockResolvedValue({ borrada: 1 });
-    expect(await volverALaEscritaAccion("ex1")).toEqual({ borrada: 1 });
+  // Mutación que la mata: devolver `{}` fijo en vez del error del motor. La
+  // pantalla no distinguiría una salida apuntada de una rechazada, y —peor— una
+  // prueba entregada parecería seguir registrando salidas.
+  it("volver cierra la ausencia por quien tiene la sesión, sin revalidar ni devolver nada", async () => {
+    dobles.volverALaEscrita.mockResolvedValue({});
+    expect(await volverALaEscritaAccion("ex1")).toEqual({});
     expect(dobles.volverALaEscrita).toHaveBeenCalledWith("ex1", ANA.id, expect.any(Date));
-    expect(dobles.revalidatePath).toHaveBeenCalledWith("/examen/ex1/EE");
+    // El registro no sale hacia la pantalla del estudiante: lo lee el profesor.
+    expect(dobles.revalidatePath).not.toHaveBeenCalled();
   });
 
-  // Mutación que la mata: revalidar siempre al volver. Se llama cada vez que el
-  // chaval mira la hora en el móvil, y casi siempre no ha borrado nada:
-  // revalidar ahí es repintar el servidor por nada.
-  it("volver a tiempo no refresca nada", async () => {
-    dobles.volverALaEscrita.mockResolvedValue({ borrada: null });
-    expect(await volverALaEscritaAccion("ex1")).toEqual({ borrada: null });
-    expect(dobles.revalidatePath).not.toHaveBeenCalled();
+  // Mutación que la mata: comerse el error. Las dos devuelven lo que diga el
+  // motor, tal cual.
+  it("las dos devuelven el error del motor tal cual", async () => {
+    dobles.salirDeLaEscrita.mockResolvedValue({ error: "Esta prueba ya está entregada." });
+    dobles.volverALaEscrita.mockResolvedValue({ error: "Esta prueba ya está entregada." });
+    expect(await salirDeLaEscritaAccion("ex1", 1)).toEqual({ error: "Esta prueba ya está entregada." });
+    expect(await volverALaEscritaAccion("ex1")).toEqual({ error: "Esta prueba ya está entregada." });
   });
 });
 
@@ -213,7 +215,7 @@ describe("lo que hace cada acción con la persona ya en sesión", () => {
 // direcciones públicas: sin sesión, cualquiera marcaría salidas y resolvería
 // vueltas en el examen de otro.
 describe("salir y volver sin sesión", () => {
-  it("no tocan nada", async () => {
+  it("no apuntan nada", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(null);
     await expect(salirDeLaEscritaAccion("ex1", 1)).rejects.toThrow("REDIRECT:/entrar");
     await expect(volverALaEscritaAccion("ex1")).rejects.toThrow("REDIRECT:/entrar");

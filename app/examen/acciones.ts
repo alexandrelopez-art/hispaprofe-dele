@@ -101,12 +101,12 @@ export async function guardarEscritoAccion(
 }
 
 /**
- * Se ha ido de la pantalla a media redacción. Solo APUNTA la salida y la hora;
- * el castigo lo decide `resolverLasSalidas` cuando vuelva.
+ * Se ha ido de la pantalla a media redacción. Abre la ausencia: la cierra la
+ * vuelta, por el navegador o por la siguiente carga de la página.
  *
  * Sin `prueba` en la firma, como el borrador: esto es de la escrita y de ninguna
- * otra prueba. NO revalida: se llama justo cuando la pestaña se está ocultando y
- * no hay ninguna pantalla que repintar; revalidar aquí solo añadiría trabajo al
+ * otra prueba. NO revalida: se llama justo cuando la pantalla se está dejando
+ * atrás y no hay nada que repintar; revalidar aquí solo añadiría trabajo al
  * viaje que menos tiempo tiene para llegar.
  */
 export async function salirDeLaEscritaAccion(examenId: string, tarea: number): Promise<{ error?: string }> {
@@ -115,17 +115,12 @@ export async function salirDeLaEscritaAccion(examenId: string, tarea: number): P
 }
 
 /**
- * Ha vuelto. Resuelve la salida y devuelve qué tarea se ha borrado (null = ha
- * vuelto a tiempo y no se ha borrado nada), para que la pantalla vacíe ese folio
- * y se lo explique.
- *
- * Revalida SOLO si borró: entonces la pantalla del servidor tiene un texto que
- * ya no existe. Si no borró no ha cambiado nada, y revalidar sería repintar el
- * servidor cada vez que alguien mira la hora en el móvil.
+ * Ha vuelto. Cierra la ausencia y no devuelve nada que enseñar: el estudiante no
+ * ha perdido nada, así que no hay cartel ninguno. Tampoco revalida — lo que
+ * cambia es el registro, y el registro no sale hacia su pantalla: lo lee el
+ * profesor al corregir.
  */
-export async function volverALaEscritaAccion(examenId: string): Promise<{ error?: string; borrada?: number | null }> {
+export async function volverALaEscritaAccion(examenId: string): Promise<{ error?: string }> {
   const persona = await exigirPersona();
-  const r = await volverALaEscrita(examenId, persona.id, new Date());
-  if (r.borrada != null) revalidatePath(pantallaDeLaPrueba(examenId, "EE"));
-  return r;
+  return volverALaEscrita(examenId, persona.id, new Date());
 }

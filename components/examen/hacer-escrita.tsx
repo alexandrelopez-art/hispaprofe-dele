@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
-import { BANDA_MAXIMA, CRITERIOS_EE, NOMBRE_DE_PRUEBA, SEGUNDOS_FUERA_PERDONADOS } from "@/lib/dele/estructura";
+import { BANDA_MAXIMA, CRITERIOS_EE, NOMBRE_DE_PRUEBA } from "@/lib/dele/estructura";
 import { estaEntregada, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import {
   empezarPruebaAccion,
@@ -84,6 +84,30 @@ export function loQueFalta(prueba: PruebaParaHacer, borradores: Record<number, B
  */
 export function apagaLosFolios(mensaje: string): boolean {
   return mensaje === SE_ACABO_EL_TIEMPO;
+}
+
+/**
+ * Encadena una petición sobre la anterior, y nunca lanza.
+ *
+ * Es la pieza que impide que el registro de salidas mienta. Las dos peticiones
+ * de la pantalla —«me voy» y «he vuelto»— salen de eventos distintos y, sueltas,
+ * se cruzan: se oculta la pantalla, sale «me voy» y se queda en el aire; vuelve
+ * a los dos segundos, «he vuelto» llega primero y no encuentra ausencia; y
+ * entonces aterriza «me voy» y deja la marca puesta con el chaval delante. La
+ * siguiente carga de página la cerraría como una ausencia de veinte minutos que
+ * nunca ocurrió. El servidor tiene su propia red (`volvioEn`), pero el ORDEN solo
+ * lo sabe quien genera los eventos.
+ *
+ * El `.catch` que se traga el fallo no es pereza: si la cadena quedara rechazada,
+ * TODAS las peticiones siguientes se saltarían su `.then` y la pantalla dejaría
+ * de registrar nada en toda la prueba. Además, un fallo de red apuntando una
+ * salida no puede tumbar el examen de nadie: no es asunto del estudiante.
+ *
+ * Aquí fuera y exportada porque es justo lo que hay que poder probar sin
+ * navegador: dentro del efecto solo se alcanza con un `visibilitychange` real.
+ */
+export function encadenar(cola: { current: Promise<unknown> }, peticion: () => Promise<unknown>): void {
+  cola.current = cola.current.then(peticion).catch(() => {});
 }
 
 /**
@@ -251,12 +275,13 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
   // - `pagehide`: cerrar la pestaña, recargar o navegar fuera del sitio, donde
   //   ya no va a haber desmontaje de React que valga.
   //
-  // Lo que NO cubre, y es a propósito: cambiar de aplicación o bloquear la
-  // pantalla del móvil. Eso dispara `visibilitychange` a `hidden`, y ahí abajo
-  // hay un oyente para ese caso — pero ese oyente NO descarga el borrador, y no
-  // es un olvido: es la regla. La redacción se hace de una sentada, y salirse a
-  // buscar la respuesta cuesta el folio; descargar al ocultarse sería guardar
-  // justo lo que se ha decidido no guardar.
+  // Lo que NO cubre: cambiar de aplicación o bloquear la pantalla del móvil. Eso
+  // dispara `visibilitychange` a `hidden`, y Chrome en Android no garantiza
+  // `pagehide` ahí; como además los temporizadores se congelan, lo que se pierde
+  // no son dos segundos, es todo lo escrito desde el último guardado. No se
+  // borra nada por salirse —eso se apunta y lo ve el profesor—, así que aquí lo
+  // que queda es un límite del navegador, no una regla: el tope de quince
+  // segundos acota cuánto se puede perder.
   //
   // El otro límite, este sí técnico: el guardado es una acción de servidor y una
   // acción de servidor NO se puede mandar por `navigator.sendBeacon`, que es lo
@@ -280,51 +305,81 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     setEstado("pendiente");
   }, []);
 
-  // Salirse de la pantalla: la otra mitad de la regla, la del navegador. La
-  // marca de verdad la lleva el servidor (`salirDeLaEscrita`); aquí solo se
-  // avisa de que se va y de que ha vuelto, y se vacía el folio si le costó la
-  // tarea.
+  // Salirse de la pantalla: la mitad del navegador del registro de salidas. Lo
+  // que vale es lo que apunta el servidor; aquí solo se avisa de que se va y de
+  // que ha vuelto. **No se borra nada y no hay cartel que enseñar**: el
+  // estudiante no ha perdido nada.
   //
-  // Tres cosas que no son evidentes:
+  // Cuatro cosas que no son evidentes:
   //
-  // - Al ocultarse NO se descarga el borrador. Es justo lo contrario de lo que
-  //   hacen `pagehide` y el desmontaje, y es la regla: salirse cuesta el folio.
+  // - Las dos peticiones van ENCADENADAS. Sueltas se cruzan: se oculta, sale
+  //   «me voy» y se queda en el aire; vuelve a los dos segundos, «he vuelto»
+  //   llega primero y no encuentra ausencia; entonces aterriza «me voy» y deja
+  //   la marca puesta con el chaval delante. Veinte minutos después, cualquier
+  //   carga de página la cierra como una ausencia de veinte minutos que nunca
+  //   ocurrió. El servidor tiene su propia red (`volvioEn`), pero el orden solo
+  //   lo sabe quien genera los eventos, y ese es este oyente.
+  // - Las dos llevan `.catch`. Un fallo de red aquí no puede tumbar la pantalla
+  //   de un examen en marcha, y tampoco puede dejar la cadena rota: por eso el
+  //   `.catch` devuelve, y la siguiente espera igual.
   // - Solo con reloj, o sea solo en un examen de verdad. En práctica libre no se
-  //   marca ni se borra nada: ahí se practica.
+  //   apunta nada.
   // - La tarea abierta se lee de una ref y no de la dependencia del efecto: si
   //   entrara como dependencia, cambiar de pestaña desengancharía y volvería a
   //   enganchar el oyente por nada.
   const conReloj = prueba.minutos !== null;
-  const [tareaBorrada, setTareaBorrada] = useState<number | null>(null);
   const tareaDelFolio = useRef(tareaAbierta);
   useEffect(() => {
     tareaDelFolio.current = tareaAbierta;
   }, [tareaAbierta]);
 
+  // La última petición de salida, para que la vuelta la espere. En una ref: no
+  // se pinta, y no puede rearmar nada al cambiar.
+  const salidaEnVuelo = useRef<Promise<unknown>>(Promise.resolve());
+
+  /** Se va: abre la ausencia. Encadena sobre lo anterior y nunca lanza. */
+  const avisarDeLaSalida = useCallback(() => {
+    if (!conReloj) return;
+    encadenar(salidaEnVuelo, () => salirDeLaEscritaAccion(examenId, tareaDelFolio.current));
+  }, [conReloj, examenId]);
+
   useEffect(() => {
     if (!conReloj) return;
     const alCambiarLaVista = () => {
       if (document.visibilityState === "hidden") {
-        void salirDeLaEscritaAccion(examenId, tareaDelFolio.current);
+        // Se apunta la salida Y se manda lo pendiente. Lo segundo es nuevo:
+        // mientras salirse costaba el folio, NO descargar aquí era la regla.
+        // Ahora no se borra nada, así que perder lo tecleado al bloquear el
+        // móvil no defiende nada — es solo trabajo de un chaval tirado.
+        avisarDeLaSalida();
+        descargar();
         return;
       }
-      void volverALaEscritaAccion(examenId).then((r) => {
-        if (r.borrada == null) return;
-        // El folio de esa tarea se vacía en el navegador, y también la copia de
-        // «lo que el servidor ya tiene»: la fila ya no existe allí, así que las
-        // dos tienen que quedar vacías. Si solo se vaciara la de pintar, el
-        // guardado automático mandaría el vacío de vuelta; y si solo se vaciara
-        // la del servidor, el temporizador reescribiría el texto borrado.
-        ultimo.current = { ...ultimo.current, [r.borrada]: BORRADOR_VACIO };
-        guardadoEnServidor.current = { ...guardadoEnServidor.current, [r.borrada]: BORRADOR_VACIO };
-        setBorradores(ultimo.current);
-        setEstado("nada");
-        setTareaBorrada(r.borrada);
-      });
+      // La vuelta espera a que la salida haya llegado: si se adelantara, la
+      // marca quedaría puesta con el chaval delante.
+      encadenar(salidaEnVuelo, () => volverALaEscritaAccion(examenId));
     };
     document.addEventListener("visibilitychange", alCambiarLaVista);
     return () => document.removeEventListener("visibilitychange", alCambiarLaVista);
-  }, [conReloj, examenId]);
+  }, [conReloj, examenId, avisarDeLaSalida, descargar]);
+
+  // «← Volver a Inicio» también es salirse, y también se apunta: es un <Link>,
+  // o sea una navegación de cliente que desmonta esta pantalla sin disparar
+  // `visibilitychange` ni `pagehide`. Un registro que no viera la puerta más
+  // cómoda de la pantalla no sería un registro honesto. `pagehide` cubre lo
+  // otro: cerrar la pestaña, recargar o irse fuera del sitio.
+  //
+  // Entregar también desmonta, y ahí NO hay salida que apuntar: la prueba se
+  // acabó. No hace falta distinguirlo aquí, porque `salirDeLaEscrita` rebota en
+  // una prueba ya entregada — la misma guarda de siempre.
+  useEffect(() => {
+    if (!conReloj) return;
+    window.addEventListener("pagehide", avisarDeLaSalida);
+    return () => {
+      window.removeEventListener("pagehide", avisarDeLaSalida);
+      avisarDeLaSalida();
+    };
+  }, [conReloj, avisarDeLaSalida]);
 
   const escribir = useCallback((tarea: number, texto: string) => {
     cambiar(tarea, (b) => conTexto(b, texto));
@@ -335,26 +390,7 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     cambiar(tarea, (b) => conOpcion(b, opcion));
   }, [cambiar]);
 
-  return { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar, tareaBorrada };
-}
-
-/**
- * El cartel de la vuelta: qué ha pasado y por qué. Lo lee un chaval de catorce
- * años que acaba de perder su folio, así que dice las tres cosas que necesita
- * —qué tarea, por qué, y que el reloj no se ha parado— y ninguna más.
- *
- * Pieza aparte y exportada para poder pintarla sin tocar nada, como
- * `PreguntaDeEntrega`: dentro de la pantalla solo aparece después de un
- * `visibilitychange` de verdad, y aquí no hay jsdom.
- */
-export function AvisoDeVueltaTarde({ tarea }: { tarea: number }) {
-  return (
-    <p role="alert" data-vuelta-tarde className={AVISO_DE_ERROR}>
-      Te has salido de la pantalla del examen y has tardado más de {SEGUNDOS_FUERA_PERDONADOS} segundos en volver,
-      así que la tarea {tarea} se ha borrado y tienes que escribirla otra vez. El reloj no se ha parado mientras
-      estabas fuera.
-    </p>
-  );
+  return { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar };
 }
 
 /**
@@ -395,16 +431,17 @@ function AvisoDeLaEscrita({
         <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
       )}
       <p>Lo que escribas se va guardando mientras escribes. La nota no sale al entregar: la pone tu profesor.</p>
-      {/* El aviso de la sentada, y solo en el examen de verdad: en práctica libre
-          no se marca ni se borra nada, y amenazar con algo que no va a pasar es
-          mentir. Se dice ANTES de «Empezar», con todas las letras, porque es la
-          única forma de que perder un folio sea una regla y no un castigo. */}
+      {/* El registro de salidas, y solo en el examen de verdad: en práctica libre
+          no se apunta nada. Se dice ANTES de «Empezar» porque la disuasión ES
+          saberlo: un registro que nadie sabe que existe no disuade de nada, solo
+          delata. Y se dice sin miedo — no se borra nada, no se pierde nada: es
+          una regla, no un castigo. */}
       {!sinReloj && (
         <p>
-          <strong>Esto se escribe de una sentada.</strong> Mientras haces la prueba no puedes salirte de esta
-          pantalla: si te vas a otra aplicación o a otra pestaña, o bloqueas el móvil, y tardas más de{" "}
-          {SEGUNDOS_FUERA_PERDONADOS} segundos en volver, se borra la tarea que tuvieras abierta y la tienes que
-          escribir otra vez. Si vuelves enseguida no pasa nada. El reloj no se para mientras estás fuera.
+          <strong>No te salgas de esta pantalla mientras escribes.</strong>{" "}
+          <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil o vuelves a Inicio, queda apuntado.</span>{" "}
+          <span>Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.</span>{" "}
+          <span>No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo mientras estás fuera.</span>
         </p>
       )}
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
@@ -525,7 +562,7 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   // veces. Con la bandera, la segunda llamada no sale de aquí.
   const entregadaPorTiempo = useRef(false);
 
-  const { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar, tareaBorrada } = useBorradores(
+  const { borradores, abierto, estado, escribir, elegir, guardar, guardarYAvisar } = useBorradores(
     prueba,
     tareaAbierta,
     // Lo que el servidor rechace mientras se escribe: se enseña siempre, y solo
@@ -600,9 +637,6 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
         {cartel && <span className="text-sm text-tinta-suave">{cartel}</span>}
       </div>
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
-      {/* Se queda puesto hasta que se vuelva a pintar la pantalla: lo que le ha
-          pasado no es un parpadeo, es una tarea que tiene que volver a escribir. */}
-      {tareaBorrada !== null && <AvisoDeVueltaTarde tarea={tareaBorrada} />}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={alCambiarDeTarea} />
       {tarea && (
         <TareaDeEscrita

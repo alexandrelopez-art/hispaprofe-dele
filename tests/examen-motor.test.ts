@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { minutosDePrueba, SEGUNDOS_FUERA_PERDONADOS } from "@/lib/dele/estructura";
+import { minutosDePrueba } from "@/lib/dele/estructura";
 import {
   estadoDePrueba,
   estaEntregada,
@@ -9,9 +9,11 @@ import {
   seAcaboElTiempo,
   segundosQueQuedan,
   siguienteTrozo,
+  huboSalidas,
   sumaDeBandas,
-  tardoEnVolver,
   textoDelEstado,
+  tiempoFueraEnPalabras,
+  vecesEnPalabras,
 } from "@/lib/examen/motor";
 
 // Clave inventada de seis preguntas: el cuadernillo real no entra en el repo.
@@ -85,35 +87,39 @@ describe("el reloj", () => {
   });
 });
 
-describe("cuánto se puede estar fuera", () => {
-  const SALIO = new Date("2026-09-20T09:10:00Z");
-  const tras = (segundos: number) => new Date(SALIO.getTime() + segundos * 1_000);
+describe("el registro de salidas, en palabras", () => {
+  const sinSalidas = { salidas: 0, segundosFuera: 0, ultimaSalidaEn: null, ultimaSalidaDeTarea: null };
 
-  // Mutación que la mata: devolver `true` sin marca de salida (por ejemplo,
-  // quitando el `if (salioEn === null)`). Sin marca no se ha ido nadie: a quien
-  // está escribiendo tranquilo se le borraría el folio en cuanto la pantalla
-  // mirara si hay salidas pendientes, que es cada vez que se carga.
-  it("sin marca de salida no ha salido nadie", () => {
-    expect(tardoEnVolver(null, tras(3600))).toBe(false);
+  // Mutación que la mata: mirar `segundosFuera > 0` en vez de `salidas > 0`.
+  // Tres salidas de un segundo cada una son tres salidas y el profesor tiene que
+  // verlas; con los segundos redondeados podrían dar cero y desaparecería la
+  // línea entera.
+  it("solo hay algo que contar si hubo salidas, no si hubo segundos", () => {
+    expect(huboSalidas(sinSalidas)).toBe(false);
+    expect(huboSalidas({ ...sinSalidas, salidas: 1, segundosFuera: 0 })).toBe(true);
+    expect(huboSalidas({ ...sinSalidas, salidas: 3, segundosFuera: 240 })).toBe(true);
   });
 
-  // Mutación que la mata: comparar con `>=` en vez de `>`, o cambiar el número
-  // por uno propio en vez de leer `SEGUNDOS_FUERA_PERDONADOS`. Los diez segundos
-  // exactos todavía son «volver enseguida»: una notificación o mirar la hora no
-  // pueden costar una redacción.
-  it("diez segundos justos se perdonan; once, no", () => {
-    expect(tardoEnVolver(SALIO, tras(0))).toBe(false);
-    expect(tardoEnVolver(SALIO, tras(5))).toBe(false);
-    expect(tardoEnVolver(SALIO, tras(SEGUNDOS_FUERA_PERDONADOS))).toBe(false);
-    expect(tardoEnVolver(SALIO, tras(SEGUNDOS_FUERA_PERDONADOS + 1))).toBe(true);
-    expect(tardoEnVolver(SALIO, tras(30))).toBe(true);
+  // Mutación que la mata: dar siempre los segundos en crudo, o redondear también
+  // por debajo del minuto (5 segundos saldrían «0 minutos»). La diferencia entre
+  // «5 segundos» y «55 segundos» es justo la que le dice al profesor si fue una
+  // notificación o una consulta.
+  it("por debajo del minuto van segundos; por encima, minutos redondeados", () => {
+    expect(tiempoFueraEnPalabras(0)).toBe("0 segundos");
+    expect(tiempoFueraEnPalabras(5)).toBe("5 segundos");
+    expect(tiempoFueraEnPalabras(59)).toBe("59 segundos");
+    expect(tiempoFueraEnPalabras(60)).toBe("1 minuto");
+    expect(tiempoFueraEnPalabras(95)).toBe("2 minutos");
+    expect(tiempoFueraEnPalabras(240)).toBe("4 minutos");
   });
 
-  // Mutación que la mata: subir o bajar el número. Es la decisión del profesor,
-  // y es lo que dice el aviso de la pantalla: si aquí pusiera otra cosa, el
-  // aviso estaría mintiendo.
-  it("el margen que se le promete al estudiante es de diez segundos", () => {
-    expect(SEGUNDOS_FUERA_PERDONADOS).toBe(10);
+  // Mutación que la mata: plural fijo. «1 segundos» y «1 veces» en la pantalla
+  // del profesor, y la línea la lee él cada vez que corrige.
+  it("el singular es singular", () => {
+    expect(tiempoFueraEnPalabras(1)).toBe("1 segundo");
+    expect(vecesEnPalabras(1)).toBe("1 vez");
+    expect(vecesEnPalabras(2)).toBe("2 veces");
+    expect(vecesEnPalabras(0)).toBe("0 veces");
   });
 });
 

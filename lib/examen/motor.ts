@@ -4,7 +4,6 @@
  * necesitan. Es lo que permite probar el reloj sin esperar cincuenta minutos y
  * sin que el color de la suite dependa del huso del portátil.
  */
-import { SEGUNDOS_FUERA_PERDONADOS } from "@/lib/dele/estructura";
 
 /** Lo que se le perdona a la red para que la última respuesta no se pierda por el viaje. */
 export const SEGUNDOS_DE_GRACIA = 10;
@@ -81,19 +80,6 @@ export function seAcaboElTiempo(empezadaEn: Date, minutos: number | null, ahora:
   return pasados > minutos * 60 + SEGUNDOS_DE_GRACIA;
 }
 
-/**
- * ¿Tardó demasiado en volver? La cuenta va desde la PRIMERA salida —`salioEn` no
- * se pisa mientras esté puesto—, así que salir, asomarse, volver a salir y
- * volver cuenta como un solo rato fuera.
- *
- * `>` y no `>=`, igual que `seAcaboElTiempo`: los diez segundos exactos todavía
- * son «volver enseguida». Sin marca de salida no hay nada que perdonar ni que
- * borrar: `null` es «está aquí».
- */
-export function tardoEnVolver(salioEn: Date | null, ahora: Date): boolean {
-  if (salioEn === null) return false;
-  return (ahora.getTime() - salioEn.getTime()) / 1000 > SEGUNDOS_FUERA_PERDONADOS;
-}
 
 /** El menor trozo que todavía no ha sonado. Con huecos también: no vale contar cuántos van. */
 export function siguienteTrozo(oidos: readonly number[], trozos: number): number | null {
@@ -152,4 +138,47 @@ export function sumaDeBandas(escritos: readonly { bandas: readonly number[] }[])
 /** Entregada, esté corregida o no. Las pantallas casi siempre quieren esto. */
 export function estaEntregada(e: EstadoDePrueba): boolean {
   return e.estado === "ENTREGADA" || e.estado === "ESPERANDO";
+}
+
+/**
+ * Lo que el registro de salidas cuenta de una escrita. Lo lee el profesor al
+ * corregirla, y nadie más: no sale hacia el navegador del estudiante.
+ */
+export type ResumenDeSalidas = {
+  salidas: number;
+  segundosFuera: number;
+  ultimaSalidaEn: Date | null;
+  ultimaSalidaDeTarea: number | null;
+};
+
+/**
+ * ¿Hay algo que contarle al profesor? Si no se salió NUNCA, no se pinta nada:
+ * una línea diciendo «salió 0 veces» es ruido en una pantalla donde lo que
+ * importa es la redacción.
+ *
+ * Mira `salidas`, no los segundos: una salida de tres segundos es una salida, y
+ * redondeada a minutos daría cero.
+ */
+export function huboSalidas(resumen: ResumenDeSalidas): boolean {
+  return resumen.salidas > 0;
+}
+
+/**
+ * Cuánto tiempo estuvo fuera, en palabras de persona. Redondea a minutos en
+ * cuanto pasa del minuto: al profesor le sirve «4 minutos», no «263 segundos»,
+ * y fingir esa precisión daría a entender que el número es más fino de lo que
+ * es (lo marcan dos peticiones de un navegador, no un cronómetro).
+ *
+ * Por debajo del minuto sí van los segundos: la diferencia entre «5 segundos» y
+ * «55 segundos» es justo la que le dice si fue una notificación o una consulta.
+ */
+export function tiempoFueraEnPalabras(segundos: number): string {
+  if (segundos < 60) return `${segundos} ${segundos === 1 ? "segundo" : "segundos"}`;
+  const minutos = Math.round(segundos / 60);
+  return `${minutos} ${minutos === 1 ? "minuto" : "minutos"}`;
+}
+
+/** «3 veces» / «1 vez». */
+export function vecesEnPalabras(veces: number): string {
+  return `${veces} ${veces === 1 ? "vez" : "veces"}`;
 }

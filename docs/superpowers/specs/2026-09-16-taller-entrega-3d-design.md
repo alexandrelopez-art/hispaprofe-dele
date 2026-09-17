@@ -232,60 +232,70 @@ Consecuencias, escritas para que no sorprendan:
   vale para la lectura y la auditiva, que se corrigen solas.
 - La lista del profesor no distingue el modo en la cola; sí lo dice la ficha del examen.
 
-## 9 bis. Salirse de la pantalla cuesta la tarea
+## 9 bis. Las salidas de la pantalla se registran
 
-Añadido el 17 de septiembre, **decidido por el profesor y fuera del alcance original**. Hoy,
-si el estudiante se va de la pantalla a media redacción, lo que haya tecleado desde el
-último guardado automático se pierde por azar: unas veces sí y otras no, según lo que
-tarden los temporizadores. Eso deja de ser un azar y pasa a ser una regla, dicha por
-delante.
+Añadido el 17 de septiembre, **decidido por el profesor y fuera del alcance original**. Y
+cambiado por él mismo el mismo día: la primera versión BORRABA la tarea de quien tardaba en
+volver. Queda anotado aquí porque el cambio se entiende mejor que la decisión sola.
 
-Sus dos decisiones, literales:
+**Por qué no se borra.** El navegador no sabe distinguir «se fue a buscar la respuesta» de
+«le entró una llamada» o «el sistema le bajó a leer una notificación». El precio del borrado
+lo acababa pagando un chaval que no hizo nada, mientras que quien quiere copiar de verdad
+tiene el móvil de al lado y no sale de la pantalla. Así que **no se borra nada, nunca**.
 
-- **Se borra lo escrito, y se le avisa antes de empezar.** El aviso va en la misma pantalla
-  que el de los cincuenta minutos, ANTES de «Empezar», con todas las letras y en castellano
-  para un chaval de catorce años. Perder un folio sin haber sido avisado es un castigo; con
-  el aviso delante, es una regla del examen.
-- **Se borra la tarea entera, pero solo si tarda más de diez segundos en volver.** Si vuelve
-  enseguida —una notificación, mirar la hora— no pasa nada. Y lo que se pierde es la tarea
-  entera, no solo lo tecleado desde el último guardado: en la tarea 2, también el tema
-  elegido.
+**Lo que se hace en su lugar: se registra, y el profesor lo ve al corregir.** Disuade igual
+—saben que se ve— y cuando se equivoca no le cuesta el trabajo a nadie.
 
-Y cuatro decisiones de diseño, que van con ellas:
+Las decisiones, una a una:
 
-- **Solo en modo COMPLETO.** En práctica libre no se marca ni se borra nada: ahí se
-  practica, y castigar a quien practica no tiene sentido. La regla se escribe una sola vez,
-  en el `where` del resolvedor.
-- **La salida se apunta EN EL SERVIDOR**, en dos columnas nuevas de `Intento` (`salioEn` y
-  `salioDeTarea`), no solo en el navegador. Si solo lo supiera el navegador, cerrar la
-  pestaña y volver a entrar sería el agujero obvio, y a un chaval de catorce años ese truco
-  le dura media tarde. Por eso cargar la pantalla YA cuenta como volver: la página llama al
-  resolvedor antes de leer nada, igual que hace con `cerrarLasQueSePasaron`.
-- **El reloj NO se para** mientras está fuera. Ya estaba decidido para esta prueba, y el
-  cartel de la vuelta se lo recuerda: si no, se pone a reescribir con calma creyendo que le
-  han devuelto el tiempo.
-- **Solo se borra la tarea que tenía abierta**, no las dos. La otra no la ha abandonado.
+- **Se apunta cada salida**: cuándo se fue, cuánto tardó en volver y de qué tarea estaba.
+- **En el SERVIDOR**, no en el navegador: si el rastro viviera ahí, cerrar la pestaña lo
+  borraría, y a un chaval de catorce años ese truco le dura media tarde. Cargar la pantalla
+  YA cuenta como volver, igual que con `cerrarLasQueSePasaron`: la página llama al registro
+  antes de leer nada.
+- **Solo en modo COMPLETO.** En práctica libre no se apunta nada: ahí se practica, y un
+  registro de la práctica no le dice nada a nadie.
+- **Contadores en el intento, sin tabla nueva**: `salidas`, `segundosFuera`,
+  `ultimaSalidaEn` y `ultimaSalidaDeTarea`, más la marca viva de la ausencia en curso
+  (`salioEn`, `salioDeTarea`). Con eso sale la línea que el profesor quiere leer, y una fila
+  por ausencia no le diría nada más.
+- **El aviso previo se lo dice al chaval**, antes de «Empezar»: si se sale, queda apuntado y
+  su profesor lo ve. Ahí está la disuasión — un registro que nadie sabe que existe no
+  disuade, solo delata. Y se dice **sin miedo**: no se borra nada, no se pierde nada. Es una
+  regla, no un castigo.
+- **Al volver, el estudiante no ve ningún cartel.** No ha perdido nada, no hay nada que
+  anunciarle, y enseñarle su propia cuenta lo convertiría en un marcador.
+- **El profesor lo ve solo en la pantalla de corregir esa redacción**, en una línea y
+  **solo si hubo salidas**: «Salió de la pantalla 3 veces, 4 minutos en total; la última, el
+  15 de septiembre de 2026, 10:42, desde la tarea 2». No está en la cola —no es un criterio
+  para elegir a quién corregir antes— y si no salió, no se pinta nada. Le explica un folio
+  corto o en blanco sin tener que suponer que el chico no sabía.
+- **«Volver a Inicio» sigue en la pantalla**, y esa salida también se apunta. Es un `<Link>`,
+  o sea una navegación de cliente que desmonta la pantalla sin `visibilitychange` ni
+  `pagehide`, así que se marca al desmontar. Un registro que no viera la puerta más cómoda de
+  la pantalla no sería un registro honesto.
+- **El reloj no se para** mientras está fuera. Eso no cambia.
 
-Cómo se monta, en corto:
+**La exactitud es la pieza, no un adorno**: el profesor va a hablar con un alumno con esto
+delante, así que un registro que inventa minutos es peor que no tenerlo. Dos defensas, en
+dos capas distintas, porque hacen falta las dos:
 
-- Un número con nombre junto a los demás del DELE: `SEGUNDOS_FUERA_PERDONADOS = 10`
-  (`lib/dele/estructura.ts`). Mismo valor que `SEGUNDOS_DE_GRACIA` y a propósito NO la misma
-  constante: aquel perdona el viaje de la última respuesta por la red, este perdona al
-  estudiante que vuelve enseguida.
-- Dos acciones de servidor, con las reglas de siempre —la persona sale de la sesión, nunca
-  de un argumento; solo la escrita; solo modo completo; solo con el intento abierto y sin
-  entregar—: **salir** (marca la hora y la tarea, y **no pisa** una marca ya puesta: la
-  cuenta va desde la primera salida) y **volver** (resuelve y devuelve si borró).
-- El resolvedor es idempotente y limpia siempre las marcas, haya borrado o no: son marcas
-  vivas, no un historial.
-- En la pantalla, con `visibilitychange`: al ocultarse se marca la salida y **no** se
-  descarga el borrador —que es justo lo que no se quiere—; al volver se resuelve, y si borró
-  se vacía ese folio en el navegador y sale el cartel.
+- **En el navegador, el encadenado.** Las dos peticiones —«me voy» y «he vuelto»— salen de
+  eventos distintos y, sueltas, se cruzan: «he vuelto» adelanta a «me voy», la marca queda
+  puesta con el chaval delante, y la siguiente carga la cierra como una ausencia de veinte
+  minutos que nunca ocurrió. Se encadenan sobre una cola, y las dos llevan `.catch` —si la
+  cola quedara rechazada, la pantalla dejaría de registrar en toda la prueba—.
+- **En el servidor, `volvioEn`.** Una salida con fecha anterior o igual a la última vuelta es
+  de una ausencia ya contada: se limpia y no suma. Y los segundos llevan suelo de cero: el
+  registro no puede restar tiempo.
 
-Un orden que importa: **el reloj se cierra ANTES de resolver la salida.** Si se le acabó el
-tiempo estando fuera, la prueba se entrega con lo que tuviera y a partir de ahí no se le
-borra nada — eso es lo que el profesor tiene que corregir. Lo que no se le devuelve es el
-tiempo.
+Dos detalles más que se decidieron al escribirlo:
+
+- **Salir dos veces sin que llegue la vuelta es UNA ausencia**, contada desde la primera
+  (`salioEn: null` en el `where`).
+- **Al entregar, la ausencia abierta se cierra sin contarla.** No se sabe cuándo volvió, y
+  apuntarle «estuvo fuera hasta que el reloj cerró» sería inventarle al profesor el dato más
+  gordo del registro. Dejarla puesta sería peor.
 
 ## 10. Errores
 
@@ -345,14 +355,14 @@ Con el examen 1, ya publicado, y un estudiante de verdad:
 9. En «Quién lo hace» pone «Corregida, 18 de 24», y el «Entregada, 19 de 25» de la lectura
    abre la ficha con las 25 preguntas.
 10. En el móvil: el folio se escribe cómodo y el enunciado se pliega.
-11. **En el móvil, la regla de la sentada (§9 bis), que es lo único que no se puede probar
-    sin navegador**: antes de «Empezar» lee el aviso. Ya dentro, escribe media tarea 1,
-    **bloquea la pantalla y desbloquéala enseguida**: no pasa nada, su texto sigue. Luego
-    **cambia a otra aplicación medio minuto y vuelve**: la tarea 1 está en blanco, sale el
-    cartel explicándolo, y el reloj ha seguido corriendo. La tarea 2 no se ha tocado.
-    Repítelo **cerrando la pestaña entera** en vez de cambiar de aplicación: al volver a
-    entrar por la dirección pasa lo mismo, que es lo que prueba que la marca vive en el
-    servidor. Y en un examen de **práctica libre**, lo mismo no pasa nada de nada.
+11. **El registro de salidas (§9 bis), y que NO se borra nada.** Antes de «Empezar», el
+    chico lee el aviso. Ya dentro: escribe media tarea 1, **bloquea el móvil y vuelve
+    enseguida**; **cambia a otra aplicación medio minuto y vuelve**; **cierra la pestaña
+    entera y vuelve a entrar por la dirección**; y por último **pulsa «← Volver a Inicio» y
+    vuelve a la escrita**. En las cuatro, su texto sigue entero y no ve ningún cartel. Al
+    entregar y abrirla en «Por corregir», el profesor lee una línea con **cuatro salidas** y
+    un tiempo que cuadra con lo que tardó — y la tarea desde la que salió la última vez. Con
+    un examen de **práctica libre**, lo mismo no apunta nada.
 
 ## 13. Lo que sigue abierto
 
