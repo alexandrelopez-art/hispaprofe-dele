@@ -415,8 +415,14 @@ function pruebaDePrueba(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
     escritos: [],
     entregadaEn: null,
     corregidaEn: null,
-    // Por defecto, la otra prueba sin empezar: es lo normal al terminar la primera.
-    otras: [{ prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } }],
+    // Las OTRAS DOS sin empezar, que es lo normal al terminar la primera. Dos y
+    // no una: desde que la escrita tiene pantalla, `pruebaParaHacer` manda
+    // siempre las otras dos de PRUEBAS_QUE_SE_HACEN, y una fixture con una sola
+    // escondía que la pantalla dijera «las dos pruebas» cuando son tres.
+    otras: [
+      { prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+      { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+    ],
     ...extra,
   };
 }
@@ -760,21 +766,41 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("4 de 6");
   });
 
-  // Mutación que la mata: enseñar siempre «te queda la otra» aunque esté
-  // entregada, o no enseñarlo nunca. Es lo que dice al estudiante que aún no ha
+  // Mutación que la mata: enseñar siempre «te quedan las otras» aunque estén
+  // entregadas, o no enseñarlo nunca. Es lo que dice al estudiante que aún no ha
   // terminado.
-  it("dice si queda otra prueba por hacer, y si no, que ya está", async () => {
-    const queda = await pintarPagina(entregadaCon19De25());
-    expect(queda).toContain("Te queda");
-    expect(queda).toContain("comprensión auditiva");
+  //
+  // La otra mutación, la del recuento: escribir el número a mano («las dos
+  // pruebas», que es lo que decía, o el singular «Te queda» con dos pendientes).
+  // Son tres pruebas desde que la escrita tiene pantalla, así que el texto no
+  // puede llevar el número dentro.
+  it("dice qué pruebas quedan por hacer, y si no queda ninguna, que ya está", async () => {
+    const quedan = await pintarPagina(entregadaCon19De25());
+    expect(quedan).toContain("Te quedan");
+    expect(quedan).toContain("comprensión auditiva");
+    expect(quedan).toContain("expresión escrita");
 
+    const entregada = { estado: "ENTREGADA" as const, aciertos: 21, total: 25, porTiempo: false };
     const terminadas = await pintarPagina(
       entregadaCon19De25({
-        otras: [{ prueba: "CO", estado: { estado: "ENTREGADA", aciertos: 21, total: 25, porTiempo: false } }],
+        otras: [{ prueba: "CO", estado: entregada }, { prueba: "EE", estado: entregada }],
       }),
     );
-    expect(terminadas).toContain("Ya has terminado las dos pruebas");
+    expect(terminadas).toContain("Ya has terminado el examen");
+    expect(terminadas).not.toContain("las dos pruebas");
     expect(terminadas).not.toContain("Te queda");
+
+    // Una sola pendiente: el singular, y el enlace en singular con ella.
+    const unaSola = await pintarPagina(
+      entregadaCon19De25({
+        otras: [
+          { prueba: "CO", estado: entregada },
+          { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+        ],
+      }),
+    );
+    expect(unaSola).toContain("Te queda expresión escrita.");
+    expect(unaSola).toContain("Ir a hacerla<");
   });
 
   // Mutación que la mata: volver la línea del filtro de `Resultado` a
@@ -784,7 +810,10 @@ describe("la pantalla que hace el estudiante", () => {
   it("una escrita entregada y sin corregir no cuenta como pendiente", async () => {
     const html = await pintarPagina(
       entregadaCon19De25({
-        otras: [{ prueba: "EE", estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } }],
+        otras: [
+          { prueba: "CO", estado: { estado: "ENTREGADA", aciertos: 21, total: 25, porTiempo: false } },
+          { prueba: "EE", estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } },
+        ],
       }),
     );
     expect(html).not.toContain("Te queda");

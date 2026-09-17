@@ -80,8 +80,11 @@ export function CorregirEscrita({ para }: { para: ParaCorregir }) {
   );
   const [error, setError] = useState<string | null>(null);
   // Apaga los dos botones desde el primer clic hasta que vuelve el servidor:
-  // sin esto, un doble clic (o la misma redacción abierta en dos pestañas)
-  // manda dos firmas a la vez y la segunda pisa a la primera.
+  // sin esto, un doble clic manda dos firmas a la vez y la segunda pisa a la
+  // primera. Solo eso: `useTransition` vive en ESTA pestaña, así que no
+  // protege de la misma redacción abierta en dos, y eso no está resuelto.
+  // Tampoco hace daño hoy: las dos firmas escriben lo mismo, y la de después
+  // gana, que es lo que el profesor esperaría.
   const [procesando, empezarTransicion] = useTransition();
 
   function guardar(irASiguiente: boolean) {

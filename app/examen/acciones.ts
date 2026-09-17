@@ -20,7 +20,8 @@ const NO_SE_HACE = "Esa prueba todavía no se puede hacer.";
 const pantallaDeLaPrueba = (examenId: string, prueba: Prueba) => `/examen/${examenId}/${prueba}`;
 
 // esPrueba comprueba las cuatro pruebas del DELE; PRUEBAS_QUE_SE_HACEN, cuáles
-// de esas cuatro tiene ya pantalla (hoy, solo CE y CO). Aunque el tipo de
+// de esas cuatro tiene ya pantalla (hoy CE, CO y EE: la oral llega con la 3e).
+// Aunque el tipo de
 // `prueba` ya es `Prueba` en la firma, eso es solo TypeScript: una acción de
 // servidor es una dirección pública y a runtime puede llegar cualquier texto.
 function pruebaValida(prueba: string): prueba is Prueba {

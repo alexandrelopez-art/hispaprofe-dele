@@ -23,6 +23,10 @@ const NO_LIBRE = "Este examen no es de práctica libre.";
 // Los tres de la escrita. El tope no es para corregir a nadie: es para que una
 // dirección pública no pueda meter un libro entero en una columna de la base.
 const TEXTO_LARGO = "Ese texto es demasiado largo.";
+// El número de tarea que manda el ESTUDIANTE al guardar su folio y que su
+// examen no tiene. Hay otra constante con el mismo nombre y el mismo literal en
+// lib/examen/corregir.ts, y es el mismo error visto desde el otro lado: allí el
+// número malo lo manda el profesor al poner las bandas.
 const TAREA_MALA = "Esa tarea no existe.";
 const OPCION_MALA = "Esa opción no existe.";
 // El tope de letras también vive en ./motor: lo comparten esta guarda y el

@@ -8,7 +8,17 @@ import { diasEntre } from "@/lib/tiempo/madrid";
 
 // Literales, como los de lib/examen/hacer.ts: las pruebas los comparan por texto.
 const NOTA_MALA = "Esa nota no vale.";
+// Ojo: hay otra constante con este MISMO nombre y este MISMO literal en
+// lib/examen/hacer.ts, y no significan lo mismo. Allí es el estudiante
+// escribiendo en un número de tarea que su examen no tiene; aquí es el PROFESOR
+// mandando bandas para un número de tarea que no está en la escrita de ese
+// examen. Quien lo lee es distinto, pero la frase le sirve a los dos.
 const TAREA_MALA = "Esa tarea no existe.";
+// Y este es otro caso, que antes se colaba por TAREA_MALA: no es que la tarea
+// no exista, es que no hay nada que corregir —el intento no está, o está y no
+// es una escrita—. Decirle al profesor «Esa tarea no existe.» le mandaba a
+// buscar el fallo justo donde no estaba.
+const NO_ES_ESCRITA = "Esa redacción no existe.";
 const SIN_ENTREGAR = "Esa prueba todavía no está entregada.";
 const CORRECCION_A_MEDIAS = "Faltan notas en alguna tarea: no se puede firmar a medias.";
 
@@ -190,7 +200,7 @@ export async function guardarCorreccion(
       },
     },
   });
-  if (!intento || intento.prueba !== "EE") return { error: TAREA_MALA };
+  if (!intento || intento.prueba !== "EE") return { error: NO_ES_ESCRITA };
   if (!intento.entregadaEn) return { error: SIN_ENTREGAR };
 
   const numerosDelExamen = new Set(intento.asignacion.examen.tareas.map((t) => t.numero));

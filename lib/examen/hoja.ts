@@ -18,7 +18,7 @@ export type HojaDeRespuestas = {
  *
  * Es la ÚNICA pantalla fuera del taller que lee la tabla `Clave` (comparte esa
  * lectura, `claveDeLaPrueba`, con `lib/examen/hacer.ts`, que la usa para
- * calificar), y por eso su página exige PROFESOR. Cuatro cosas que no son
+ * calificar), y por eso su página exige PROFESOR. Cinco cosas que no son
  * obvias:
  *
  * - No hay ficha de la escrita. `null` si `prueba === "EE"`, sin llegar a

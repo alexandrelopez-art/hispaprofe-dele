@@ -298,15 +298,19 @@ function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
         En rojo, las que fallaste. No se dice cuál era la buena: vuelve al texto y búscala.
       </p>
 
+      {/* Ni el número de pruebas ni el singular se escriben a mano: `otras` son
+          dos desde que la escrita tiene pantalla (antes una), y serán tres con
+          la oral. «Ya has terminado las dos pruebas» ya era falso. */}
       {queda.length > 0 ? (
         <p>
-          Te queda {queda.map((o) => NOMBRE_DE_PRUEBA[o.prueba]).join(" y ")}.{" "}
+          {queda.length === 1 ? "Te queda" : "Te quedan"}{" "}
+          {queda.map((o) => NOMBRE_DE_PRUEBA[o.prueba]).join(" y ")}.{" "}
           <Link href="/" className="text-hp-600 underline">
-            Ir a hacerla
+            {queda.length === 1 ? "Ir a hacerla" : "Ir a hacerlas"}
           </Link>
         </p>
       ) : (
-        <p className="font-bold">Ya has terminado las dos pruebas.</p>
+        <p className="font-bold">Ya has terminado el examen.</p>
       )}
     </section>
   );

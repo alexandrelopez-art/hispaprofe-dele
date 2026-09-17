@@ -92,6 +92,23 @@ describe("corregir", () => {
     expect(intento.corregidaEn).toBeNull();
   });
 
+  // Mutación que la mata: devolver TAREA_MALA («Esa tarea no existe.») cuando
+  // lo que falta es el intento entero, que es lo que hacía. Al profesor le
+  // mandaba a mirar los números de tarea cuando el problema era otro: que ese
+  // identificador no es de ninguna redacción.
+  //
+  // Las dos mitades de la guarda, una por línea: el intento que no existe y el
+  // que existe pero es de lectura.
+  it("una corrección sobre algo que no es una redacción lo dice con su propio mensaje", async () => {
+    expect(await guardarCorreccion("no-existe", [{ tarea: 1, bandas: [1, 1, 1, 1], comentario: "" }], profe.id, DESPUES))
+      .toEqual({ error: "Esa redacción no existe." });
+
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    const lectura = await prisma.intento.findFirstOrThrow({ where: { prueba: "CE" } });
+    expect(await guardarCorreccion(lectura.id, [{ tarea: 1, bandas: [1, 1, 1, 1], comentario: "" }], profe.id, DESPUES))
+      .toEqual({ error: "Esa redacción no existe." });
+  });
+
   // Mutación que la mata: dejar corregir una prueba sin entregar. Se le pondría
   // nota a un folio que el chico todavía está escribiendo.
   it("no se corrige lo que no está entregado", async () => {
