@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { asignarExamenAccion, quitarAsignacionAccion } from "@/app/examenes/acciones";
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";
+
+// Solo lectura y auditiva tienen ficha: la escrita se corrige en /corregir,
+// que es otra pantalla, y una escrita ESPERANDO (entregada sin firmar) no
+// tiene nada congelado que enseñar todavía.
+const PRUEBAS_CON_FICHA = ["CE", "CO"];
 
 type Estudiante = { id: string; nombre: string };
 type Asignada = { personaId: string; nombre: string; fechaTope: Date; pruebas: EstadoDeUnaPrueba[] };
@@ -96,7 +102,16 @@ export function QuienLoHace({
               {a.pruebas.length > 0 && (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-tinta-suave">
                   {a.pruebas.map((p) => (
-                    <span key={p.prueba}>{NOMBRE_CORTO[p.prueba]}: {p.texto}</span>
+                    <span key={p.prueba}>
+                      {NOMBRE_CORTO[p.prueba]}:{" "}
+                      {p.estado.estado === "ENTREGADA" && PRUEBAS_CON_FICHA.includes(p.prueba) ? (
+                        <Link href={`/examenes/${examenId}/hoja/${a.personaId}/${p.prueba}`} className="text-hp-600 underline">
+                          {p.texto}
+                        </Link>
+                      ) : (
+                        p.texto
+                      )}
+                    </span>
                   ))}
                 </div>
               )}

@@ -24,6 +24,7 @@ import {
   PreguntaDeEntrega,
 } from "@/components/examen/hacer-escrita";
 import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
+import type { HojaDeRespuestas } from "@/lib/examen/hoja";
 import { BotonesDeGuardar, CorregirEscrita } from "@/components/examen/corregir-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
@@ -37,6 +38,7 @@ const dobles = vi.hoisted(() => ({
   cerrarLasQueSePasaron: vi.fn(),
   escritosPorCorregir: vi.fn(),
   escritoParaCorregir: vi.fn(),
+  hojaDeRespuestas: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -79,6 +81,9 @@ vi.mock("@/lib/examen/corregir", () => ({
   escritosPorCorregir: dobles.escritosPorCorregir,
   escritoParaCorregir: dobles.escritoParaCorregir,
 }));
+// La ficha (app/examenes/[id]/hoja/...) también solo lee: dobla su única
+// lectura, igual que las dos de arriba, para no arrastrar prisma aquí.
+vi.mock("@/lib/examen/hoja", () => ({ hojaDeRespuestas: dobles.hojaDeRespuestas }));
 vi.mock("@/app/corregir/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
 
 import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
@@ -1628,5 +1633,105 @@ describe("BotonesDeGuardar", () => {
     const deGuardar = botones.filter((b) => b[1] === "Guardar" || b[1] === "Guardar y seguir");
     expect(deGuardar).toHaveLength(2);
     expect(deGuardar.every((b) => b[0].includes('type="button"'))).toBe(true);
+  });
+});
+
+describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]", () => {
+  function hojaDePrueba(extra: Partial<HojaDeRespuestas> = {}): HojaDeRespuestas {
+    return {
+      persona: { nombre: "Ana" },
+      titulo: "Examen 1",
+      prueba: "CE",
+      aciertos: 19,
+      total: 25,
+      filas: [
+        { numero: 7, marcada: "A", correcta: "A" },
+        { numero: 8, marcada: "C", correcta: "B" },
+        { numero: 9, marcada: null, correcta: "C" },
+      ],
+      ...extra,
+    };
+  }
+
+  // Mutación que la mata: quitar exigirProfesor de la página de la ficha. Sería
+  // la puerta por la que la clave del examen sale hacia un estudiante.
+  it("la ficha no se le enseña a un estudiante", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana);
+    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow();
+    expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el `esPrueba(prueba) || notFound()`. Una
+  // dirección con una prueba inventada («XX») tendría que dar 404, no colarse
+  // hasta llamar a hojaDeRespuestas con un valor que no es una Prueba.
+  it("una prueba que no existe contesta 404 sin llegar a mirar la base", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "XX" }) })).rejects.toThrow("NOT_FOUND");
+    expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el `if (!hoja) notFound()`. Una prueba sin
+  // entregar (hojaDeRespuestas da null) tiene que dar 404, no una pantalla
+  // rota a medio pintar.
+  it("sin ficha todavía (no entregada) contesta 404", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(null);
+    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow("NOT_FOUND");
+  });
+
+  // Mutación que la mata: no pintar el nombre, el examen, el nombre de la
+  // prueba o la nota congelada arriba de la ficha.
+  it("arriba: el nombre, el examen, la prueba y la nota congelada", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
+    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const html = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(html).toContain("Ana");
+    expect(html).toContain("Examen 1");
+    expect(html).toContain("Lectura");
+    expect(html).toContain("19");
+    expect(html).toContain("25");
+    expect(dobles.hojaDeRespuestas).toHaveBeenCalledWith("ex1", "p1", "CE");
+  });
+
+  // Mutación que la mata: pintar `marcada` tal cual cuando es null (una
+  // celda vacía) en vez de decir «sin contestar». Dejarla en blanco tiene que
+  // seguir siendo visible como una fila más, no desaparecer entre las demás.
+  it("lo que dejó en blanco sale dicho como «sin contestar»", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
+    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const html = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(html).toContain("sin contestar");
+  });
+
+  // Mutación que la mata: quitar el `bg-error-100` de la fila donde
+  // `marcada !== correcta`, o ponerlo también en la que acertó.
+  it("la fila donde falló sale marcada en rojo; la que acertó, no", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+
+    dobles.hojaDeRespuestas.mockResolvedValue(
+      hojaDePrueba({ filas: [{ numero: 7, marcada: "A", correcta: "A" }] }),
+    );
+    const sinFallos = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(sinFallos).not.toContain("bg-error-100");
+
+    dobles.hojaDeRespuestas.mockResolvedValue(
+      hojaDePrueba({ filas: [{ numero: 8, marcada: "C", correcta: "B" }] }),
+    );
+    const conUnFallo = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(conUnFallo).toContain("bg-error-100");
   });
 });

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import type { Examen, Persona } from "@/lib/generated/prisma";
-import { empezarPrueba, entregarPrueba, guardarEscrito } from "@/lib/examen/hacer";
+import { empezarPrueba, entregarPrueba, guardarEscrito, guardarRespuesta } from "@/lib/examen/hacer";
 import { escritosPorCorregir, escritoParaCorregir, guardarCorreccion } from "@/lib/examen/corregir";
+import { hojaDeRespuestas } from "@/lib/examen/hoja";
 import { crearExamenDePruebas } from "../ayudas/examen-de-pruebas";
 
 const AHORA = new Date("2026-09-20T09:00:00Z");
@@ -204,5 +205,29 @@ describe("corregir", () => {
     expect(para!.tareas[0]!.formulario.forma).toBe("REDACCION_UNA");
     expect(para!.puntos).toBe(24);
     expect(para!.persona.nombre).toBe("Ana");
+  });
+});
+
+describe("la ficha pregunta a pregunta", () => {
+  // Mutación que la mata: no devolver la letra correcta. La ficha existe justo
+  // para eso: ver que marcó B donde iba A.
+  it("dice lo que marcó y lo que era, pregunta a pregunta", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    await guardarRespuesta(examen.id, "CE", ana.id, 7, "A", AHORA);
+    await guardarRespuesta(examen.id, "CE", ana.id, 8, "C", AHORA); // la buena es B
+    await entregarPrueba(examen.id, "CE", ana.id, AHORA);
+    const hoja = await hojaDeRespuestas(examen.id, ana.id, "CE");
+    expect(hoja!.filas).toContainEqual({ numero: 7, marcada: "A", correcta: "A" });
+    expect(hoja!.filas).toContainEqual({ numero: 8, marcada: "C", correcta: "B" });
+    // Las que no contestó salen como no contestadas, no como fallo mudo.
+    expect(hoja!.filas.find((f) => f.numero === 9)!.marcada).toBeNull();
+    expect(hoja!.filas.map((f) => f.numero)).toEqual([7, 8, 9, 10, 11, 12]);
+  });
+
+  // Mutación que la mata: devolver la ficha de una prueba sin entregar. La
+  // clave bajaría a una pantalla mientras el chico todavía la está haciendo.
+  it("no hay ficha de lo que no está entregado", async () => {
+    await empezarPrueba(examen.id, "CE", ana.id, AHORA);
+    expect(await hojaDeRespuestas(examen.id, ana.id, "CE")).toBeNull();
   });
 });

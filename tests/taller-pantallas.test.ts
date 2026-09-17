@@ -542,4 +542,47 @@ describe("la caja de quién hace el examen", () => {
     expect(marcado).toContain("Marcar todos");
     expect(marcado).not.toContain("Desmarcar todos");
   });
+
+  // Mutación que la mata: enlazar también una lectura o auditiva que todavía
+  // no está ENTREGADA (HACIENDO, ESPERANDO o SIN_EMPEZAR). Ahí no hay ficha
+  // que enseñar: `hojaDeRespuestas` daría null.
+  it("solo la lectura y la auditiva ENTREGADAS enlazan a su ficha", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      {
+        personaId: "e1",
+        nombre: "Ana",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "CE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 19, total: 25, porTiempo: false }, texto: "Entregada, 19 de 25" },
+          { prueba: "CO" as const, estado: { estado: "HACIENDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "A medias" },
+        ],
+      },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain('href="/examenes/x1/hoja/e1/CE"');
+    expect(marcado).not.toContain('href="/examenes/x1/hoja/e1/CO"');
+  });
+
+  // Mutación que la mata: enlazar también la escrita cuando está ENTREGADA (o
+  // ESPERANDO). La escrita se corrige en /corregir, que es otra pantalla; una
+  // que espera corrección no tiene ficha congelada que enseñar todavía.
+  it("la escrita nunca enlaza a la ficha, esté ENTREGADA o ESPERANDO", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      {
+        personaId: "e1",
+        nombre: "Ana",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "EE" as const, estado: { estado: "ESPERANDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "Esperando corrección" },
+        ],
+      },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain("Esperando corrección");
+    expect(marcado).not.toContain('href="/examenes/x1/hoja/e1/EE"');
+  });
 });

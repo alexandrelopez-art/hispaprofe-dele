@@ -38,10 +38,13 @@ type AsignacionAbierta = { id: string };
  * La clave de una prueba entera: la unión de las `Clave` de todas las tareas
  * de esa prueba, tal como se congelaron al guardarlas (Entrega 1). Nunca del
  * cuadernillo: el cuadernillo puede cambiar y no tiene por qué arrastrar la
- * nota de un examen ya publicado. Privada: no hay otra salida para la
- * respuesta correcta que esta función.
+ * nota de un examen ya publicado.
+ *
+ * Exportada por una única razón: `lib/examen/hoja.ts` la reutiliza para
+ * pintar la ficha del profesor (la única pantalla fuera del taller que lee la
+ * `Clave`). Fuera de esas dos, ningún otro sitio tiene motivo para llamarla.
  */
-async function claveDeLaPrueba(examenId: string, prueba: Prueba): Promise<Record<string, string>> {
+export async function claveDeLaPrueba(examenId: string, prueba: Prueba): Promise<Record<string, string>> {
   const tareas = await prisma.tarea.findMany({
     where: { examenId, prueba },
     select: { piezas: { select: { actividad: { select: { clave: { select: { respuestas: true } } } } } } },
