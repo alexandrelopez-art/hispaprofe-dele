@@ -53,6 +53,30 @@ async function guardarAuditiva3(examenId: string): Promise<void> {
   await guardarTarea(examenId, "CO", 3, f);
 }
 
+/** Las dos tareas de la escrita, guardadas como las guarda el taller. */
+async function guardarEscritas(examenId: string): Promise<void> {
+  const regla1 = reglaDe("A2_B1_ESCOLAR", "EE", 1)!;
+  const f1 = formularioVacio(regla1);
+  if (f1.forma !== "REDACCION_UNA") throw new Error("la escrita 1 es REDACCION_UNA");
+  f1.consigna = "Escribe un correo.";
+  f1.actividad.situacion = "Un amigo te escribe.";
+  f1.actividad.textoRecibido = "¡Hola! ¿Vienes el sábado?";
+  f1.actividad.pautas = ["Salúdale", "Dile si vas"];
+  f1.actividad.palabras = { min: 60, max: 70 };
+  await guardarTarea(examenId, "EE", 1, f1);
+
+  const regla2 = reglaDe("A2_B1_ESCOLAR", "EE", 2)!;
+  const f2 = formularioVacio(regla2);
+  if (f2.forma !== "REDACCION_DOS") throw new Error("la escrita 2 es REDACCION_DOS");
+  f2.consigna = "Elige una opción.";
+  f2.actividad.opciones = [
+    { titulo: "Opción 1", contexto: "Tu instituto", pautas: ["Cuenta un día"] },
+    { titulo: "Opción 2", contexto: "Tus vacaciones", pautas: ["Cuenta un viaje"] },
+  ];
+  f2.actividad.palabras = { min: 70, max: 80 };
+  await guardarTarea(examenId, "EE", 2, f2);
+}
+
 export type ExamenDePruebas = { ana: Persona; luis: Persona; examen: Examen };
 
 /**
@@ -85,6 +109,7 @@ export async function crearExamenDePruebas(): Promise<ExamenDePruebas> {
   await prisma.examen.update({ where: { id: creado.id }, data: { cuadernilloId: cuadernillo.id, numeroEnCuadernillo: 1 } });
   await guardarLectura2(creado.id);
   await guardarAuditiva3(creado.id);
+  await guardarEscritas(creado.id);
   const examen = await prisma.examen.update({ where: { id: creado.id }, data: { estado: "PUBLICADO" } });
   await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE } });
 

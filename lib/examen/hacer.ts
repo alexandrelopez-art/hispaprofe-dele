@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
 import type { Prueba } from "@/lib/generated/prisma";
 import { minutosDePrueba } from "@/lib/dele/estructura";
-import { notaDePrueba, seAcaboElTiempo, segundosQueQuedan, type Nota } from "./motor";
+import { formularioDePiezas } from "@/lib/taller/piezas";
+import { notaDePrueba, palabras, seAcaboElTiempo, segundosQueQuedan, type Nota } from "./motor";
 
 // Los mensajes de error, literales (spec §9). Otras pantallas y otras tareas
 // los comparan por texto: cambiar una coma aquí las rompe.
@@ -17,6 +18,13 @@ const NO_EMPEZADA = "Todavía no has empezado esta prueba.";
 // El séptimo: el candado de `corregirEnLibre`. Sin él, esa función es un
 // oráculo de la clave para cualquier asignación en modo COMPLETO.
 const NO_LIBRE = "Este examen no es de práctica libre.";
+// Los tres de la escrita. El tope no es para corregir a nadie: es para que una
+// dirección pública no pueda meter un libro entero en una columna de la base.
+const TEXTO_LARGO = "Ese texto es demasiado largo.";
+const TAREA_MALA = "Esa tarea no existe.";
+const OPCION_MALA = "Esa opción no existe.";
+/** Unas 1.500 palabras: siete veces lo más largo que pide el examen. */
+export const LETRAS_TOPE = 10_000;
 
 type IntentoAbierto = {
   id: string;
@@ -110,7 +118,8 @@ async function abrirLaPrueba(
   ahora: Date,
   opciones: { exigirEmpezada: boolean },
 ): Promise<{ asignacion: AsignacionAbierta; intento: IntentoAbierto | null; minutos: number | null } | { error: string }> {
-  if (prueba !== "CE" && prueba !== "CO") return { error: NO_SE_HACE };
+  // La oral (EO) sigue fuera hasta la 3e: su pantalla no existe.
+  if (prueba !== "CE" && prueba !== "CO" && prueba !== "EE") return { error: NO_SE_HACE };
 
   const asignacion = await prisma.asignacion.findUnique({
     where: { examenId_personaId: { examenId, personaId } },
@@ -179,6 +188,59 @@ export async function guardarRespuesta(
     where: { intentoId_numero: { intentoId: abierta.intento!.id, numero } },
     create: { intentoId: abierta.intento!.id, numero, letra },
     update: { letra },
+  });
+  return {};
+}
+
+/**
+ * Cuántas opciones tiene una tarea de la escrita, para poder rechazar una que
+ * no existe. Sale del formulario guardado, no de la regla del nivel: la regla
+ * dice que la tarea 2 es de opciones, pero no cuántas puso el profesor.
+ * Devuelve 0 en una tarea sin opciones (la 1), y eso hace que elegir una allí
+ * rebote, que es lo que tiene que pasar.
+ */
+async function opcionesDeLaTarea(examenId: string, tarea: number): Promise<number | null> {
+  const fila = await prisma.tarea.findUnique({
+    where: { examenId_prueba_numero: { examenId, prueba: "EE", numero: tarea } },
+    select: { piezas: { select: { orden: true, tipo: true, texto: true, etiqueta: true, ficheroId: true, cortes: true, actividad: { select: { datos: true } } } } },
+  });
+  if (!fila) return null;
+  const formulario = formularioDePiezas(fila.piezas);
+  if (!formulario) return null;
+  return formulario.forma === "REDACCION_DOS" ? formulario.actividad.opciones.length : 0;
+}
+
+/**
+ * El borrador. Pasa por la misma guarda que marcar una letra —las cinco
+ * comprobaciones, en el mismo orden— y escribe una sola fila por tarea con un
+ * `upsert`: el navegador guarda cada pocos segundos mientras se escribe, y
+ * cada guardado es el texto ENTERO, no un trozo.
+ *
+ * Las palabras se cuentan AQUÍ. El navegador también las cuenta para pintarlas
+ * en vivo, pero lo que se guarda es lo que cuenta el servidor sobre el texto
+ * que llegó: la cuenta del navegador es un adorno, no un dato.
+ */
+export async function guardarEscrito(
+  examenId: string,
+  personaId: string,
+  tarea: number,
+  texto: string,
+  opcion: number | null,
+  ahora: Date,
+): Promise<{ error?: string }> {
+  if (texto.length > LETRAS_TOPE) return { error: TEXTO_LARGO };
+
+  const abierta = await abrirLaPrueba(examenId, "EE", personaId, ahora, { exigirEmpezada: true });
+  if ("error" in abierta) return abierta;
+
+  const opciones = await opcionesDeLaTarea(examenId, tarea);
+  if (opciones === null) return { error: TAREA_MALA };
+  if (opcion !== null && (!Number.isInteger(opcion) || opcion < 1 || opcion > opciones)) return { error: OPCION_MALA };
+
+  await prisma.escritoDeIntento.upsert({
+    where: { intentoId_tarea: { intentoId: abierta.intento!.id, tarea } },
+    create: { intentoId: abierta.intento!.id, tarea, texto, palabras: palabras(texto), opcion },
+    update: { texto, palabras: palabras(texto), opcion },
   });
   return {};
 }
