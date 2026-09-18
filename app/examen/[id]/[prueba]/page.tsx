@@ -22,8 +22,13 @@ export default async function PantallaDelExamen({
   //    cerrar la pestaña no lo borra, pasa por aquí igual.
   //
   // El reloj antes que la vuelta, y no al revés: si se le acabó el tiempo
-  // estando fuera, la entrega cierra la ausencia sin contarla (no sabemos cuándo
-  // volvió, y apuntarle una ausencia de cincuenta minutos sería inventársela).
+  // estando fuera, el cierre por reloj SÍ cuenta la ausencia —topada hasta el
+  // fin de la prueba, nunca hasta `ahora` (`ausenciaSinVuelta` en hacer.ts)—, y
+  // ese orden es lo único que lo permite. Si `registrarLasVueltas` corriera
+  // primero, «cargar la pantalla YA es la vuelta» cerraría la ausencia con la
+  // fecha de HOY, y quien mira el examen tres días después de que el reloj lo
+  // cerrara le contaría al profesor «volvió a los tres días» en vez de topar en
+  // el minuto cincuenta.
   //
   // Acotado a ESTE examen: entrar en la lectura del examen B no puede cerrar una
   // ausencia de la escrita del examen A, que sigue abierta en otra pestaña.
