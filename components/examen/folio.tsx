@@ -43,7 +43,7 @@ export function Folio({
         className="w-full rounded-2xl border border-tinta-suave/30 p-4 leading-relaxed disabled:bg-tinta-suave/5"
         placeholder="Escribe aquí."
       />
-      <p className={aviso.pasada ? "text-sm font-bold text-error-600" : "text-sm text-tinta-suave"}>{aviso.texto}</p>
+      <p className={aviso.pasada ? "text-sm font-bold text-coral-600" : "text-sm text-tinta-suave"}>{aviso.texto}</p>
     </div>
   );
 }

@@ -25,8 +25,8 @@ import {
   hayAlgoSinGuardar,
   hayQueGuardar,
   loQueFalta,
-  PreguntaDeEntrega,
 } from "@/components/examen/hacer-escrita";
+import { PreguntaDeEntrega } from "@/components/examen/pregunta-de-entrega";
 import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
 import type { HojaDeRespuestas } from "@/lib/examen/hoja";
 import { BotonesDeGuardar, CorregirEscrita, SalidasDelEstudiante } from "@/components/examen/corregir-escrita";
@@ -1320,6 +1320,16 @@ describe("el folio", () => {
     const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
     expect(textarea).toContain(`maxLength="${LETRAS_TOPE}"`);
   });
+
+  // Mutación que la mata: volver al rojo de error para las palabras pasadas.
+  // Pasarse de palabras no es un fallo del sistema: es un aviso (coral).
+  it("el aviso de palabras pasadas va en coral", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto={"palabra ".repeat(200)} rango={{ min: 80, max: 100 }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    expect(html).toContain("text-coral-600");
+    expect(html).not.toContain("text-error-600");
+  });
 });
 
 describe("el enunciado de la escrita", () => {
@@ -1576,21 +1586,19 @@ describe("la escrita", () => {
     expect(hayAlgoSinGuardar({}, { 1: { texto: "Algo", opcion: null } })).toBe(true);
   });
 
-  // Mutación que la mata: volver a «Te falta {falta.join(" y ")}», que con las
-  // cadenas de `loQueFalta` sale «Te falta la tarea 1 está en blanco.». Lo lee un
-  // chaval de catorce años justo antes de entregar. La pieza se pinta sola
-  // porque dentro de la pantalla solo aparece tras un clic, y aquí no hay jsdom.
-  it("la pregunta de entrega está escrita en castellano", () => {
+  // Mutación que la mata: volver a «Te falta {falta.join(" y ")}», o pintar la
+  // lista sin el «Ojo:». Lo lee un chaval de catorce años justo antes de entregar.
+  // Cambiada por el vestido: la escrita ya no tiene pregunta propia; usa la
+  // pieza común (<dialog>), que pinta lo que falta como lista y no como frase.
+  it("la pregunta de entrega de la escrita dice lo que falta, en castellano", () => {
     const html = renderToStaticMarkup(
-      <PreguntaDeEntrega
-        falta={["la tarea 1 está en blanco", "no has elegido opción en la tarea 2"]}
-        enviando={false}
-        alSi={() => {}}
-        alNo={() => {}}
-      />,
+      <PreguntaDeEntrega abierta falta={["la tarea 1 está en blanco", "no has elegido opción en la tarea 2"]}
+        enviando={false} textoSeguir="Seguir escribiendo" alSi={() => {}} alNo={() => {}} />,
     );
-    expect(html).toContain("Ojo: la tarea 1 está en blanco y no has elegido opción en la tarea 2. ¿Entregar de todas formas?");
-    expect(html).toContain("Sí, entregar");
+    expect(html).toContain("Ojo:");
+    expect(html).toContain("<li>la tarea 1 está en blanco</li>");
+    expect(html).toContain("<li>no has elegido opción en la tarea 2</li>");
+    expect(html).toContain("¿Entregar de todas formas?");
     expect(html).toContain("Seguir escribiendo");
   });
 
@@ -1694,12 +1702,47 @@ describe("la escrita", () => {
   // Mutación que la mata: enseñar la lista de lo que falta aunque esté vacía
   // («Ojo: . ¿Entregar de todas formas?»), o callarse el «no se puede deshacer»
   // cuando está todo hecho, que es cuando más de verdad va la entrega.
+  // Cambiada por el vestido: ahora es la pieza común, que dice «Entregar no se
+  // puede deshacer.» siempre (su pregunta va en el título «¿Entregar ya?»), así
+  // que se deja de esperar el «¿Entregar?» de la frase vieja.
   it("con todo hecho, la pregunta avisa de que no se puede deshacer", () => {
     const html = renderToStaticMarkup(
-      <PreguntaDeEntrega falta={[]} enviando={false} alSi={() => {}} alNo={() => {}} />,
+      <PreguntaDeEntrega abierta falta={[]} enviando={false} textoSeguir="Seguir escribiendo" alSi={() => {}} alNo={() => {}} />,
     );
-    expect(html).toContain("Entregar no se puede deshacer. ¿Entregar?");
+    expect(html).toContain("Entregar no se puede deshacer.");
     expect(html).not.toContain("Ojo:");
+  });
+
+  // Mutación que la mata: dibujar un botón «Guardar» (se guarda sola: A §6).
+  it("escribiendo no hay botón Guardar, y Entregar abre la pregunta común", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).not.toMatch(/<button[^>]*>Guardar/);
+    expect(html).toContain('aria-labelledby="titulo-de-entregar"');
+    expect(html).toContain("Seguir escribiendo");
+  });
+
+  // Mutación que la mata: el comentario del profesor otra vez en bg-hp-50 a
+  // mano (o como texto suelto).
+  // La ventana va hasta 300 letras porque el Aviso con título pone antes su
+  // <p> «Tu profesor dice» y el <div> del cuerpo; pero entre el borde del aviso
+  // informativo y el comentario no puede cerrarse ningún </div>: el comentario
+  // tiene que estar DENTRO de la caja.
+  it("corregida: el comentario va en un aviso informativo y los criterios son los de CRITERIOS_EE", () => {
+    const corregida = escritaCorregida();
+    const html = renderToStaticMarkup(
+      <HacerPrueba
+        prueba={{
+          ...corregida,
+          escritos: [
+            escritoDe(1, CARTA, null, { bandas: [3, 2, 2, 1], comentario: "Bien hecho." }),
+            escritoDe(2, FIN_DE_SEMANA, 2, { bandas: [3, 3, 2, 2], comentario: "Cuida los acentos" }),
+          ],
+        }}
+      />,
+    );
+    expect(html).toMatch(/border-hp-200[^>]*>(?:(?!<\/div>)[\s\S]){0,300}Bien hecho\./);
+    for (const c of CRITERIOS_EE) expect(html).toContain(c.nombre);
+    expect(html).not.toContain("Cohesión");
   });
 
   // Mutación que la mata: no pintar `entregadaEn` en la cara de espera. Un chico
