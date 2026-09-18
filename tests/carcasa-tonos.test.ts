@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/db", () => ({ prisma: {} }));
-import { tonoDelEstado, tonoDelExamen, varianteDelBoton } from "@/lib/carcasa/tonos";
+import { tonoDeTarea, tonoDelEstado, tonoDelExamen, varianteDelBoton } from "@/lib/carcasa/tonos";
 
 const con = (estado: "SIN_EMPEZAR" | "HACIENDO" | "ESPERANDO" | "ENTREGADA") => ({
   prueba: "CE" as const,
@@ -39,5 +39,15 @@ describe("el color de la etiqueta de un examen", () => {
     expect(tonoDelExamen("EN_CONSTRUCCION")).toBe("neutro");
     expect(tonoDelExamen("PUBLICADO")).toBe("exito");
     expect(tonoDelExamen("ARCHIVADO")).toBe("neutro");
+  });
+});
+
+describe("el color de la etiqueta de una tarea del taller", () => {
+  // Mutación que la mata: «A medias» en "error" (no es un fallo, es algo por
+  // terminar), o «Completa» en un tono que no sea éxito.
+  it("completa es éxito; a medias, aviso; vacía, neutra", () => {
+    expect(tonoDeTarea("COMPLETA")).toBe("exito");
+    expect(tonoDeTarea("A_MEDIAS")).toBe("aviso");
+    expect(tonoDeTarea("VACIA")).toBe("neutro");
   });
 });

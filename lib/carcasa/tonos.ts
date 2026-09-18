@@ -1,6 +1,7 @@
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import type { EstadoExamen } from "@/lib/generated/prisma";
 import type { Tono } from "@/components/ui/aviso";
+import type { EstadoDeTarea } from "@/lib/taller/estado";
 
 /** El color de la etiqueta de cada prueba en el Inicio. Sin estado es modo
  *  libre de lectura/auditiva: no hay nada que colorear. ESPERANDO (una
@@ -24,4 +25,12 @@ export function varianteDelBoton(estado: EstadoDeUnaPrueba | undefined): "princi
  *  y archivado se pintan igual de neutros. */
 export function tonoDelExamen(estado: EstadoExamen): Tono | "neutro" {
   return estado === "PUBLICADO" ? "exito" : "neutro";
+}
+
+/** El color de la etiqueta de una tarea en el taller. A medias no es un fallo
+ *  (es algo por terminar): va en aviso, nunca en error. */
+export function tonoDeTarea(estado: EstadoDeTarea["estado"]): Tono | "neutro" {
+  if (estado === "COMPLETA") return "exito";
+  if (estado === "A_MEDIAS") return "aviso";
+  return "neutro";
 }

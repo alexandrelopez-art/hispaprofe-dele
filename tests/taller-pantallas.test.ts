@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
 import { reglaDe } from "@/lib/dele/estructura";
@@ -60,6 +61,7 @@ vi.mock("@/app/(sitio)/examenes/acciones", () => ({
 import Examenes from "@/app/(sitio)/examenes/page";
 import PantallaDelExamen from "@/app/(sitio)/examenes/[id]/page";
 import PantallaDeTarea from "@/app/(sitio)/examenes/[id]/[prueba]/[numero]/page";
+import { EstadoDeLaTarea, InsigniaDeEstado } from "@/components/taller/estado-de-la-tarea";
 
 const PROFESOR: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
@@ -304,7 +306,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ motivosParaPublicar: ["Faltan por completar: CO1, EO1."] }));
     const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
     expect(html).toContain("data-publicacion");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Publicar<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Publicar<\/button>/);
     expect(html).toContain("Faltan por completar: CO1, EO1.");
     expect(html).toContain("Subir un cuadernillo nuevo");
   });
@@ -314,7 +316,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     dobles.listarCuadernillos.mockResolvedValue([]);
     dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());
     const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
-    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Publicar<\/button>/);
+    expect(html).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>Publicar<\/button>/);
     expect(html).toContain(">Publicar</button>");
   });
 
@@ -342,13 +344,68 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ estado: "ARCHIVADO" }));
     const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
     expect(html).toContain(">Recuperar</button>");
-    expect(html).toContain("Archivado: fuera de circulación.");
+    expect(html).toMatch(/<span[^>]*rounded-full[^>]*>Archivado<\/span>/);
+    expect(html).toContain("Fuera de circulación.");
     expect(html).not.toContain("Subir un cuadernillo nuevo");
     expect(html).not.toContain("Qué examen del libro es");
     expect(html).not.toContain('type="file"');
     expect(html).not.toContain("aria-pressed");
     expect(html).not.toContain(">Publicar</button>");
     expect(html).not.toContain(">Retirar</button>");
+  });
+
+  // No poder publicar no es un fallo del sistema: es algo por terminar, y va
+  // en coral (aviso), nunca en rojo.
+  // Mutación que la mata: pintar los motivos con `<Aviso tono="error">`.
+  it("con motivos, Publicar apagado y los motivos en aviso, sin rojo", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba({ motivosParaPublicar: ["Faltan por completar: CO1, EO1."] }));
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Publicar<\/button>/);
+    const inicio = html.indexOf("data-publicacion");
+    const caja = html.slice(inicio, html.indexOf("</section>", inicio));
+    expect(caja).toContain("Faltan por completar: CO1, EO1."); // que el recorte trae los motivos
+    expect(caja).not.toMatch(/error-/);
+  });
+
+  // Mutación que la mata: dejar Archivar como botón secundario (o en rojo de error).
+  it("Archivar va en la variante de peligro", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html).toMatch(/<button[^>]*bg-coral-600[^>]*>Archivar<\/button>/);
+  });
+
+  // Mutación que la mata: dejar dos vueltas a la lista (el <nav> viejo y el
+  // Enlace nuevo), o ninguna.
+  it("una sola vuelta a la lista de exámenes, y el título en el h1", async () => {
+    dobles.listarCuadernillos.mockResolvedValue([]);
+    dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());
+    const html = renderToStaticMarkup(await PantallaDelExamen({ params: Promise.resolve({ id: "x1" }), searchParams: sinError() }));
+    expect(html.match(/href="\/examenes"/g) ?? []).toHaveLength(1);
+    // Mutación que la mata: pintar en el h1 un rótulo fijo en vez de `examen.titulo`.
+    expect(html).toMatch(/<h1[^>]*>Examen 1<\/h1>/);
+  });
+});
+
+describe("la etiqueta del estado de una tarea", () => {
+  // Mutación que la mata: volver al <span> de colores propio (sin EtiquetaEstado),
+  // o «A medias» en otro tono que no sea el aviso coral.
+  it("InsigniaDeEstado es una etiqueta del kit, y «A medias» va en coral", () => {
+    const html = renderToStaticMarkup(createElement(InsigniaDeEstado, { estado: "A_MEDIAS" }));
+    expect(html).toMatch(/<span[^>]*rounded-full border[^>]*>A medias<\/span>/);
+    expect(html).toContain("bg-coral-100");
+  });
+
+  // Mutación que la mata: quitar el `aria-live="polite"` al pasar la caja a Tarjeta.
+  it("EstadoDeLaTarea sigue avisando de los cambios, con los motivos dentro", () => {
+    const html = renderToStaticMarkup(
+      createElement(EstadoDeLaTarea, { estado: { estado: "A_MEDIAS", motivos: ["Falta la consigna."] } }),
+    );
+    const vivo = html.slice(html.indexOf('aria-live="polite"'));
+    expect(html).toContain('aria-live="polite"');
+    expect(vivo).toContain("A medias");
+    expect(vivo).toContain("Falta la consigna.");
   });
 });
 
@@ -600,5 +657,39 @@ describe("la caja de quién hace el examen", () => {
     expect(marcado).not.toContain('href="/examenes/x1/hoja/e1/EE"');
     expect(marcado).toContain("Entregada, 20 de 24");
     expect(marcado).not.toContain('href="/examenes/x1/hoja/e2/EE"');
+  });
+
+  // Mutación que la mata: quitar el `id` de la Casilla (o no interpolar
+  // `e.id`), o cambiarle el `name`: la etiqueta dejaría de apuntar a su casilla,
+  // o la acción dejaría de recibir a quién se le asigna.
+  it("cada estudiante es una casilla con su etiqueta atada por id", async () => {
+    const marcado = await pintar("PUBLICADO");
+    // La etiqueta, sin fijar el orden de los atributos (React no lo promete).
+    const casilla = marcado.match(/<input[^>]*id="estudiante-e1"[^>]*\/>/)?.[0] ?? "";
+    expect(casilla).toContain('name="estudiante"');
+    expect(casilla).toContain('type="checkbox"');
+    expect(marcado).toContain('<label for="estudiante-e1"');
+  });
+
+  // Mutación que la mata: pintar la fecha sin `id="dia-tope"` (etiqueta suelta)
+  // o cambiarle el `name="dia"` que lee la acción.
+  it("la fecha tope lleva su etiqueta atada y sigue viajando como «dia»", async () => {
+    const marcado = await pintar("PUBLICADO");
+    expect(marcado).toContain('<label for="dia-tope"');
+    const fecha = marcado.match(/<input[^>]*id="dia-tope"[^>]*\/>/)?.[0] ?? "";
+    expect(fecha).toContain('name="dia"');
+    expect(fecha).toContain('type="date"');
+  });
+
+  // El modo se elige para la tanda y no se guarda por asignación: pintarlo
+  // en la lista de asignados sería inventárselo.
+  // Mutación que la mata: pintar «Completo» (o «Libre») junto a cada asignado.
+  it("la lista de asignados no dice completo ni libre", async () => {
+    const marcado = await pintar("PUBLICADO");
+    const inicio = marcado.indexOf("data-asignacion");
+    const caja = marcado.slice(inicio, marcado.indexOf("</section>", inicio));
+    const lista = caja.slice(caja.indexOf(">Asignar</button>"));
+    expect(lista).toContain("Luis"); // que el recorte trae a los asignados
+    expect(lista).not.toMatch(/completo|libre/i);
   });
 });
