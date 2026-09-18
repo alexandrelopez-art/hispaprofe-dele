@@ -37,6 +37,11 @@ export function PreguntaDeEntrega({
     <dialog
       ref={ventana}
       onClose={alNo}
+      // Mientras se envía, Escape no cierra: el evento `cancel` llega ANTES
+      // que `close`, y si se deja pasar la entrega sigue en marcha con el
+      // diálogo ya cerrado — el estudiante pierde de vista el «Entregando…» y
+      // puede pulsar «Entregar» otra vez creyendo que no hizo nada.
+      onCancel={(e) => { if (enviando) e.preventDefault(); }}
       aria-labelledby="titulo-de-entregar"
       className="m-auto max-w-md rounded-tarjeta p-6 shadow-tarjeta backdrop:bg-tinta/40"
     >

@@ -403,7 +403,10 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
       <CabeceraExamen prueba={prueba.prueba} tarea={tarea ? { actual: tarea.numero, total: prueba.tareas.length } : null} reloj={null} preguntar libre />
       <p className="text-sm text-tinta-suave">Práctica libre: puedes corregir cada tarea tantas veces como quieras.</p>
       {notaDeLaTarea && (
-        <Tarjeta className="text-xl font-bold">
+        // Misma letra que la nota grande del resultado (spec §4.3: Resultado
+        // más abajo usa text-3xl font-extrabold): es el mismo dato — cuántas
+        // acertó de cuántas hay — y no una nota menor solo por vivir en libre.
+        <Tarjeta className="text-3xl font-extrabold">
           {notaDeLaTarea.aciertos} de {notaDeLaTarea.total}
         </Tarjeta>
       )}

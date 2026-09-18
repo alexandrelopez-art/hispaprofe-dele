@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
@@ -117,11 +118,28 @@ describe("PreguntaDeEntrega", () => {
   });
 
   // Mutación que la mata: no apagar «Sí, entregar» mientras envía (segundo
-  // clic = segunda entrega) o apagar también «Seguir» sin motivo.
+  // clic = segunda entrega), o no apagar «Seguir» mientras envía (el
+  // componente le pasa disabled={enviando} a propósito: mientras la entrega
+  // está en el aire, tampoco se vuelve a la prueba).
   it("mientras envía, «Sí, entregar» se apaga y dice que entrega", () => {
     const html = renderToStaticMarkup(
       <PreguntaDeEntrega abierta falta={[]} enviando textoSeguir="Seguir con la prueba" alSi={() => {}} alNo={() => {}} />,
     );
     expect(botonQueDice(html, "Entregando…")).toMatch(/\sdisabled=""/);
+    expect(botonQueDice(html, "Seguir con la prueba")).toMatch(/\sdisabled=""/);
+  });
+
+  // Mientras se envía, Escape (el evento `cancel` del <dialog>) no puede
+  // cerrar la pregunta: sin jsdom no hay forma de disparar ese evento de
+  // verdad con renderToStaticMarkup (no ejecuta handlers), así que se lee el
+  // fuente en vez de fingir una prueba que no prueba nada.
+  // Mutación que la mata: quitar el onCancel del <dialog>, o quitarle la
+  // guarda `if (enviando)` (dejaría cerrar con Escape aunque se esté enviando).
+  it("el onCancel del dialogo bloquea el cierre solo mientras enviando (leido del fuente)", () => {
+    const codigo = readFileSync("components/examen/pregunta-de-entrega.tsx", "utf8");
+    const m = codigo.match(/onCancel=\{([\s\S]*?)\}\}/);
+    expect(m, "no se encontro onCancel en el <dialog>").not.toBeNull();
+    expect(m![1]).toContain("enviando");
+    expect(m![1]).toMatch(/preventDefault\(\)/);
   });
 });

@@ -631,7 +631,12 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
         return;
       }
       const r = await entregarPruebaAccion(examenId, prueba.prueba);
-      if (r.error) setError(r.error);
+      // Si el servidor rechaza la entrega, se cierra también la pregunta (como
+      // en entregarYa de hacer-prueba.tsx): el diálogo es un <dialog> abierto
+      // con showModal(), que deja el resto de la página inerte, así que el
+      // aviso de error quedaría detrás del telón de fondo sin que nadie
+      // pudiera verlo.
+      if (r.error) { setError(r.error); setConfirmando(false); }
       router.refresh();
     });
   }

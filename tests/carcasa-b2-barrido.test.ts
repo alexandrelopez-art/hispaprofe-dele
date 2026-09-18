@@ -13,9 +13,10 @@ function ficheros(dir: string): string[] {
   });
 }
 
-const DEL_ESTUDIANTE = [...ficheros("components/examen"), ...ficheros("app/examen"), ...ficheros("app/entrar")]
-  // corregir-escrita.tsx y notas.ts son del profesor (B1), no de esta entrega.
-  .filter((f) => !f.endsWith("corregir-escrita.tsx") && !f.endsWith("notas.ts"));
+// corregir-escrita.tsx y notas.ts son del profesor (B1), no de esta entrega,
+// pero ya están limpios de colores de marca a mano y de window.confirm(), así
+// que se dejan dentro del barrido: no hace falta seguir excluyéndolos.
+const DEL_ESTUDIANTE = [...ficheros("components/examen"), ...ficheros("app/examen"), ...ficheros("app/entrar")];
 
 describe("el barrido de la entrega B2: entrar, examen y adios a piezas.tsx", () => {
   // Mutación que la mata: devolver piezas.tsx o importarlo desde cualquier sitio.
@@ -55,5 +56,47 @@ describe("el barrido de la entrega B2: entrar, examen y adios a piezas.tsx", () 
     const escrita = readFileSync("components/examen/hacer-escrita.tsx", "utf8");
     expect(escrita).not.toContain("Cohesión");
     expect(escrita).not.toMatch(/>\s*Guardar\s*</);
+  });
+
+  // Spec §6: la entrega por el reloj no pasa por la pregunta de confirmación,
+  // se manda sola. Prueba leída del fuente (sin jsdom no hay forma de
+  // disparar <Reloj> de verdad): se aisla el CUERPO de alAcabarse y se
+  // comprueba que no menciona ninguno de los dos estados que abren el
+  // diálogo de PreguntaDeEntrega.
+  // Mutación que la mata: meter un setPreguntando(true) (hacer-prueba.tsx) o
+  // un setConfirmando(true) (hacer-escrita.tsx) dentro de alAcabarse.
+  it("alAcabarse no toca el estado de la pregunta de entrega", () => {
+    for (const fichero of ["components/examen/hacer-prueba.tsx", "components/examen/hacer-escrita.tsx"]) {
+      const codigo = readFileSync(fichero, "utf8");
+      const m = codigo.match(/const alAcabarse = useCallback\(\(\) => \{([\s\S]*?)\n {2}\}, \[/);
+      expect(m, `no se encontro el cuerpo de alAcabarse en ${fichero}`).not.toBeNull();
+      const cuerpo = m![1]!;
+      expect(cuerpo).not.toContain("setPreguntando");
+      expect(cuerpo).not.toContain("setConfirmando");
+    }
+  });
+
+  // Cuando el servidor rechaza la entrega, las dos pantallas cierran su
+  // pregunta: el diálogo es un <dialog> abierto con showModal(), que deja el
+  // resto de la página inerte, así que el aviso de error quedaría detrás del
+  // telón de fondo (backdrop) sin que nadie pudiera verlo.
+  // Mutación que la mata: quitar el setPreguntando(false) del camino de error
+  // de entregarYa (hacer-prueba.tsx), o el setConfirmando(false) del camino de
+  // error de entregarPruebaAccion en alEntregar (hacer-escrita.tsx).
+  it("si la entrega falla, entregarYa y alEntregar cierran su dialogo", () => {
+    const prueba = readFileSync("components/examen/hacer-prueba.tsx", "utf8");
+    const mPrueba = prueba.match(/function entregarYa\(\) \{([\s\S]*?)\n {2}\}\n/);
+    expect(mPrueba, "no se encontro entregarYa en hacer-prueba.tsx").not.toBeNull();
+    expect(mPrueba![1]).toMatch(/if \(r\.error\)[\s\S]*?setPreguntando\(false\)/);
+
+    const escrita = readFileSync("components/examen/hacer-escrita.tsx", "utf8");
+    const mEscrita = escrita.match(/function alEntregar\(\) \{([\s\S]*?)\n {2}\}\n/);
+    expect(mEscrita, "no se encontro alEntregar en hacer-escrita.tsx").not.toBeNull();
+    // Solo el tramo de después de mandar la entrega al servidor: el camino
+    // del fallo al GUARDAR el folio (antes de llegar a entregar) ya cerraba
+    // el diálogo desde siempre y no es lo que esta prueba vigila.
+    const cuerpo = mEscrita![1]!;
+    const trasEntregar = cuerpo.slice(cuerpo.indexOf("entregarPruebaAccion"));
+    expect(trasEntregar).toMatch(/if \(r\.error\)[\s\S]*?setConfirmando\(false\)/);
   });
 });
