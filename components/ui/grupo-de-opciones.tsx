@@ -1,6 +1,9 @@
 export type OpcionDeGrupo = { valor: string; texto: string };
 
-const FOCO = "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-hp-600";
+// En segmentos el contenedor recorta con overflow-hidden: un outline con
+// offset se sale del borde y el navegador lo corta, dejando el foco de
+// teclado invisible. Un anillo hacia dentro (ring + inset) siempre cabe.
+const FOCO = "peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-hp-600";
 
 /**
  * Elegir UNA opción entre varias, con radios de verdad: las flechas del

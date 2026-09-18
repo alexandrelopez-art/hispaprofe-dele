@@ -172,4 +172,13 @@ describe("GrupoDeOpciones", () => {
     const html = renderToStaticMarkup(<GrupoDeOpciones nombre="m" leyenda="M" opciones={BANDAS} disabled />);
     expect(html).toMatch(/<fieldset[^>]*\sdisabled=""/);
   });
+
+  // Mutación que la mata: volver al outline con offset (peer-focus-visible:outline-2
+  // peer-focus-visible:outline-offset-2). El contenedor de segmentos recorta con
+  // overflow-hidden, así que un outline con offset se sale del borde y el navegador
+  // lo corta: el foco de teclado deja de verse.
+  it("en segmentos el foco es un anillo hacia dentro, no un outline que se recorta", () => {
+    const html = renderToStaticMarkup(<GrupoDeOpciones nombre="m" leyenda="M" opciones={BANDAS} forma="segmentos" />);
+    expect(html).toContain("peer-focus-visible:ring-inset");
+  });
 });
