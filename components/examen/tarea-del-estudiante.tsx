@@ -21,9 +21,14 @@ function TextoSuelto({ etiqueta, texto }: { etiqueta: string; texto: string }) {
 
 const CAJA = "flex min-w-0 flex-col gap-3 rounded-tarjeta bg-white p-4 shadow-suave";
 
-/** La caja de una pregunta: coral y con `data-fallo` si el estudiante la falló. */
+/**
+ * La caja de una pregunta: coral y con `data-fallo` si el estudiante la falló.
+ * El fondo va en cada rama y no fijo: `bg-white` y `bg-coral-100/40` pisan la
+ * misma propiedad, y con las dos gana la que Tailwind emita después, no la
+ * que se escriba al final.
+ */
 function cajaPregunta(fallo: boolean): string {
-  return `flex min-w-0 flex-col gap-3 rounded-2xl border bg-white p-4 ${fallo ? "border-coral-500 bg-coral-100/40" : "border-tinta-suave/20"}`;
+  return `flex min-w-0 flex-col gap-3 rounded-2xl border p-4 ${fallo ? "border-coral-500 bg-coral-100/40" : "border-tinta-suave/20 bg-white"}`;
 }
 
 function esFallo(numero: number, fallos: number[] | null): boolean {

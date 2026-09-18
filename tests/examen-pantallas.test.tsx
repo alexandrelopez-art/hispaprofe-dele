@@ -409,12 +409,16 @@ describe("TareaDelEstudiante", () => {
 
   // Mutación que la mata: volver a pintar la fallada con border-error-600. Una
   // respuesta fallada no es un fallo del sistema: va en coral (spec B1 §2).
+  // Mutación que la mata (el fondo): devolver bg-white a la parte fija de
+  // cajaPregunta. Con bg-white y bg-coral-100/40 a la vez gana el que Tailwind
+  // emita después, y el coral podría no verse nunca.
   it("la fallada va en coral, sin el tono de error", () => {
     const html = pintar(lecturaDos(), { marcadas: { "8": "B" }, fallos: [8], bloqueada: true });
     const caja = html.match(/<section[^>]*data-fallo="8"[^>]*>/)?.[0] ?? "";
     expect(caja).not.toBe(""); // que la caja fallada exista de verdad
     expect(caja).toContain("border-coral-500");
     expect(caja).not.toContain("error");
+    expect(caja).not.toContain("bg-white");
   });
 
   // Tres tareas porque los tres colores a mano vivían en tres sitios: la
@@ -1005,6 +1009,17 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain('aria-labelledby="titulo-de-entregar"');
     expect(html).toContain("Seguir con la prueba");
     expect(html).not.toMatch(/<dialog[^>]*\sopen/);
+  });
+
+  // La pregunta cerrada ya lleva su contenido en el HTML: ahí se ve que la
+  // lista de lo que falta es la de sinResponderPorTarea. Contestadas la 7 y la
+  // 8 de la lectura 2 (7-12), faltan de la 9 a la 12.
+  // Mutación que la mata: pasarle `falta={[]}` a PreguntaDeEntrega.
+  it("la pregunta de entrega dice qué falta, tarea a tarea", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={pruebaDePrueba({ ...haciendoLectura(), respuestas: { "7": "A", "8": "B" } })} />,
+    );
+    expect(html).toContain("<li>en la tarea 2 no has contestado la 9, la 10, la 11 ni la 12</li>");
   });
 
   // Mutación que la mata: dejar el window.confirm en alEntregar (aunque la
