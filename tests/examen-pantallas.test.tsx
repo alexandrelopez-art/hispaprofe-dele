@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
-import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
+import { BANDA_MAXIMA, CRITERIOS_EE, reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
 import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { LETRAS_TOPE, palabras, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
@@ -1638,6 +1638,22 @@ function paraCorregirDePrueba(extra: Partial<ParaCorregir> = {}): ParaCorregir {
   };
 }
 
+// La misma redacción, ya corregida: las ocho notas puestas (3+2+2+1 y
+// 3+3+2+1 = 17) y la fecha de la firma.
+function yaCorregidaDePrueba(): ParaCorregir {
+  return paraCorregirDePrueba({
+    corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+    tareas: [
+      tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null, [3, 2, 2, 1], "Muy bien el saludo"),
+      tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2, [3, 3, 2, 1], "Cuida los acentos"),
+    ],
+  });
+}
+
+/** Los radios de las notas (`name="nota-{tarea}-{criterio}"`), etiqueta entera. */
+const radiosDeNota = (html: string) => html.match(/<input[^>]*name="nota-[^"]*"[^>]*>/g) ?? [];
+const atributo = (etiqueta: string, nombre: string) => etiqueta.match(new RegExp(`\\s${nombre}="([^"]*)"`))?.[1];
+
 describe("Por corregir: la cola del profesor", () => {
   beforeEach(() => {
     dobles.escritosPorCorregir.mockResolvedValue([]);
@@ -1863,23 +1879,35 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
     expect(html).not.toContain("null");
   });
 
-  // Mutación que la mata: pintar las bandas sin `max` (o con uno distinto de
-  // BANDA_MAXIMA). Se podría firmar un 7 en un criterio que llega hasta 3.
-  it("la pantalla de corregir trae las ocho casillas y los dos textos", () => {
+  // Mutación que la mata: pintar menos grupos (un criterio o una tarea sin
+  // nota), u ofrecer otras notas que 0, 1, 2 y 3 (p. ej. `length:
+  // BANDA_MAXIMA` en vez de `BANDA_MAXIMA + 1`, que se come el 3).
+  it("la pantalla de corregir trae las ocho notas en botones y los dos textos", () => {
     const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
-    expect(html).toContain("Adecuación al género discursivo");
-    expect(html).toContain('max="3"');
-    expect((html.match(/type="number"/g) ?? []).length).toBe(8);
+    const radios = radiosDeNota(html);
+    expect(radios).toHaveLength(32);
+    expect(radios.every((r) => r.includes('type="radio"'))).toBe(true);
+    const grupos = new Map<string, string[]>();
+    for (const r of radios) {
+      const nombre = atributo(r, "name")!;
+      grupos.set(nombre, [...(grupos.get(nombre) ?? []), atributo(r, "value")!]);
+    }
+    expect([...grupos.keys()].sort()).toEqual(
+      [1, 2].flatMap((t) => CRITERIOS_EE.map((_, i) => `nota-${t}-${i}`)).sort(),
+    );
+    for (const valores of grupos.values()) expect(valores).toEqual(["0", "1", "2", "3"]);
     expect(html).toContain("Hola, qué tal");
   });
 
-  // Mutación que la mata: quitar `min={0}` o `step={1}` de la casilla. Con
-  // solo el `max` puesto, todavía se podría escribir una nota negativa o con
-  // decimales.
-  it("las ocho casillas van de 0 a 3, entero a entero", () => {
+  // Mutación que la mata: sacar las opciones de otro sitio que 0..BANDA_MAXIMA
+  // (p. ej. `length: BANDA_MAXIMA + 2`). Se podría firmar un 4 en un criterio
+  // que llega hasta 3.
+  it("ninguna nota se sale de 0 a BANDA_MAXIMA", () => {
     const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
-    expect((html.match(/min="0"/g) ?? []).length).toBe(8);
-    expect((html.match(/step="1"/g) ?? []).length).toBe(8);
+    const permitidas = Array.from({ length: BANDA_MAXIMA + 1 }, (_, v) => String(v));
+    const valores = radiosDeNota(html).map((r) => atributo(r, "value"));
+    expect(valores.length).toBeGreaterThan(0);
+    expect(valores.every((v) => v !== undefined && permitidas.includes(v))).toBe(true);
   });
 
   // Mutación que la mata: pintar la `ayuda` esté vacía o no (o quitarle el
@@ -1911,36 +1939,27 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
     const sinCorregir = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
     expect(sinCorregir).not.toContain("Ya la corregiste");
 
-    const yaCorregida = renderToStaticMarkup(
-      <CorregirEscrita
-        para={paraCorregirDePrueba({
-          corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
-          tareas: [
-            tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null, [3, 2, 2, 1], "Muy bien el saludo"),
-            tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2, [3, 3, 2, 2], "Cuida los acentos"),
-          ],
-        })}
-      />,
-    );
+    const yaCorregida = renderToStaticMarkup(<CorregirEscrita para={yaCorregidaDePrueba()} />);
     expect(yaCorregida).toContain("Ya la corregiste");
     expect(yaCorregida).toContain("se cambia");
   });
 
-  // Mutación que la mata: sembrar las casillas a 0 en vez de vacías cuando
-  // nunca se corrigió (`bandasIniciales` devolviendo `bandas.map(() => 0)`,
-  // como estaba antes del arreglo). Un profesor que solo rellenara la tarea 1
-  // y guardara firmaría la tarea 2 con cuatro ceros que nadie puso.
-  it("sin corrección previa, las ocho casillas nacen vacías, no en cero", () => {
+  // Mutación que la mata: marcar el 0 cuando no hay nota (pasar
+  // `valor={valorDeBanda(…) ?? "0"}`), o sembrar a 0 en vez de a null
+  // (`bandasIniciales` devolviendo ceros, como estaba antes del arreglo). Un
+  // profesor que solo pusiera la tarea 1 firmaría la tarea 2 con cuatro ceros
+  // que nadie puso.
+  it("sin corrección previa, las ocho notas nacen sin marcar, no en cero", () => {
     const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
-    expect((html.match(/value=""/g) ?? []).length).toBe(8);
-    expect(html).not.toContain('value="0"');
+    const radios = radiosDeNota(html);
+    expect(radios).toHaveLength(32);
+    expect(radios.filter((r) => /\schecked=""/.test(r))).toHaveLength(0);
   });
 
-  // Mutación que la mata: no sembrar las casillas con las bandas que ya
-  // trajera `para` cuando SÍ hay corrección previa (dejarlas vacías siempre).
-  // El profesor que reabre una redacción ya firmada vería sus propias notas
-  // borradas.
-  it("con corrección previa, las ocho casillas traen sus valores", () => {
+  // Mutación que la mata: no sembrar las notas con las bandas que ya trajera
+  // `para` (dejarlas sin marcar siempre), o tratar un 0 guardado como hueco.
+  // El profesor que reabre una redacción ya firmada vería sus notas borradas.
+  it("con corrección previa, las ocho notas traen sus valores", () => {
     const html = renderToStaticMarkup(
       <CorregirEscrita
         para={paraCorregirDePrueba({
@@ -1952,13 +1971,48 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
         })}
       />,
     );
-    // Ninguna casilla vacía: las ocho traen su nota.
-    expect(html).not.toContain('value=""');
-    // El 0 de la última casilla de la tarea 2 sigue siendo un 0 de verdad, no
-    // "sin nota": si `bandasIniciales` tratara un 0 guardado como vacío, esta
-    // casilla saldría en blanco.
-    expect((html.match(/value="0"/g) ?? []).length).toBe(1);
-    expect((html.match(/value="1"/g) ?? []).length).toBe(1);
+    const marcados = radiosDeNota(html).filter((r) => /\schecked=""/.test(r));
+    expect(marcados).toHaveLength(8);
+    // El 0 del cuarto criterio de la tarea 2 es un 0 de verdad, no «sin nota».
+    const delUltimo = marcados.filter((r) => atributo(r, "name") === "nota-2-3");
+    expect(delUltimo).toHaveLength(1);
+    expect(atributo(delUltimo[0], "value")).toBe("0");
+    // Y el primero de la tarea 1 es su 3, no otro.
+    expect(atributo(marcados.find((r) => atributo(r, "name") === "nota-1-0")!, "value")).toBe("3");
+  });
+
+  // Mutación que la mata: sacar los criterios de otra lista (p. ej. copiar los
+  // del dibujo, que ponía «Cohesión»).
+  it("los criterios son exactamente los de CRITERIOS_EE, en su orden", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    const leyendas = [...html.matchAll(/<legend[^>]*>([^<]+)<\/legend>/g)].map((m) => m[1]);
+    const deNotas = leyendas.filter((l) => CRITERIOS_EE.some((c) => c.nombre === l));
+    expect(deNotas).toEqual([...CRITERIOS_EE, ...CRITERIOS_EE].map((c) => c.nombre));
+    expect(html).not.toContain("Cohesión");
+  });
+
+  // Mutación que la mata: dejar los botones encendidos con notas vacías, o
+  // apagarlos sin escribir el motivo al lado.
+  it("sin todas las notas, los dos botones apagados y el motivo escrito", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar y seguir<\/button>/);
+    expect(html).toContain("Te faltan 8 notas en las tareas 1 y 2.");
+  });
+
+  // Mutación que la mata: apagarlos siempre.
+  it("con todas las notas, los dos botones encendidos y sin motivo", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={yaCorregidaDePrueba()} />);
+    expect(html).toMatch(/<button[^>]*>Guardar<\/button>/); // que se pintaron de verdad
+    expect(html).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar/);
+    expect(html).not.toContain("Te falta");
+  });
+
+  // Mutación que la mata: quitar la suma, o traducirla a apto/no apto.
+  it("la suma, arriba, y sin veredicto", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={yaCorregidaDePrueba()} />);
+    expect(html).toContain("17 de 24"); // 3+2+2+1 + 3+3+2+1
+    expect(html.toLowerCase()).not.toContain("apto");
   });
 
   // Mutación que la mata: pintar el texto del estudiante sin su cuenta de
@@ -1971,33 +2025,45 @@ describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
 });
 
 describe("BotonesDeGuardar", () => {
-  // Mutación que la mata: quitar `disabled={procesando}` de los dos botones.
-  // Sin él, un doble clic (o la misma redacción abierta en dos pestañas)
-  // manda dos firmas a la vez. Mismo patrón que PestanasDeTarea (piezas.tsx):
-  // se cuentan los `disabled=""`, no la palabra suelta.
-  it("con procesando, los dos botones se apagan", () => {
+  // Mutación que la mata: quitar `enviando={procesando}` del primero o el
+  // `|| procesando` del segundo. Sin ellos, un doble clic manda dos firmas a
+  // la vez. Se cuentan los atributos `disabled=""`, no la palabra suelta (la
+  // clase `disabled:` del kit daría un falso verde).
+  it("con procesando, los dos botones se apagan y solo el primero dice Guardando…", () => {
     const html = renderToStaticMarkup(
-      <BotonesDeGuardar procesando alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+      <BotonesDeGuardar procesando motivo={null} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
     );
-    expect(html).toContain("Guardar y seguir"); // que se pintaron de verdad
-    expect((html.match(/disabled=""/g) ?? []).length).toBe(2);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardando…<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar y seguir<\/button>/);
+    expect((html.match(/\sdisabled=""/g) ?? []).length).toBe(2);
+  });
+
+  // Mutación que la mata: pintar el motivo sin apagar el segundo botón (quitar
+  // `motivo !== null ||`). Se podría saltar a la siguiente con huecos.
+  it("con motivo, los dos apagados y el motivo al lado", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando={false} motivo="Te falta 1 nota en la tarea 1." alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar y seguir<\/button>/);
+    expect(html).toContain("Te falta 1 nota en la tarea 1.");
   });
 
   // Mutación que la mata: apagarlos siempre (`disabled` fijo), o invertir
   // `procesando`. Sin guardado en marcha, el profesor tiene que poder pulsar.
-  it("sin procesando, los dos botones están vivos", () => {
+  it("sin procesando ni motivo, los dos botones están vivos", () => {
     const html = renderToStaticMarkup(
-      <BotonesDeGuardar procesando={false} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+      <BotonesDeGuardar procesando={false} motivo={null} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
     );
     expect(html).toContain("Guardar y seguir");
-    expect(html).not.toContain('disabled=""');
+    expect(html).not.toMatch(/\sdisabled=""/);
   });
 
   // Mutación que la mata: no ofrecer «Guardar y seguir», o pintar los dos
   // botones como enlaces en vez de `<button type="button">`.
   it("son los dos <button type=\"button\">, no enlaces ni un submit", () => {
     const html = renderToStaticMarkup(
-      <BotonesDeGuardar procesando={false} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+      <BotonesDeGuardar procesando={false} motivo={null} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
     );
     const botones = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)];
     const deGuardar = botones.filter((b) => b[1] === "Guardar" || b[1] === "Guardar y seguir");
