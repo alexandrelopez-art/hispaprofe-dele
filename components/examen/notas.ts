@@ -1,5 +1,5 @@
 import { BANDA_MAXIMA, CRITERIOS_EE } from "@/lib/dele/estructura";
-import { enLista } from "@/components/examen/piezas";
+import { enLista } from "@/lib/examen/en-lista";
 
 /** Una nota por criterio. `null` = sin poner, que NO es un 0 (un 0 es una nota). */
 export type Bandas = (number | null)[];

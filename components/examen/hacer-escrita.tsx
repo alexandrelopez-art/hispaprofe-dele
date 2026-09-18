@@ -14,7 +14,9 @@ import {
 } from "@/app/examen/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
-import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, enLista, PestanasDeTarea } from "@/components/examen/piezas";
+import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA } from "@/components/examen/piezas";
+import { enLista } from "@/lib/examen/en-lista";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { Reloj } from "@/components/examen/reloj";
 import { CabeceraExamen } from "@/components/carcasa/cabecera-examen";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";

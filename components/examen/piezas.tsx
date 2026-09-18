@@ -1,7 +1,5 @@
 "use client";
 
-import type { TareaParaHacer } from "@/lib/examen/paraHacer";
-
 /**
  * Las piezas que comparten las pantallas del examen: la lectura y la auditiva
  * (`hacer-prueba.tsx`) y la escrita (`hacer-escrita.tsx`).
@@ -17,22 +15,6 @@ import type { TareaParaHacer } from "@/lib/examen/paraHacer";
  * dos no tiene ese filo.
  */
 
-/**
- * «a», «a y b», «a, b y c». Lo leen el estudiante justo antes de entregar («Ojo:
- * la tarea 1 está en blanco y no has elegido opción en la tarea 2») y el
- * profesor al firmar («Te faltan notas en las tareas 1 y 2»): en ninguno de los
- * dos sitios valen las listas pegadas con comas.
- *
- * Vive aquí, y no en `hacer-escrita.tsx`, porque es castellano y nada más: no
- * sabe de folios ni de bandas. Mientras estuvo allí, la pantalla del PROFESOR
- * se arrastraba el módulo entero de la pantalla del estudiante para usar cinco
- * líneas.
- */
-export function enLista(cosas: string[]): string {
-  if (cosas.length <= 1) return cosas[0] ?? "";
-  return `${cosas.slice(0, -1).join(", ")} y ${cosas[cosas.length - 1]}`;
-}
-
 export const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
 export const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
 export const BOTON_SUAVE = "self-start rounded-2xl border border-tinta-suave/30 px-6 py-3 font-bold disabled:opacity-50";
@@ -41,42 +23,3 @@ export const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
 // ejemplo, que una corrección ya estaba firmada), no que algo haya ido mal.
 // El rojo de AVISO_DE_ERROR ahí hace pensar que se ha roto algo.
 export const AVISO_SUAVE = "rounded-2xl bg-sol-100 p-4";
-
-/**
- * Las pestañas de las tareas. Cambiar de pestaña es solo estado local: no va al
- * servidor.
- *
- * `bloqueadas` las apaga mientras suena un trozo racionado. Cambiar de tarea
- * con el audio sonando desmonta la cinta (le cambia la `key`), y ese trozo ya
- * está apuntado como oído en el servidor: se perdería sin haber sonado entero
- * y sin ningún aviso. No se pregunta con un `confirm` a propósito: un cartel a
- * mitad de una audición es justo lo que no puede pasar mientras se escucha.
- *
- * Exportada para poder pintarla sola en las pruebas: `renderToStaticMarkup`
- * solo ve el estado inicial de `PruebaHaciendo`, donde nada suena todavía.
- */
-export function PestanasDeTarea({
-  tareas, abierta, alElegir, bloqueadas = false,
-}: {
-  tareas: TareaParaHacer[];
-  abierta: number;
-  alElegir: (numero: number) => void;
-  bloqueadas?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {tareas.map((t) => (
-        <button
-          key={t.numero}
-          type="button"
-          aria-current={t.numero === abierta ? "true" : undefined}
-          disabled={bloqueadas}
-          onClick={() => alElegir(t.numero)}
-          className={`rounded-full px-4 py-2 font-bold disabled:opacity-50 ${t.numero === abierta ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
-        >
-          Tarea {t.numero}
-        </button>
-      ))}
-    </div>
-  );
-}

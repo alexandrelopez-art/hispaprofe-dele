@@ -18,7 +18,8 @@ import {
 import { Cinta } from "@/components/examen/cinta";
 // Las piezas comunes con la escrita viven en su propio fichero: ver el
 // comentario de piezas.tsx (era un círculo de imports entre las dos pantallas).
-import { AVISO_DE_ERROR, BOTON, CAJA, PestanasDeTarea } from "@/components/examen/piezas";
+import { AVISO_DE_ERROR, BOTON, CAJA } from "@/components/examen/piezas";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { HacerEscrita } from "@/components/examen/hacer-escrita";
 import { Reloj } from "@/components/examen/reloj";
 import { CabeceraExamen } from "@/components/carcasa/cabecera-examen";

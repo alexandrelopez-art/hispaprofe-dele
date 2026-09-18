@@ -8,7 +8,7 @@ import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/ex
 import { LETRAS_TOPE, palabras, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 import { corregirTareaEnLibre, HacerPrueba } from "@/components/examen/hacer-prueba";
-import { PestanasDeTarea } from "@/components/examen/piezas";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { Cinta } from "@/components/examen/cinta";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
 import { avisoDePalabras, Folio } from "@/components/examen/folio";
@@ -1105,6 +1105,15 @@ describe("las pestañas de las tareas", () => {
     // «disabled» dentro y un `not.toContain("disabled")` a secas no podría
     // ponerse verde nunca.
     expect(vivas).not.toContain('disabled=""');
+  });
+
+  // Mutación que la mata: volver a pintar la abierta con bg-hp-400 (el coral
+  // de marca sobre blanco no pasa contraste, y es un color a mano fuera del kit).
+  it("la abierta se marca con aria-current y sin colores a mano", () => {
+    const html = renderToStaticMarkup(<PestanasDeTarea tareas={TAREAS} abierta={2} alElegir={() => {}} />);
+    const abierta = html.match(/<button[^>]*aria-current="true"[^>]*>/)?.[0] ?? "";
+    expect(abierta).toContain("bg-tinta");
+    expect(html).not.toMatch(/(bg|border|text)-hp-/);
   });
 });
 
