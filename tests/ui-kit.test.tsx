@@ -7,6 +7,7 @@ import { EtiquetaEstado } from "@/components/ui/etiqueta-estado";
 import { Campo } from "@/components/ui/campo";
 import { Desplegable } from "@/components/ui/desplegable";
 import { BloqueVacio } from "@/components/ui/bloque-vacio";
+import { GrupoDeOpciones } from "@/components/ui/grupo-de-opciones";
 
 /** La etiqueta de apertura del primer <button>, para mirar sus atributos sin
  *  que la clase `disabled:…` de Tailwind cuente como el atributo. */
@@ -114,5 +115,61 @@ describe("BloqueVacio", () => {
     );
     expect(html).toContain("No tienes nada pendiente");
     expect(html).toContain('href="/x"');
+  });
+});
+
+const BANDAS = ["0", "1", "2", "3"].map((v) => ({ valor: v, texto: v }));
+const radios = (html: string) => html.match(/<input[^>]*type="radio"[^>]*>/g) ?? [];
+
+describe("GrupoDeOpciones", () => {
+  // Mutación que la mata: tratar null como "0" (p. ej. `checked={String(valor ?? 0) === o.valor}`).
+  // Una nota sin poner no es un 0: es justo el agujero que las notas vacías tapan.
+  it("con valor null no marca ninguno", () => {
+    const html = renderToStaticMarkup(
+      <GrupoDeOpciones nombre="b" leyenda="Coherencia" opciones={BANDAS} forma="segmentos" valor={null} alCambiar={() => {}} />,
+    );
+    expect(radios(html)).toHaveLength(4);
+    expect(radios(html).some((r) => /\schecked=""/.test(r))).toBe(false);
+  });
+
+  // Mutación que la mata: comparar con `==` contra un número, o marcar por índice.
+  it("con valor \"0\" marca el 0 y solo el 0", () => {
+    const html = renderToStaticMarkup(
+      <GrupoDeOpciones nombre="b" leyenda="Coherencia" opciones={BANDAS} forma="segmentos" valor="0" alCambiar={() => {}} />,
+    );
+    const marcados = radios(html).filter((r) => /\schecked=""/.test(r));
+    expect(marcados).toHaveLength(1);
+    expect(marcados[0]).toContain('value="0"');
+  });
+
+  // Mutación que la mata: quitar el <legend> o esconderlo con sr-only. Sin él, un
+  // lector de pantalla oye «2, 3» sin saber de qué criterio.
+  it("lleva fieldset y una leyenda visible", () => {
+    const html = renderToStaticMarkup(<GrupoDeOpciones nombre="m" leyenda="Cómo lo hace" opciones={BANDAS} />);
+    expect(html).toMatch(/<fieldset[^>]*>[\s\S]*<legend[^>]*>Cómo lo hace<\/legend>/);
+    expect(html).not.toMatch(/<legend[^>]*sr-only/);
+  });
+
+  // Mutación que la mata: poner el mismo id a todos, o quitar el name.
+  it("cada radio tiene su id y todos el mismo name", () => {
+    const html = renderToStaticMarkup(<GrupoDeOpciones nombre="modo" leyenda="Modo" opciones={BANDAS} />);
+    const ids = radios(html).map((r) => r.match(/id="([^"]+)"/)![1]);
+    expect(new Set(ids).size).toBe(4);
+    expect(radios(html).every((r) => r.includes('name="modo"'))).toBe(true);
+  });
+
+  // Mutación que la mata: ignorar valorInicial (el formulario de asignar
+  // nacería sin modo y el servidor recibiría null).
+  it("sin control, marca valorInicial", () => {
+    const html = renderToStaticMarkup(
+      <GrupoDeOpciones nombre="modo" leyenda="Modo" opciones={BANDAS} valorInicial="2" />,
+    );
+    expect(radios(html).filter((r) => /\schecked=""/.test(r))[0]).toContain('value="2"');
+  });
+
+  // Mutación que la mata: no pasar `disabled` al fieldset.
+  it("disabled apaga el grupo entero", () => {
+    const html = renderToStaticMarkup(<GrupoDeOpciones nombre="m" leyenda="M" opciones={BANDAS} disabled />);
+    expect(html).toMatch(/<fieldset[^>]*\sdisabled=""/);
   });
 });

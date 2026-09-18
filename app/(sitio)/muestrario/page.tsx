@@ -10,6 +10,9 @@ import { Casilla } from "@/components/ui/casilla";
 import { Desplegable } from "@/components/ui/desplegable";
 import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
 import { BloqueVacio } from "@/components/ui/bloque-vacio";
+import { GrupoDeOpciones } from "@/components/ui/grupo-de-opciones";
+
+const BANDAS_EE = ["0", "1", "2", "3"].map((v) => ({ valor: v, texto: v }));
 
 function Pieza({ nombre, children }: { nombre: string; children: ReactNode }) {
   return (
@@ -82,6 +85,38 @@ export default async function Muestrario() {
       </Pieza>
       <Pieza nombre="BloqueVacio">
         <BloqueVacio titulo="No tienes nada pendiente" texto="Cuando el profesor te asigne un examen, aparecerá aquí." />
+      </Pieza>
+      <Pieza nombre="GrupoDeOpciones">
+        <GrupoDeOpciones
+          nombre="muestra-modo"
+          leyenda="Cómo lo hace"
+          opciones={[
+            { valor: "COMPLETO", texto: "Completo: con reloj, cada audio una vez, y queda la nota." },
+            { valor: "LIBRE", texto: "Práctica libre: sin reloj, audios repetibles, se corrige tarea a tarea y no queda nota." },
+          ]}
+          valorInicial="COMPLETO"
+        />
+        <GrupoDeOpciones
+          nombre="muestra-banda-vacia"
+          leyenda="Coherencia textual (sin nota)"
+          opciones={BANDAS_EE}
+          forma="segmentos"
+        />
+        <GrupoDeOpciones
+          nombre="muestra-banda-2"
+          leyenda="Coherencia textual (con un 2)"
+          opciones={BANDAS_EE}
+          forma="segmentos"
+          valorInicial="2"
+        />
+        <GrupoDeOpciones
+          nombre="muestra-banda-apagada"
+          leyenda="Coherencia textual (apagado)"
+          opciones={BANDAS_EE}
+          forma="segmentos"
+          valorInicial="1"
+          disabled
+        />
       </Pieza>
     </main>
   );
