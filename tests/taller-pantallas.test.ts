@@ -174,7 +174,9 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(marcado).toContain("Examen Dos");
     expect(marcado).toContain('href="/examenes/e1"');
     expect(marcado).toContain('href="/examenes/e2"');
-    expect(marcado).toContain("A2/B1 escolar · En construcción");
+    // El kit pinta el nivel y el estado en piezas separadas (una etiqueta
+    // aparte para el estado), ya no como un único texto unido con " · ".
+    expect(marcado).toMatch(/A2\/B1 escolar[\s\S]*En construcción/);
   });
 
   // Mutación que la mata: quitar el párrafo «Hay N hoja(s) sin etiquetar.»

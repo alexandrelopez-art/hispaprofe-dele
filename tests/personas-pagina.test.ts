@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Personas from "@/app/(sitio)/estudiantes/page";
+import { renderToStaticMarkup } from "react-dom/server";
+import Estudiantes from "@/app/(sitio)/estudiantes/page";
 import type { Persona } from "@/lib/generated/prisma";
 
 // La pantalla llama a exigirProfesor() antes de enseñar nada. Estas pruebas
@@ -62,7 +63,7 @@ describe("la pantalla de personas exige profesor", () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
 
-    await expect(Personas(sinParametros())).rejects.toThrow("NOT_FOUND");
+    await expect(Estudiantes(sinParametros())).rejects.toThrow("NOT_FOUND");
     expect(listarPersonas).not.toHaveBeenCalled();
   });
 
@@ -71,7 +72,71 @@ describe("la pantalla de personas exige profesor", () => {
     personaDeLaCookie.mockResolvedValue(PROFESOR);
     listarPersonas.mockResolvedValue([]);
 
-    await expect(Personas(sinParametros())).resolves.toBeDefined();
+    await expect(Estudiantes(sinParametros())).resolves.toBeDefined();
     expect(listarPersonas).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("la pantalla de estudiantes, vestida con el kit", () => {
+  const ANA_PEREZ: Persona = { ...ESTUDIANTE, id: "e2", nombre: "Ana Pérez" };
+
+  function conSesionDeProfesor() {
+    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    personaDeLaCookie.mockResolvedValue(PROFESOR);
+  }
+
+  // Mutación que la mata: dejar "Personas" en el h1.
+  it("el h1 es Estudiantes", async () => {
+    conSesionDeProfesor();
+    listarPersonas.mockResolvedValue([]);
+
+    const html = renderToStaticMarkup(await Estudiantes(sinParametros()));
+
+    expect(html).toMatch(/<h1[^>]*>Estudiantes<\/h1>/);
+  });
+
+  // Mutación que la mata: enlazar las filas a una ficha que no existe.
+  it("con dos personas, ningún <a dentro de la lista", async () => {
+    conSesionDeProfesor();
+    listarPersonas.mockResolvedValue([ANA_PEREZ, { ...ESTUDIANTE, id: "e3", nombre: "Beto" }]);
+
+    const html = renderToStaticMarkup(await Estudiantes(sinParametros()));
+    const listaHtml = html.match(/<ul[^>]*>[\s\S]*?<\/ul>/)![0];
+
+    expect(listaHtml).not.toContain("<a");
+  });
+
+  // Mutación que la mata: filtrar por papel y dejar fuera al profesor.
+  it("sale el profesor también, con su papel Profesor", async () => {
+    conSesionDeProfesor();
+    listarPersonas.mockResolvedValue([PROFESOR, ANA_PEREZ]);
+
+    const html = renderToStaticMarkup(await Estudiantes(sinParametros()));
+
+    expect(html).toContain(PROFESOR.nombre);
+    expect(html).toContain("Profesor");
+  });
+
+  // Mutación que la mata: sacar solo la primera letra ("A" en vez de "AP").
+  it("las iniciales de Ana Pérez son AP", async () => {
+    conSesionDeProfesor();
+    listarPersonas.mockResolvedValue([ANA_PEREZ]);
+
+    const html = renderToStaticMarkup(await Estudiantes(sinParametros()));
+
+    expect(html).toMatch(/>AP</);
+  });
+
+  // Mutación que la mata: el aviso de error sigue en azul y sin role="alert".
+  it("con ?error=... el aviso sale en un role=alert", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    personaDeLaCookie.mockResolvedValue(PROFESOR);
+    listarPersonas.mockResolvedValue([]);
+
+    const html = renderToStaticMarkup(
+      await Estudiantes({ searchParams: Promise.resolve({ error: "Ese correo ya existe." }) }),
+    );
+
+    expect(html).toMatch(/role="alert"[\s\S]*Ese correo ya existe\./);
   });
 });

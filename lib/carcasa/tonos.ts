@@ -1,4 +1,5 @@
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
+import type { EstadoExamen } from "@/lib/generated/prisma";
 import type { Tono } from "@/components/ui/aviso";
 
 /** El color de la etiqueta de cada prueba en el Inicio. Sin estado es modo
@@ -16,4 +17,11 @@ export function tonoDelEstado(estado: EstadoDeUnaPrueba | undefined): Tono | "ne
  *  hacer, principal. */
 export function varianteDelBoton(estado: EstadoDeUnaPrueba | undefined): "principal" | "secundario" {
   return estado && estado.estado.estado !== "SIN_EMPEZAR" && estado.estado.estado !== "HACIENDO" ? "secundario" : "principal";
+}
+
+/** El color de la etiqueta de un examen en la lista del profesor: solo
+ *  PUBLICADO destaca (es lo que el estudiante ya puede ver); en construcción
+ *  y archivado se pintan igual de neutros. */
+export function tonoDelExamen(estado: EstadoExamen): Tono | "neutro" {
+  return estado === "PUBLICADO" ? "exito" : "neutro";
 }
