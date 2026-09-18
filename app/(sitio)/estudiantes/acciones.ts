@@ -19,7 +19,7 @@ export async function crearPersona(formulario: FormData): Promise<void> {
 
   const papel = formulario.get("papel");
   if (!esPapel(papel)) {
-    redirect(`/personas?error=${encodeURIComponent("Ese papel no existe.")}`);
+    redirect(`/estudiantes?error=${encodeURIComponent("Ese papel no existe.")}`);
   }
 
   const resultado = await darDeAlta(quien, {
@@ -29,7 +29,7 @@ export async function crearPersona(formulario: FormData): Promise<void> {
   });
 
   if ("error" in resultado) {
-    redirect(`/personas?error=${encodeURIComponent(resultado.error)}`);
+    redirect(`/estudiantes?error=${encodeURIComponent(resultado.error)}`);
   }
-  redirect("/personas");
+  redirect("/estudiantes");
 }

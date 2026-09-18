@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { guardarTareaAccion, rellenarTareaConIAAccion } from "@/app/examenes/acciones";
+import { guardarTareaAccion, rellenarTareaConIAAccion } from "@/app/(sitio)/examenes/acciones";
 import type { ReglaTarea } from "@/lib/dele/estructura";
 import { cambiar as cambiarEn, type Ruta } from "@/lib/taller/editar";
 import type { EstadoDeTarea } from "@/lib/taller/estado";

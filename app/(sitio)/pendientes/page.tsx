@@ -18,7 +18,7 @@ function diasEnPalabras(dias: number): string {
  * 3c).
  *
  * `exigirProfesor` es media puerta: la otra mitad está en
- * app/corregir/[intentoId]/page.tsx y en guardarCorreccionAccion. Las tres
+ * app/(sitio)/pendientes/[intentoId]/page.tsx y en guardarCorreccionAccion. Las tres
  * hacen falta porque `lib/examen/corregir.ts` no comprueba papeles.
  */
 export default async function Cola() {
@@ -42,7 +42,7 @@ export default async function Cola() {
         <ul className="flex flex-col gap-4">
           {cola.map((c) => (
             <li key={c.intentoId}>
-              <Link href={`/corregir/${c.intentoId}`} className={CAJA}>
+              <Link href={`/pendientes/${c.intentoId}`} className={CAJA}>
                 <span className="font-bold">{c.persona.nombre}</span>
                 <span className="text-tinta-suave">{c.titulo}</span>
                 <span className="text-sm text-tinta-suave">

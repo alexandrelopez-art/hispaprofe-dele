@@ -40,7 +40,7 @@ vi.mock("@/lib/examen/asignar", () => ({
 vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron }));
 // Cada acción que importan las pantallas o sus componentes tiene que existir en
 // el doble: Vitest revienta al leer una exportación que el doble no define.
-vi.mock("@/app/examenes/acciones", () => ({
+vi.mock("@/app/(sitio)/examenes/acciones", () => ({
   crearExamenAccion: vi.fn(),
   elegirCuadernilloAccion: vi.fn(),
   registrarPaginasAccion: vi.fn(),
@@ -57,9 +57,9 @@ vi.mock("@/app/examenes/acciones", () => ({
   recuperarExamenAccion: vi.fn(),
 }));
 
-import Examenes from "@/app/examenes/page";
-import PantallaDelExamen from "@/app/examenes/[id]/page";
-import PantallaDeTarea from "@/app/examenes/[id]/[prueba]/[numero]/page";
+import Examenes from "@/app/(sitio)/examenes/page";
+import PantallaDelExamen from "@/app/(sitio)/examenes/[id]/page";
+import PantallaDeTarea from "@/app/(sitio)/examenes/[id]/[prueba]/[numero]/page";
 
 const PROFESOR: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
@@ -128,7 +128,7 @@ describe("las pantallas del taller exigen al profesor", () => {
 describe("lo que no existe da el no encontrado", () => {
   beforeEach(() => como(PROFESOR));
 
-  // Mutación que la mata: quitar `if (!examen) notFound();` en app/examenes/[id]/page.tsx.
+  // Mutación que la mata: quitar `if (!examen) notFound();` en app/(sitio)/examenes/[id]/page.tsx.
   it("un examen que no existe", async () => {
     dobles.examenParaElTaller.mockResolvedValue(null);
     await expect(PantallaDelExamen({ params: Promise.resolve({ id: "nada" }), searchParams: sinError() })).rejects.toThrow("NOT_FOUND");
@@ -141,13 +141,13 @@ describe("lo que no existe da el no encontrado", () => {
     expect(dobles.tareaParaElTaller).not.toHaveBeenCalled();
   });
 
-  // Mutación que la mata: quitar `if (!tarea) notFound();` en app/examenes/[id]/[prueba]/[numero]/page.tsx.
+  // Mutación que la mata: quitar `if (!tarea) notFound();` en app/(sitio)/examenes/[id]/[prueba]/[numero]/page.tsx.
   it("una tarea que no existe", async () => {
     dobles.tareaParaElTaller.mockResolvedValue(null);
     await expect(PantallaDeTarea({ params: Promise.resolve({ id: "x1", prueba: "CE", numero: "9" }) })).rejects.toThrow("NOT_FOUND");
   });
 
-  // Mutación que la mata: en app/examenes/page.tsx, cambiar
+  // Mutación que la mata: en app/(sitio)/examenes/page.tsx, cambiar
   // `Promise.all([listarExamenes(), searchParams])` por
   // `Promise.all([searchParams, listarExamenes()])` sin tocar la
   // desestructuración: `examenes` pasa a ser el resultado de `searchParams`
@@ -162,7 +162,7 @@ describe("lo que no existe da el no encontrado", () => {
 describe("lo que el profesor ve de verdad (camino feliz)", () => {
   beforeEach(() => como(PROFESOR));
 
-  // Mutación que la mata: en app/examenes/page.tsx, dejar de interpolar
+  // Mutación que la mata: en app/(sitio)/examenes/page.tsx, dejar de interpolar
   // `e.id` en el href (usar una ruta fija como `/examenes/x`).
   it("la lista enseña cada examen con su enlace, nivel y estado", async () => {
     dobles.listarExamenes.mockResolvedValue([
@@ -248,7 +248,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(marcado).toContain('src="/api/ficheros/f2"');
   });
 
-  // El `key` que se le puso a <ElegirCuadernillo> en app/examenes/[id]/page.tsx
+  // El `key` que se le puso a <ElegirCuadernillo> en app/(sitio)/examenes/[id]/page.tsx
   // (finding 3 de la revisión) arregla un fallo que solo se ve cuando React
   // vuelve a renderizar la MISMA instancia montada del componente (tras
   // guardar un cuadernillo y refrescar la pantalla, sin desmontarla): el
@@ -307,7 +307,7 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     expect(html).toContain("Subir un cuadernillo nuevo");
   });
 
-  // Mutación que la mata: fijar disabled en true siempre (apagar «Publicar») en app/examenes/[id]/page.tsx.
+  // Mutación que la mata: fijar disabled en true siempre (apagar «Publicar») en app/(sitio)/examenes/[id]/page.tsx.
   it("sin motivos, Publicar encendido", async () => {
     dobles.listarCuadernillos.mockResolvedValue([]);
     dobles.examenParaElTaller.mockResolvedValue(examenDePrueba());

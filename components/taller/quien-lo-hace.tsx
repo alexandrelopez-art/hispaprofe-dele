@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { asignarExamenAccion, quitarAsignacionAccion } from "@/app/examenes/acciones";
+import { asignarExamenAccion, quitarAsignacionAccion } from "@/app/(sitio)/examenes/acciones";
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";

@@ -32,7 +32,7 @@ vi.mock("@/lib/examen/corregir", () => ({ escritosPorCorregir }));
 // sin arrastrar el cliente de Prisma.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
-import Portada from "@/app/page";
+import Portada from "@/app/(sitio)/(inicio)/page";
 
 const PROFESOR: Persona = {
   id: "p1",
@@ -102,7 +102,7 @@ describe("la portada", () => {
     const marcado = await html();
 
     expect(marcado).toContain("Hola, Ana"); // que no esté vacío antes de creerse una ausencia
-    expect(marcado).not.toContain('href="/personas"');
+    expect(marcado).not.toContain('href="/estudiantes"');
   });
 
   // Mutación que mata esta prueba: invertir la comparación de papel, o
@@ -114,7 +114,7 @@ describe("la portada", () => {
 
     const marcado = await html();
 
-    expect(marcado).toContain('href="/personas"');
+    expect(marcado).toContain('href="/estudiantes"');
   });
 
   // Mutación que la mata: enseñar «Exámenes» sin mirar el papel.
@@ -346,7 +346,7 @@ describe("«Por corregir» en la portada del profesor", () => {
 
     const marcado = await html();
 
-    expect(marcado).not.toContain('href="/corregir"');
+    expect(marcado).not.toContain('href="/pendientes"');
   });
 
   // Mutación que la mata: no pintar el enlace, o no pasarle a esta pantalla
@@ -361,7 +361,7 @@ describe("«Por corregir» en la portada del profesor", () => {
 
     const marcado = await html();
 
-    expect(marcado).toContain('href="/corregir"');
+    expect(marcado).toContain('href="/pendientes"');
     expect(marcado).toContain("Por corregir (2)");
   });
 

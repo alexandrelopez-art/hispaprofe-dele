@@ -80,21 +80,21 @@ vi.mock("@/app/examen/acciones", () => ({
   // hacer-escrita.tsx revienta al leer una exportación que no existe.
   guardarEscritoAccion: vi.fn(),
 }));
-// Las dos pantallas del profesor (app/corregir/...) solo leen: escribir es
+// Las dos pantallas del profesor (app/(sitio)/pendientes/...) solo leen: escribir es
 // cosa de guardarCorreccionAccion, doblada aparte para no arrastrar
 // lib/examen/corregir.ts entero (que sí toca prisma) dentro de acciones.ts.
 vi.mock("@/lib/examen/corregir", () => ({
   escritosPorCorregir: dobles.escritosPorCorregir,
   escritoParaCorregir: dobles.escritoParaCorregir,
 }));
-// La ficha (app/examenes/[id]/hoja/...) también solo lee: dobla su única
+// La ficha (app/(sitio)/examenes/[id]/hoja/...) también solo lee: dobla su única
 // lectura, igual que las dos de arriba, para no arrastrar prisma aquí.
 vi.mock("@/lib/examen/hoja", () => ({ hojaDeRespuestas: dobles.hojaDeRespuestas }));
-vi.mock("@/app/corregir/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
+vi.mock("@/app/(sitio)/pendientes/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
 
 import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
-import Cola from "@/app/corregir/page";
-import PantallaDeCorregir from "@/app/corregir/[intentoId]/page";
+import Cola from "@/app/(sitio)/pendientes/page";
+import PantallaDeCorregir from "@/app/(sitio)/pendientes/[intentoId]/page";
 
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
 
@@ -1627,7 +1627,7 @@ describe("Por corregir: la cola del profesor", () => {
   // dirección.
   it("la cola no se le enseña a un estudiante", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(ana); // ESTUDIANTE
-    const { default: Cola } = await import("@/app/corregir/page");
+    const { default: Cola } = await import("@/app/(sitio)/pendientes/page");
     await expect(Cola()).rejects.toThrow();
     expect(dobles.escritosPorCorregir).not.toHaveBeenCalled();
   });
@@ -1656,14 +1656,14 @@ describe("Por corregir: la cola del profesor", () => {
   });
 
   // Mutación que la mata: enlazar todas las filas al mismo sitio, o a
-  // `/corregir` sin el id.
+  // `/pendientes` sin el id.
   it("cada fila enlaza a su propia corrección", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.escritosPorCorregir.mockResolvedValue([
       { intentoId: "i7", examenId: "ex1", titulo: "Examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 0 },
     ]);
     const html = renderToStaticMarkup(await Cola());
-    expect(html).toContain('href="/corregir/i7"');
+    expect(html).toContain('href="/pendientes/i7"');
   });
 
   // Mutación que la mata: cerrar las que se pasaron de hora desde esta
@@ -1676,7 +1676,7 @@ describe("Por corregir: la cola del profesor", () => {
   });
 });
 
-describe("La pantalla de corregir una redacción: /corregir/[intentoId]", () => {
+describe("La pantalla de corregir una redacción: /pendientes/[intentoId]", () => {
   // Mutación que la mata: quitar exigirProfesor de esta página también. Es la
   // segunda mitad de la misma puerta que la cola: sin ella, un estudiante que
   // adivine el id de un compañero vería su texto entero y podría firmarle
@@ -1962,7 +1962,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   // la puerta por la que la clave del examen sale hacia un estudiante.
   it("la ficha no se le enseña a un estudiante", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(ana);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     // El `rejects.toThrow()` de aquí abajo NO basta solo: sin `exigirProfesor`,
     // `hojaDeRespuestas` (doblada, sin mockResolvedValue) da `undefined`, y
     // `if (!hoja) notFound()` también tira — la pantalla seguiría rechazando
@@ -1978,7 +1978,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   // hasta llamar a hojaDeRespuestas con un valor que no es una Prueba.
   it("una prueba que no existe contesta 404 sin llegar a mirar la base", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "XX" }) })).rejects.toThrow("NOT_FOUND");
     expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
   });
@@ -1989,7 +1989,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("sin ficha todavía (no entregada) contesta 404", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.hojaDeRespuestas.mockResolvedValue(null);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow("NOT_FOUND");
   });
 
@@ -1998,7 +1998,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("arriba: el nombre, el examen, la prueba y la nota congelada", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     const html = renderToStaticMarkup(
       await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
     );
@@ -2016,7 +2016,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("lo que dejó en blanco sale dicho como «sin contestar»", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     const html = renderToStaticMarkup(
       await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
     );
@@ -2027,7 +2027,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   // `marcada !== correcta`, o ponerlo también en la que acertó.
   it("la fila donde falló sale marcada en rojo; la que acertó, no", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
 
     dobles.hojaDeRespuestas.mockResolvedValue(
       hojaDePrueba({ filas: [{ numero: 7, marcada: "A", correcta: "A" }] }),

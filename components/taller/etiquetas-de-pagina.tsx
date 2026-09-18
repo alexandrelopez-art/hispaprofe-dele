@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { etiquetarPaginaAccion } from "@/app/examenes/acciones";
+import { etiquetarPaginaAccion } from "@/app/(sitio)/examenes/acciones";
 import { nombreDeEtiqueta } from "@/lib/dele/estructura";
 import { alternarEtiqueta } from "@/lib/taller/etiquetas";
 

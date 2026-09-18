@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
 import { BANDA_MAXIMA, CRITERIOS_EE } from "@/lib/dele/estructura";
-import { guardarCorreccionAccion } from "@/app/corregir/acciones";
+import { guardarCorreccionAccion } from "@/app/(sitio)/pendientes/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { huboSalidas, tiempoFueraEnPalabras, vecesEnPalabras, type ResumenDeSalidas } from "@/lib/examen/motor";
 import { AVISO_DE_ERROR, AVISO_SUAVE, BOTON, BOTON_SUAVE, CAJA, enLista } from "@/components/examen/piezas";
@@ -136,7 +136,7 @@ export function CorregirEscrita({ para }: { para: ParaCorregir }) {
         return;
       }
       if (irASiguiente) {
-        router.push(para.siguiente ? `/corregir/${para.siguiente}` : "/corregir");
+        router.push(para.siguiente ? `/pendientes/${para.siguiente}` : "/pendientes");
       } else {
         router.refresh();
       }

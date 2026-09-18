@@ -3,7 +3,7 @@ import { JWT } from "google-auth-library";
 // ÚNICO sitio donde se decide POR DÓNDE viajan los bytes de una grabación.
 // Hoy `abrirSesionDeSubida` abre una sesión reanudable de Drive y el
 // navegador del estudiante sube directo ahí con un PUT (ver
-// app/pruebas/grabar/formulario.tsx: pide una URL y le hace PUT, sin saber
+// app/(sitio)/pruebas/grabar/formulario.tsx: pide una URL y le hace PUT, sin saber
 // de dónde es esa URL). El supuesto sin comprobar (Step 0 del encargo, no se
 // puede hacer todavía porque faltan la cuenta robot y la unidad compartida)
 // es que Google admita esa subida entre orígenes.

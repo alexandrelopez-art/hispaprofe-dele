@@ -14,7 +14,7 @@ const datosDeLaGrabacion = z.object({
  * Guarda la fila `Fichero` de una grabación que ya terminó de subir a Drive.
  * Es una acción de servidor, así que se puede llamar sin pasar por la
  * pantalla: por eso vuelve a comprobar la sesión aquí, igual que
- * `crearPersona` en app/personas/acciones.ts.
+ * `crearPersona` en app/(sitio)/estudiantes/acciones.ts.
  *
  * `bytes` y `tipoMime` NO se reciben de quien llama: se preguntan a Drive
  * (`comprobarQueLlegoADrive`), igual que `/api/ficheros/confirmar` pregunta

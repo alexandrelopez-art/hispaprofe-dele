@@ -85,12 +85,12 @@ export default async function Portada() {
 
           <nav className="flex flex-col gap-1">
             {esProfesor && (
-              <Link href="/personas" className="text-hp-600 underline">
+              <Link href="/estudiantes" className="text-hp-600 underline">
                 Personas
               </Link>
             )}
             {esProfesor && (
-              <Link href="/corregir" className="text-hp-600 underline">
+              <Link href="/pendientes" className="text-hp-600 underline">
                 Por corregir{porCorregir > 0 ? ` (${porCorregir})` : ""}
               </Link>
             )}

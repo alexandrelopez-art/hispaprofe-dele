@@ -45,7 +45,7 @@ export async function guardarCorreccionAccion(
   const profesor = await exigirProfesor();
   if (!tareasConFormaValida(tareas)) return { error: FORMA_MALA };
   const r = await guardarCorreccion(intentoId, tareas, profesor.id, new Date());
-  revalidatePath("/corregir");
-  revalidatePath(`/corregir/${intentoId}`);
+  revalidatePath("/pendientes");
+  revalidatePath(`/pendientes/${intentoId}`);
   return r;
 }

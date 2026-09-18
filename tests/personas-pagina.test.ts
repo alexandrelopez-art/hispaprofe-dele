@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Personas from "@/app/personas/page";
+import Personas from "@/app/(sitio)/estudiantes/page";
 import type { Persona } from "@/lib/generated/prisma";
 
 // La pantalla llama a exigirProfesor() antes de enseñar nada. Estas pruebas
@@ -55,7 +55,7 @@ beforeEach(() => {
 
 describe("la pantalla de personas exige profesor", () => {
   // Este es el guardián que el revisor pidió comprobar directamente: sin él,
-  // borrar `await exigirProfesor()` de app/personas/page.tsx no rompe
+  // borrar `await exigirProfesor()` de app/(sitio)/estudiantes/page.tsx no rompe
   // ninguna prueba, y un estudiante lee los nombres y correos de sus
   // compañeros. Mutación que mata esta prueba: quitar esa línea.
   it("un estudiante topa con el no encontrado, y no se llega a listar a nadie", async () => {
