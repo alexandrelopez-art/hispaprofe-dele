@@ -49,7 +49,9 @@ export default async function PantallaDelExamen({
   return (
     <>
       {cabecera}
-      <HacerPrueba prueba={leida} />
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-6">
+        <HacerPrueba prueba={leida} />
+      </main>
     </>
   );
 }

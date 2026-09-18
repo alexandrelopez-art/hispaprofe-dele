@@ -1,4 +1,7 @@
 import { pedirEntrada } from "./acciones";
+import { Aviso } from "@/components/ui/aviso";
+import { Campo } from "@/components/ui/campo";
+import { Boton } from "@/components/ui/boton";
 
 const AVISOS: Record<string, string> = {
   caducado: "Ese enlace ya no vale. Pide otro y te lo mandamos.",
@@ -19,19 +22,18 @@ export default async function Entrar({
       <p className="text-tinta-suave">
         Escribe tu correo y te mandamos un enlace para entrar. No hace falta contraseña.
       </p>
-      {aviso && <p className="rounded-2xl bg-hp-50 p-4 text-tinta">{aviso}</p>}
+      {aviso && <Aviso tono="info">{aviso}</Aviso>}
       <form action={pedirEntrada} className="flex flex-col gap-4">
-        <input
+        <Campo
+          id="correo"
+          etiqueta="Tu correo"
           type="email"
           name="correo"
           required
           autoComplete="email"
           placeholder="tu@correo.com"
-          className="rounded-2xl border border-tinta-suave/30 p-4"
         />
-        <button type="submit" className="rounded-2xl bg-hp-400 p-4 font-bold text-white">
-          Mandarme el enlace
-        </button>
+        <Boton type="submit">Mandarme el enlace</Boton>
       </form>
     </main>
   );
