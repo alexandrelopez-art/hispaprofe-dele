@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
@@ -791,7 +792,9 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("comprensión de lectura");
     expect(html).toContain("Examen 1");
     expect(html).toContain("Tarea 2");
-    expect(html).toContain("En rojo, las que fallaste");
+    // Era «En rojo»: desde la Entrega B2 la fallada va en coral (el rojo es
+    // solo para fallos del sistema), y la frase dice el color que se ve.
+    expect(html).toContain("Marcadas en coral, las que fallaste");
     expect(html).toContain("vuelve al texto y búscala");
   });
 
@@ -836,7 +839,10 @@ describe("la pantalla que hace el estudiante", () => {
         ],
       }),
     );
-    expect(unaSola).toContain("Te queda expresión escrita.");
+    // Antes era una sola frase («Te queda expresión escrita.»); desde la
+    // Entrega B2 cada prueba pendiente es una EtiquetaEstado aparte, así que
+    // el singular y el nombre se miran por separado, en su orden.
+    expect(unaSola).toMatch(/>Te queda<\/span><span[^>]*>expresión escrita</);
     expect(unaSola).toContain("Ir a hacerla<");
   });
 
@@ -990,6 +996,64 @@ describe("la pantalla que hace el estudiante", () => {
       <HacerPrueba prueba={entregadaCon19De25({ estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } })} />,
     );
     expect(html).not.toContain("Entregar");
+  });
+
+  // Mutación que la mata: volver a window.confirm en alEntregar. La pregunta
+  // tiene que ser la de la página, con lo que falta.
+  it("la lectura a medias trae la pregunta de entrega de la página, cerrada", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={haciendoLectura()} />);
+    expect(html).toContain('aria-labelledby="titulo-de-entregar"');
+    expect(html).toContain("Seguir con la prueba");
+    expect(html).not.toMatch(/<dialog[^>]*\sopen/);
+  });
+
+  // Mutación que la mata: dejar el window.confirm en alEntregar (aunque la
+  // pregunta de la página también se pinte, el navegador preguntaría dos veces).
+  it("hacer-prueba.tsx ya no pregunta con el confirm del navegador", () => {
+    expect(readFileSync("components/examen/hacer-prueba.tsx", "utf8")).not.toContain("confirm(");
+  });
+
+  // El enlace «Ir a hacerla» es el `Enlace` del kit, que trae SU text-hp-600
+  // (los colores de marca llegan por las piezas del kit): por eso se quitan
+  // las etiquetas <a> antes de buscar colores a mano, y se exige en el enlace
+  // la marca del kit (underline-offset-2) que el Link de antes no tenía.
+  // Mutación que la mata: volver a pintar «Ir a hacerla» como Link con
+  // text-hp-600 o «te queda» como texto suelto.
+  it("el resultado dice lo que queda con etiqueta y enlace del kit", () => {
+    const entregada = { estado: "ENTREGADA" as const, aciertos: 21, total: 25, porTiempo: false };
+    const html = renderToStaticMarkup(
+      <HacerPrueba
+        prueba={entregadaCon19De25({
+          otras: [
+            { prueba: "CO", estado: entregada },
+            { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+          ],
+        })}
+      />,
+    );
+    expect(html).toContain("Te queda");
+    expect(html).toMatch(/<span[^>]*rounded-full[^>]*>[^<]*expresión escrita/); // EtiquetaEstado
+    const enlace = html.match(/<a [^>]*>Ir a hacerla<\/a>/)?.[0] ?? "";
+    expect(enlace).toContain("underline-offset-2");
+    expect(html.replace(/<a [^>]*>/g, "<a>")).not.toMatch(/(bg|border|text)-hp-/);
+  });
+
+  // `Aviso` envuelve a sus hijos en un <div class="text-sm">, de ahí el
+  // `(p|div)` de la expresión: lo que se exige es que la frase quede DENTRO de
+  // la caja border-hp-200 (tono info), no suelta.
+  // Mutación que la mata: dejar «Se entregó sola» como texto gris suelto.
+  it("la entrega por tiempo va en un aviso informativo", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={entregadaCon19De25({ estado: { estado: "ENTREGADA", aciertos: 12, total: 25, porTiempo: true } })} />,
+    );
+    expect(html).toMatch(/border-hp-200[^"]*"[^>]*>(<(p|div)[^>]*>)?[^<]*Se entregó sola: se acabó el tiempo\./);
+  });
+
+  // Mutación que la mata: no pasar `libre` a la CabeceraExamen de PruebaLibre.
+  it("la práctica libre avisa al salir de que no se guarda", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={enLibre()} />);
+    expect(html).toContain("no se guarda");
+    expect(html).not.toContain("mientras la prueba no esté entregada");
   });
 });
 
