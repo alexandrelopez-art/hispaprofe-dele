@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/db", () => ({ prisma: {} }));
-import { tonoDeTarea, tonoDelEstado, tonoDelExamen, varianteDelBoton } from "@/lib/carcasa/tonos";
+import { tonoDeTarea, tonoDelEstado, tonoDelExamen, tonoParaElProfesor, varianteDelBoton } from "@/lib/carcasa/tonos";
 
 const con = (estado: "SIN_EMPEZAR" | "HACIENDO" | "ESPERANDO" | "ENTREGADA") => ({
   prueba: "CE" as const,
@@ -30,6 +30,22 @@ describe("el color del estado de cada prueba", () => {
     expect(varianteDelBoton(con("SIN_EMPEZAR"))).toBe("principal");
     expect(varianteDelBoton(con("HACIENDO"))).toBe("principal");
     expect(varianteDelBoton(undefined)).toBe("principal");
+  });
+});
+
+describe("el color del estado de cada prueba, en la lista del profesor", () => {
+  // Mutación que la mata: delegar ESPERANDO en tonoDelEstado (saldría
+  // "exito", igual que para el estudiante) en vez de pintarla en "aviso": para
+  // el profesor una escrita ESPERANDO es justo lo que tiene pendiente de
+  // corregir, no algo ya resuelto.
+  it("esperando corrección se pinta en aviso, no en éxito", () => {
+    expect(tonoParaElProfesor(con("ESPERANDO"))).toBe("aviso");
+  });
+
+  // Mutación que la mata: devolver siempre "aviso" sin delegar en
+  // tonoDelEstado para los demás estados.
+  it("entregada sigue en éxito, como para el estudiante", () => {
+    expect(tonoParaElProfesor(con("ENTREGADA"))).toBe("exito");
   });
 });
 

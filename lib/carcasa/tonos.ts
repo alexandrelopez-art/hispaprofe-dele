@@ -20,6 +20,16 @@ export function varianteDelBoton(estado: EstadoDeUnaPrueba | undefined): "princi
   return estado && estado.estado.estado !== "SIN_EMPEZAR" && estado.estado.estado !== "HACIENDO" ? "secundario" : "principal";
 }
 
+/** El color de la etiqueta de cada prueba en la lista de asignados del
+ *  profesor. ESPERANDO es una escrita ya entregada, esperando que ESTE
+ *  profesor la corrija: para el estudiante ya no queda nada por hacer
+ *  (tonoDelEstado la pinta de éxito), pero para el profesor es justo lo
+ *  contrario, lo que tiene pendiente. Aquí va en aviso, no en éxito. */
+export function tonoParaElProfesor(estado: EstadoDeUnaPrueba): Tono | "neutro" {
+  if (estado.estado.estado === "ESPERANDO") return "aviso";
+  return tonoDelEstado(estado);
+}
+
 /** El color de la etiqueta de un examen en la lista del profesor: solo
  *  PUBLICADO destaca (es lo que el estudiante ya puede ver); en construcción
  *  y archivado se pintan igual de neutros. */

@@ -54,7 +54,7 @@ export function Respuesta({ numero, respuestas }: { numero: number; respuestas: 
   return (
     <span
       data-respuesta={numero}
-      className={`rounded-full px-3 py-1 text-sm font-bold ${letra ? "bg-verde-100 text-verde-600" : "bg-error-100 text-error-600"}`}
+      className={`rounded-full px-3 py-1 text-sm font-bold ${letra ? "bg-verde-100 text-verde-600" : "bg-coral-100 text-coral-600"}`}
     >
       {letra ? `Respuesta del cuadernillo: ${letra}` : "Sin respuesta en el cuadernillo"}
     </span>

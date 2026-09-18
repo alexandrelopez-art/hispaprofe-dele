@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Aviso } from "@/components/ui/aviso";
 import { Boton } from "@/components/ui/boton";
 import { subirAlAlmacen } from "@/lib/ficheros/subir-desde-navegador";
 import { reducirFoto } from "@/lib/taller/medios-en-navegador";
@@ -55,7 +56,7 @@ export function FotoDeOpcion({
       ) : (
         selector("Subir foto")
       )}
-      {error && <span role="alert" className="text-error-600">{error}</span>}
+      {error && <Aviso tono="error">{error}</Aviso>}
     </div>
   );
 }

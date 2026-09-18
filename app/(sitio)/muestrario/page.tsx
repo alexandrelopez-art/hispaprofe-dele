@@ -28,7 +28,7 @@ function Pieza({ nombre, children }: { nombre: string; children: ReactNode }) {
 export default async function Muestrario() {
   await exigirProfesor();
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-8 p-4 sm:p-6">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-4 sm:p-6">
       <EncabezadoPagina titulo="Muestrario" subtitulo="Las piezas del sitio, con sus variantes." />
       <Pieza nombre="Boton">
         <Boton>Principal</Boton>

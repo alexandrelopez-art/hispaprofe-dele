@@ -127,6 +127,21 @@ describe("la pantalla de estudiantes, vestida con el kit", () => {
     expect(html).toMatch(/>AP</);
   });
 
+  // Mutación que la mata: quitar el .filter(Boolean) o el "?" de respaldo en
+  // iniciales() — con un nombre vacío o solo espacios, split(/\s+/) deja
+  // [""] y p[0] revienta la pantalla entera.
+  it("un nombre vacío o en blanco no rompe la pantalla, y sale con ?", async () => {
+    conSesionDeProfesor();
+    listarPersonas.mockResolvedValue([
+      { ...ESTUDIANTE, id: "e4", nombre: "" },
+      { ...ESTUDIANTE, id: "e5", nombre: "   " },
+    ]);
+
+    const html = renderToStaticMarkup(await Estudiantes(sinParametros()));
+
+    expect(html).toMatch(/>\?</);
+  });
+
   // Mutación que la mata: el aviso de error sigue en azul y sin role="alert".
   it("con ?error=... el aviso sale en un role=alert", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });

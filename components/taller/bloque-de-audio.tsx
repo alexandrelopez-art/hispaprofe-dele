@@ -117,7 +117,7 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
         <p className="text-tinta-suave">Esta tarea no se corta: suena la pista entera.</p>
       ) : (
         <>
-          <p data-contador={cuadra ? "bien" : "mal"} className={`font-bold ${cuadra ? "text-verde-600" : "text-error-600"}`}>
+          <p data-contador={cuadra ? "bien" : "mal"} className={`font-bold ${cuadra ? "text-verde-600" : "text-coral-600"}`}>
             {`${marcas} ${marcas === 1 ? "marca" : "marcas"} → ${marcas + 1} ${marcas + 1 === 1 ? "trozo" : "trozos"}, esta tarea lleva ${trozos}`}
           </p>
           {leida && <Onda picos={leida.picos} duracion={leida.duracion} cortes={audio.cortes} alCambiar={cambiarCortes} />}

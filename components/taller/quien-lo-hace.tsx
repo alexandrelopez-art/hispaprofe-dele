@@ -6,7 +6,7 @@ import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";
 import type { Prueba } from "@/lib/generated/prisma";
-import { tonoDelEstado } from "@/lib/carcasa/tonos";
+import { tonoParaElProfesor } from "@/lib/carcasa/tonos";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { Casilla } from "@/components/ui/casilla";
@@ -114,10 +114,10 @@ export function QuienLoHace({
                       {NOMBRE_CORTO[p.prueba]}:{" "}
                       {p.estado.estado === "ENTREGADA" && PRUEBAS_CON_FICHA.includes(p.prueba) ? (
                         <Enlace href={`/examenes/${examenId}/hoja/${a.personaId}/${p.prueba}`}>
-                          <EtiquetaEstado tono={tonoDelEstado(p)}>{p.texto}</EtiquetaEstado>
+                          <EtiquetaEstado tono={tonoParaElProfesor(p)}>{p.texto}</EtiquetaEstado>
                         </Enlace>
                       ) : (
-                        <EtiquetaEstado tono={tonoDelEstado(p)}>{p.texto}</EtiquetaEstado>
+                        <EtiquetaEstado tono={tonoParaElProfesor(p)}>{p.texto}</EtiquetaEstado>
                       )}
                     </span>
                   ))}

@@ -19,11 +19,12 @@ const NOMBRE_DEL_PAPEL: Record<Papel, string> = {
   ESTUDIANTE: "Estudiante",
 };
 
-/** «Ana Pérez» → «AP»; «Ana» → «A». Solo presentación. */
+/** «Ana Pérez» → «AP»; «Ana» → «A». Sin nombre (o solo espacios), «?» para
+ *  que el círculo no se quede vacío. Solo presentación. */
 function iniciales(nombre: string): string {
-  return nombre
-    .trim()
-    .split(/\s+/)
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  return partes
     .slice(0, 2)
     .map((p) => p[0]!.toUpperCase())
     .join("");
