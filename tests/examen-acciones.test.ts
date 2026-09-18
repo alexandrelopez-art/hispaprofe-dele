@@ -281,6 +281,10 @@ describe("guardarCorreccionAccion", () => {
 
     expect(dobles.revalidatePath).toHaveBeenCalledWith("/pendientes");
     expect(dobles.revalidatePath).toHaveBeenCalledWith("/pendientes/i1");
+    // Mutación que la mata: quitar el revalidatePath de la cabecera. El
+    // número de Pendientes se cuenta en el layout, que no se repinta al
+    // navegar: sin esto seguiría diciendo lo de antes de firmar.
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 
   // Mutación que la mata: comerse el error que devuelva guardarCorreccion

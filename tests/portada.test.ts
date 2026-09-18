@@ -7,16 +7,20 @@ import type { Persona } from "@/lib/generated/prisma";
 // funcionado. Mismos dobles que en tests/puerta-sesion-http.test.ts, porque
 // Portada llama a personaDeLaPeticion(), que vive sobre cookies() y
 // personaDeLaCookie.
-const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron, escritosPorCorregir } = vi.hoisted(() => ({
+const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron, escritosPorCorregir, redirect } = vi.hoisted(() => ({
   cookiesGet: vi.fn(),
   personaDeLaCookie: vi.fn(),
   asignacionesDe: vi.fn(),
   cerrarLasQueSePasaron: vi.fn(),
   escritosPorCorregir: vi.fn(),
+  redirect: vi.fn((ruta: string) => {
+    throw new Error(`REDIRECT:${ruta}`);
+  }),
 }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: cookiesGet }),
 }));
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie }));
 // Doblado para que la suite normal nunca arrastre el cliente de Prisma que
 // hay detrás de asignacionesDe: sin este doble, `npm test` pediría DATABASE_URL.
@@ -74,22 +78,16 @@ describe("la portada", () => {
     expect(marcado).not.toContain('href="/salir"');
   });
 
-  // Mutación que mata esta prueba: no interpolar persona.nombre, o quitar
-  // el enlace de salir.
-  it("con sesión, saluda por su nombre y ofrece salir", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
+  // Mutación que mata esta prueba: no interpolar persona.nombre. Ya no se
+  // afirma el "/salir": Salir vive en la cabecera del grupo (sitio), no en
+  // esta pantalla.
+  it("con sesión, saluda por su nombre", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
 
     const marcado = await html();
 
-    expect(marcado).toContain("Hola, Pablo");
-    // Salir es un formulario POST, no un enlace: con un enlace, la precarga
-    // de Next lo visitaba sola y cerraba la sesión recién abierta. Mutación
-    // que mata esta prueba: volver a poner <Link href="/salir">.
-    expect(marcado).toContain('action="/salir" method="post"');
-    expect(marcado).not.toContain('href="/salir"');
-    expect(marcado).toContain('href="/pruebas/grabar"');
-    expect(marcado).toContain('href="/pruebas/subir"');
+    expect(marcado).toContain("Hola, Ana");
   });
 
   // Mutación que mata esta prueba: quitar el `persona.papel === "PROFESOR"`
@@ -105,29 +103,15 @@ describe("la portada", () => {
     expect(marcado).not.toContain('href="/estudiantes"');
   });
 
-  // Mutación que mata esta prueba: invertir la comparación de papel, o
-  // quitarla del todo (el caso de arriba ya la mata si se quita, pero aquí
-  // se comprueba el sentido correcto: el profesor SÍ lo ve).
-  it("el profesor sí ve el enlace a personas", async () => {
+  // Mutación que la mata: quitar el redirect del profesor (vería un Inicio
+  // vacío, sin nada suyo).
+  it("el profesor en / va a Pendientes, sin pedir nada", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
 
-    const marcado = await html();
-
-    expect(marcado).toContain('href="/estudiantes"');
-  });
-
-  // Mutación que la mata: enseñar «Exámenes» sin mirar el papel.
-  it("solo el profesor ve el enlace al taller", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
-    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    const deAna = await html();
-    expect(deAna).toContain("Hola, Ana"); // que no esté vacío antes de creerse una ausencia
-    expect(deAna).not.toContain('href="/examenes"');
-
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-    expect(await html()).toContain('href="/examenes"');
+    await expect(Portada()).rejects.toThrow("REDIRECT:/pendientes");
+    expect(asignacionesDe).not.toHaveBeenCalled();
+    expect(cerrarLasQueSePasaron).not.toHaveBeenCalled();
   });
 });
 
@@ -297,32 +281,6 @@ describe("Inicio del estudiante", () => {
     expect(await html()).toContain("Se pasó el plazo");
   });
 
-  // Mutación que la mata: dejar de mirar el papel para las pantallas de prueba.
-  // Un estudiante no tiene nada que hacer en ellas.
-  it("un estudiante no ve las pantallas de prueba y el profesor sí", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
-    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    const deAna = await html();
-    expect(deAna.length).toBeGreaterThan(200); // que no esté vacío antes de creerse una ausencia
-    expect(deAna).not.toContain('href="/pruebas/subir"');
-
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-    expect(await html()).toContain('href="/pruebas/subir"');
-  });
-
-  // Mutación que la mata: pedir las asignaciones también para el profesor y
-  // pintarle tarjetas vacías en su portada, o barrer sus pruebas (no tiene).
-  it("al profesor no se le piden asignaciones", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-
-    await html();
-
-    expect(asignacionesDe).not.toHaveBeenCalled();
-    expect(cerrarLasQueSePasaron).not.toHaveBeenCalled();
-  });
-
   // Mutación que la mata: pedir escritosPorCorregir también al estudiante
   // (contraparte del "solo el profesor" de arriba: aquí lo que se comprueba
   // es que ni siquiera se llama).
@@ -333,49 +291,5 @@ describe("Inicio del estudiante", () => {
     await html();
 
     expect(escritosPorCorregir).not.toHaveBeenCalled();
-  });
-});
-
-describe("«Por corregir» en la portada del profesor", () => {
-  // Mutación que la mata: quitar el `esProfesor &&` del enlace, o dejar de
-  // pedir escritosPorCorregir para el profesor. Un estudiante vería un enlace
-  // a la cola de corrección de todo el mundo.
-  it("un estudiante no ve el enlace a corregir", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
-    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-
-    const marcado = await html();
-
-    expect(marcado).not.toContain('href="/pendientes"');
-  });
-
-  // Mutación que la mata: no pintar el enlace, o no pasarle a esta pantalla
-  // el tamaño real de la cola.
-  it("el profesor ve el enlace, con el número esperando al lado", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-    escritosPorCorregir.mockResolvedValue([
-      { intentoId: "i1", examenId: "ex1", titulo: "Examen 1", persona: { id: "e1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
-      { intentoId: "i2", examenId: "ex1", titulo: "Examen 1", persona: { id: "e2", nombre: "Luis" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
-    ]);
-
-    const marcado = await html();
-
-    expect(marcado).toContain('href="/pendientes"');
-    expect(marcado).toContain("Por corregir (2)");
-  });
-
-  // Mutación que la mata: pintar «(0)» con la cola vacía. Un número puesto
-  // ahí siempre no distingue "nada esperando" de "acabo de mirar".
-  it("con la cola vacía, no pinta ningún número", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-    escritosPorCorregir.mockResolvedValue([]);
-
-    const marcado = await html();
-
-    expect(marcado).toContain("Por corregir");
-    expect(marcado).not.toContain("Por corregir (0)");
-    expect(marcado).not.toContain("(0)");
   });
 });

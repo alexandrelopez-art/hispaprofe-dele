@@ -47,5 +47,8 @@ export async function guardarCorreccionAccion(
   const r = await guardarCorreccion(intentoId, tareas, profesor.id, new Date());
   revalidatePath("/pendientes");
   revalidatePath(`/pendientes/${intentoId}`);
+  // La cabecera cuenta Pendientes en el layout, que no se vuelve a pintar al
+  // navegar: sin esto, el número seguiría diciendo lo de antes de firmar.
+  revalidatePath("/", "layout");
   return r;
 }

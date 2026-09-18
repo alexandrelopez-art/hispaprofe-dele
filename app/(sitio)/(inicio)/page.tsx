@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
 import { asignacionesDe, type AsignacionDelEstudiante, type EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { cerrarLasQueSePasaron } from "@/lib/examen/hacer";
-import { escritosPorCorregir } from "@/lib/examen/corregir";
 import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
 import { NOMBRE_CORTO, NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
 import { estaFueraDePlazo, fechaEnPalabras } from "@/lib/tiempo/madrid";
+import { inicioDe } from "@/lib/carcasa/menu";
 
 function textoDelBoton(estado: EstadoDeUnaPrueba | undefined): string {
   if (!estado) return "Practicar"; // modo libre: sin intento, sin estado que mentir.
@@ -16,19 +17,17 @@ function textoDelBoton(estado: EstadoDeUnaPrueba | undefined): string {
 
 export default async function Portada() {
   const persona = await personaDeLaPeticion();
-  const esProfesor = persona?.papel === "PROFESOR";
+  // El profesor no tiene nada que hacer en el Inicio del estudiante: su
+  // pantalla de siempre es la cola de Pendientes.
+  if (persona?.papel === "PROFESOR") redirect(inicioDe("PROFESOR"));
   const ahora = new Date();
-  // Solo se piden si hacen falta: al profesor no se le pinta ninguna tarjeta,
-  // y al estudiante no se le pide la cola de corrección.
+  // Solo se piden si hacen falta: sin persona no hay a quién pedírselas.
   let asignaciones: AsignacionDelEstudiante[] = [];
-  let porCorregir = 0;
-  if (persona && !esProfesor) {
+  if (persona) {
     // Antes de leer: si no, quien cerró el portátil a medio examen se vería
     // "a medias" para siempre y sin nota.
     await cerrarLasQueSePasaron({ personaId: persona.id }, ahora);
     asignaciones = await asignacionesDe(persona.id);
-  } else if (persona && esProfesor) {
-    porCorregir = (await escritosPorCorregir(ahora)).length;
   }
 
   return (
@@ -44,77 +43,44 @@ export default async function Portada() {
         <>
           <p>Hola, {persona.nombre}.</p>
 
-          {!esProfesor &&
-            (asignaciones.length === 0 ? (
-              <p className="text-tinta-suave">No tienes nada pendiente.</p>
-            ) : (
-              <ul className="flex flex-col gap-4">
-                {asignaciones.map((a) => (
-                  <li key={a.examenId} className="rounded-2xl border border-tinta-suave/20 bg-white p-5">
-                    <h2 className="text-xl font-bold">{a.titulo}</h2>
-                    <p className="text-tinta-suave">{NOMBRE_DE_NIVEL[a.nivel]}</p>
-                    <p>
-                      {estaFueraDePlazo(a.fechaTope, ahora)
-                        ? `Se pasó el plazo el ${fechaEnPalabras(a.fechaTope)}.`
-                        : `Para el ${fechaEnPalabras(a.fechaTope)}.`}
-                    </p>
-                    <ul className="flex flex-col gap-2 border-t border-tinta-suave/10 pt-3">
-                      {PRUEBAS_QUE_SE_HACEN.map((prueba) => {
-                        const deLaPrueba = a.pruebas.find((p) => p.prueba === prueba);
-                        return (
-                          <li key={prueba} className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-bold">{NOMBRE_CORTO[prueba]}</span>
-                            {deLaPrueba && <span className="text-sm text-tinta-suave">{deLaPrueba.texto}</span>}
-                            {/* Nunca cambia nada: solo lleva a la pantalla de la prueba, así que
-                                enlace está bien. Un botón que cambia algo sí tendría que ser un
-                                formulario, porque Next precarga los enlaces en cuanto se pintan. */}
-                            <Link
-                              href={`/examen/${a.examenId}/${prueba}`}
-                              className="rounded-2xl bg-hp-400 px-4 py-2 text-sm font-bold text-white"
-                            >
-                              {textoDelBoton(deLaPrueba)}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            ))}
-
-          <nav className="flex flex-col gap-1">
-            {esProfesor && (
-              <Link href="/estudiantes" className="text-hp-600 underline">
-                Personas
-              </Link>
-            )}
-            {esProfesor && (
-              <Link href="/pendientes" className="text-hp-600 underline">
-                Por corregir{porCorregir > 0 ? ` (${porCorregir})` : ""}
-              </Link>
-            )}
-            {esProfesor && (
-              <Link href="/examenes" className="text-hp-600 underline">
-                Exámenes
-              </Link>
-            )}
-            {esProfesor && (
-              <Link href="/pruebas/grabar" className="text-hp-600 underline">
-                Prueba: grabar
-              </Link>
-            )}
-            {esProfesor && (
-              <Link href="/pruebas/subir" className="text-hp-600 underline">
-                Prueba: subir
-              </Link>
-            )}
-            <form action="/salir" method="post">
-              <button type="submit" className="underline">
-                Salir
-              </button>
-            </form>
-          </nav>
+          {/* Aquí solo llega un estudiante: el profesor ya redirigió arriba. */}
+          {asignaciones.length === 0 ? (
+            <p className="text-tinta-suave">No tienes nada pendiente.</p>
+          ) : (
+            <ul className="flex flex-col gap-4">
+              {asignaciones.map((a) => (
+                <li key={a.examenId} className="rounded-2xl border border-tinta-suave/20 bg-white p-5">
+                  <h2 className="text-xl font-bold">{a.titulo}</h2>
+                  <p className="text-tinta-suave">{NOMBRE_DE_NIVEL[a.nivel]}</p>
+                  <p>
+                    {estaFueraDePlazo(a.fechaTope, ahora)
+                      ? `Se pasó el plazo el ${fechaEnPalabras(a.fechaTope)}.`
+                      : `Para el ${fechaEnPalabras(a.fechaTope)}.`}
+                  </p>
+                  <ul className="flex flex-col gap-2 border-t border-tinta-suave/10 pt-3">
+                    {PRUEBAS_QUE_SE_HACEN.map((prueba) => {
+                      const deLaPrueba = a.pruebas.find((p) => p.prueba === prueba);
+                      return (
+                        <li key={prueba} className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold">{NOMBRE_CORTO[prueba]}</span>
+                          {deLaPrueba && <span className="text-sm text-tinta-suave">{deLaPrueba.texto}</span>}
+                          {/* Nunca cambia nada: solo lleva a la pantalla de la prueba, así que
+                              enlace está bien. Un botón que cambia algo sí tendría que ser un
+                              formulario, porque Next precarga los enlaces en cuanto se pintan. */}
+                          <Link
+                            href={`/examen/${a.examenId}/${prueba}`}
+                            className="rounded-2xl bg-hp-400 px-4 py-2 text-sm font-bold text-white"
+                          >
+                            {textoDelBoton(deLaPrueba)}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
     </main>

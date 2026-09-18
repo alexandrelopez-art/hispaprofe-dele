@@ -27,11 +27,6 @@ export default async function Cola() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
-      <nav>
-        <Link href="/" className="text-hp-600 underline">
-          ← Inicio
-        </Link>
-      </nav>
       <header>
         <h1 className="text-2xl font-bold">Por corregir</h1>
       </header>
