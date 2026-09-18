@@ -12,7 +12,7 @@ import {
   publicarExamenAccion,
   recuperarExamenAccion,
   retirarExamenAccion,
-} from "@/app/examenes/acciones";
+} from "@/app/(sitio)/examenes/acciones";
 import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 import { ElegirCuadernillo } from "@/components/taller/elegir-cuadernillo";
 import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";

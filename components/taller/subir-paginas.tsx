@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { sustituirPaginasAccion } from "@/app/examenes/acciones";
+import { sustituirPaginasAccion } from "@/app/(sitio)/examenes/acciones";
 import { subirAlAlmacen } from "@/lib/ficheros/subir-desde-navegador";
 import { paginasDePdf } from "@/lib/taller/pdf-en-navegador";
 import { idsEnOrden, type EstadoDePagina } from "@/lib/taller/lista-de-subida";

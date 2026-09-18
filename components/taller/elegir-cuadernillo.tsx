@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { elegirCuadernilloAccion } from "@/app/examenes/acciones";
+import { elegirCuadernilloAccion } from "@/app/(sitio)/examenes/acciones";
 import { examenesDelCuadernillo } from "@/lib/taller/cuadernillo-elegido";
 
 type Cuadernillo = { id: string; titulo: string; examenes: string[] };

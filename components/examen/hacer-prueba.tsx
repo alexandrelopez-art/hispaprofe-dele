@@ -18,9 +18,10 @@ import {
 import { Cinta } from "@/components/examen/cinta";
 // Las piezas comunes con la escrita viven en su propio fichero: ver el
 // comentario de piezas.tsx (era un círculo de imports entre las dos pantallas).
-import { AVISO_DE_ERROR, BOTON, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
+import { AVISO_DE_ERROR, BOTON, CAJA, PestanasDeTarea } from "@/components/examen/piezas";
 import { HacerEscrita } from "@/components/examen/hacer-escrita";
 import { Reloj } from "@/components/examen/reloj";
+import { CabeceraExamen } from "@/components/carcasa/cabecera-examen";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 
 type Marcadas = Record<string, string>;
@@ -126,20 +127,24 @@ function AvisoPrevio({
   // pregunta «¿tiene reloj?».
   const esLectura = prueba.prueba === "CE";
   return (
-    <section className={CAJA}>
-      <h1 className="text-xl font-bold">
-        {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
-      </h1>
-      {esLectura ? (
-        <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
-      ) : (
-        <p>Cada audio suena una sola vez. Si se corta la red, ese trozo se pierde para siempre: no vuelve a sonar.</p>
-      )}
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
-      <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
-        Empezar
-      </button>
-    </section>
+    <>
+      {/* Antes de empezar no hay nada en juego: Salir es un enlace, sin pregunta. */}
+      <CabeceraExamen prueba={prueba.prueba} tarea={null} reloj={null} preguntar={false} />
+      <section className={CAJA}>
+        <h1 className="text-xl font-bold">
+          {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
+        </h1>
+        {esLectura ? (
+          <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
+        ) : (
+          <p>Cada audio suena una sola vez. Si se corta la red, ese trozo se pierde para siempre: no vuelve a sonar.</p>
+        )}
+        {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
+        <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
+          Empezar
+        </button>
+      </section>
+    </>
   );
 }
 
@@ -223,9 +228,16 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {prueba.minutos !== null && prueba.segundosQueQuedan !== null && (
-        <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
-      )}
+      <CabeceraExamen
+        prueba={prueba.prueba}
+        tarea={tarea ? { actual: tarea.numero, total: prueba.tareas.length } : null}
+        reloj={
+          prueba.minutos !== null && prueba.segundosQueQuedan !== null ? (
+            <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
+          ) : null
+        }
+        preguntar
+      />
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} bloqueadas={cintaSonando} />
       {tarea && (
@@ -380,6 +392,7 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <CabeceraExamen prueba={prueba.prueba} tarea={tarea ? { actual: tarea.numero, total: prueba.tareas.length } : null} reloj={null} preguntar />
       <p className="text-sm text-tinta-suave">Práctica libre: puedes corregir cada tarea tantas veces como quieras.</p>
       {notaDeLaTarea && <p className="text-xl font-bold">{notaDeLaTarea.aciertos} de {notaDeLaTarea.total}</p>}
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
@@ -421,8 +434,8 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
 
   // La escrita tiene sus propias caras: un folio no se parece en nada a
   // veinticinco letras marcadas, y meterla en PruebaHaciendo obligaría a que
-  // cada rama de allí preguntara de qué prueba se trata. Sale antes del
-  // <VolverAInicio> de abajo y por eso HacerEscrita lleva el suyo.
+  // cada rama de allí preguntara de qué prueba se trata. Como aquí, cada cara
+  // de la escrita pinta su propia CabeceraExamen.
   if (prueba.prueba === "EE") return <HacerEscrita prueba={prueba} />;
 
   // El modo libre no tiene intento que abrir ni que cerrar: se corrige al
@@ -433,10 +446,8 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
     : estaEntregada(prueba.estado) ? <PruebaEntregada prueba={prueba} />
     : <PruebaHaciendo prueba={prueba} />;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
-      {cara}
-    </div>
-  );
+  // Sin salida aquí: cada cara sin entregar pinta su CabeceraExamen (la tarea
+  // abierta es estado de la cara), y la entregada lleva la cabecera del sitio,
+  // que pinta la página.
+  return <div className="flex flex-col gap-4">{cara}</div>;
 }

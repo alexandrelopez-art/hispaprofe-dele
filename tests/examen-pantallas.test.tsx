@@ -53,6 +53,9 @@ vi.mock("next/navigation", () => ({
   // él en el doble, un render que llegara a dispararlo reventaría por
   // `push is not a function` en vez de fallar por lo que la prueba mira.
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  // La cabecera del sitio (la que vuelve con la prueba entregada) marca su
+  // enlace activo mirando la ruta.
+  usePathname: () => "/examen/x1/CE",
 }));
 // lib/examen/paraHacer.ts importa lib/db (prisma) al cargarse; sin este
 // doble, cargar el módulo real revienta por falta de DATABASE_URL (no hay
@@ -80,21 +83,21 @@ vi.mock("@/app/examen/acciones", () => ({
   // hacer-escrita.tsx revienta al leer una exportación que no existe.
   guardarEscritoAccion: vi.fn(),
 }));
-// Las dos pantallas del profesor (app/corregir/...) solo leen: escribir es
+// Las dos pantallas del profesor (app/(sitio)/pendientes/...) solo leen: escribir es
 // cosa de guardarCorreccionAccion, doblada aparte para no arrastrar
 // lib/examen/corregir.ts entero (que sí toca prisma) dentro de acciones.ts.
 vi.mock("@/lib/examen/corregir", () => ({
   escritosPorCorregir: dobles.escritosPorCorregir,
   escritoParaCorregir: dobles.escritoParaCorregir,
 }));
-// La ficha (app/examenes/[id]/hoja/...) también solo lee: dobla su única
+// La ficha (app/(sitio)/examenes/[id]/hoja/...) también solo lee: dobla su única
 // lectura, igual que las dos de arriba, para no arrastrar prisma aquí.
 vi.mock("@/lib/examen/hoja", () => ({ hojaDeRespuestas: dobles.hojaDeRespuestas }));
-vi.mock("@/app/corregir/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
+vi.mock("@/app/(sitio)/pendientes/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
 
 import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
-import Cola from "@/app/corregir/page";
-import PantallaDeCorregir from "@/app/corregir/[intentoId]/page";
+import Cola from "@/app/(sitio)/pendientes/page";
+import PantallaDeCorregir from "@/app/(sitio)/pendientes/[intentoId]/page";
 
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
 
@@ -834,28 +837,50 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("Se entregó sola");
   });
 
-  // Mutación que la mata: quitar <VolverAInicio> del armazón, que es como salió
-  // la entrega: el sitio no tiene cabecera común, así que sin este enlace la
-  // pantalla del examen es un callejón y al terminar la lectura no hay forma de
-  // llegar a la auditiva salvo el botón de atrás. Lo cazó el profesor haciendo
-  // la aceptación, con la lectura ya entregada y sin saber cómo seguir.
-  it("las cuatro caras tienen salida a Inicio", async () => {
-    for (const cara of [sinEmpezar(), haciendoAuditiva(), entregadaCon19De25(), enLibre()]) {
+  // Mutación que la mata: quitar la CabeceraExamen de una cara, o no pintar
+  // la cabecera del sitio en la entregada. Ninguna cara puede quedarse sin
+  // salida: es el fallo que cazó el profesor en la aceptación de la 3c.
+  // Mutación que la mata (la escrita): decidir la cabecera del sitio con
+  // `estado === "ENTREGADA"` en vez de estaEntregada (ESPERANDO se queda fuera).
+  it("ninguna cara se queda sin salida", async () => {
+    for (const cara of [sinEmpezar(), haciendoAuditiva(), enLibre()]) {
+      expect(await pintarPagina(cara)).toContain(">Salir<");
+    }
+    const entregada = await pintarPagina(entregadaCon19De25());
+    expect(entregada).toContain("data-menu");
+    expect(entregada).toContain('href="/"');
+    // La escrita entregada y sin firmar vive en otra cara (ESPERANDO), que
+    // también tiene que devolver la cabecera del sitio.
+    expect(await pintarPagina(escritaEsperando())).toContain("data-menu");
+  });
+
+  // Mutación que la mata: quitar el reloj de la cabecera, o pintar un segundo
+  // reloj en el cuerpo. En pantalla solo puede haber uno.
+  it("con reloj, hay uno y solo uno; sin reloj, ninguno", async () => {
+    expect((await pintarPagina(haciendoLectura())).match(/data-reloj=/g) ?? []).toHaveLength(1);
+    expect(await pintarPagina(haciendoAuditiva())).not.toContain("data-reloj=");
+    expect(await pintarPagina(sinEmpezar())).not.toContain("data-reloj=");
+  });
+
+  // Mutación que la mata: `preguntar={false}` en PruebaHaciendo (o en
+  // EscritaHaciendo, o en PruebaLibre). Con la prueba en curso Salir pregunta
+  // siempre: un enlace directo a Inicio se saltaría la ventana.
+  it("con la prueba en curso, Salir pregunta y no es un enlace a Inicio", async () => {
+    for (const cara of [haciendoLectura(), haciendoAuditiva(), enLibre(), escritaParaHacer(), escritaLibreHaciendo()]) {
       const html = await pintarPagina(cara);
-      expect(html).not.toBe("");
-      expect(html).toContain('href="/"');
-      expect(html).toContain("Volver a Inicio");
+      expect(html).not.toContain('href="/"');
+      expect(html).toContain("¿Seguro que quieres salir?");
     }
   });
 
-  // Mutación que la mata: enseñar el aviso del reloj siempre, o no enseñarlo
-  // nunca. Irse a Inicio a media lectura es legal —las respuestas ya están
-  // guardadas—, pero irse creyendo que el reloj se para, no.
-  it("solo avisa de que el reloj sigue cuando hay reloj y está empezada", async () => {
-    expect(await pintarPagina(haciendoLectura())).toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(haciendoAuditiva())).not.toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(sinEmpezar())).not.toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(entregadaCon19De25())).not.toContain("El reloj sigue corriendo.");
+  // Mutación que la mata: pintar la cabecera del sitio mientras se hace la
+  // prueba (el menú distrae y el Inicio queda a un clic sin pregunta).
+  // Mutación que la mata (la escrita): `|| leida.prueba === "EE"` al decidir
+  // la cabecera del sitio en la página.
+  it("sin entregar no hay menú del sitio", async () => {
+    for (const cara of [sinEmpezar(), haciendoLectura(), enLibre(), escritaParaHacer()]) {
+      expect(await pintarPagina(cara)).not.toContain("data-menu");
+    }
   });
 
   // Mutación que la mata: dejar el reloj en la pantalla del modo libre.
@@ -1382,26 +1407,22 @@ describe("la escrita", () => {
     expect(html).toContain("sin reloj");
   });
 
-  // Mutación que la mata: encaminar la escrita ANTES del <VolverAInicio> de
-  // HacerPrueba y no poner ninguna salida en su sitio. Es exactamente el fallo
-  // que el profesor cazó en la lectura: la pantalla se queda sin salida y solo
-  // se sale con el botón de atrás del navegador.
-  it("las cuatro caras de la escrita tienen salida a Inicio", () => {
-    for (const cara of [escritaSinEmpezar(), escritaParaHacer(), escritaEsperando(), escritaCorregida()]) {
-      const html = renderToStaticMarkup(<HacerPrueba prueba={cara} />);
-      expect(html).toContain('href="/"');
-      expect(html).toContain("Volver a Inicio");
+  // Mutación que la mata: quitar la CabeceraExamen de una cara de la escrita.
+  it("las caras sin entregar de la escrita tienen su Salir", () => {
+    for (const cara of [escritaSinEmpezar(), escritaParaHacer(), escritaLibreHaciendo()]) {
+      expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).toContain(">Salir<");
     }
   });
 
-  // Mutación que la mata: avisar del reloj siempre (o nunca). Irse a Inicio a
-  // media redacción es legal —el borrador ya está guardado—, pero irse creyendo
-  // que el reloj se para, no.
-  it("solo avisa de que el reloj sigue cuando de verdad corre", () => {
-    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("El reloj sigue corriendo.");
-    for (const cara of [escritaSinEmpezar(), escritaEsperando(), escritaCorregida(), escritaLibreHaciendo()]) {
-      expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).not.toContain("El reloj sigue corriendo.");
-    }
+  // Mutación que la mata: no pasar `escrita` a la cabecera, o pasárselo en libre.
+  it("solo la escrita con reloj avisa al salir de que queda apuntado", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("Salir queda apuntado");
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaLibreHaciendo()} />)).not.toContain("Salir queda apuntado");
+  });
+
+  // Mutación que la mata: dejar el <Reloj> también en el cuerpo de la escrita.
+  it("la escrita con reloj tiene uno solo", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />).match(/data-reloj=/g) ?? []).toHaveLength(1);
   });
 
   // Mutación que la mata: dar por corregida la escrita con solo la firma (o con
@@ -1627,7 +1648,7 @@ describe("Por corregir: la cola del profesor", () => {
   // dirección.
   it("la cola no se le enseña a un estudiante", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(ana); // ESTUDIANTE
-    const { default: Cola } = await import("@/app/corregir/page");
+    const { default: Cola } = await import("@/app/(sitio)/pendientes/page");
     await expect(Cola()).rejects.toThrow();
     expect(dobles.escritosPorCorregir).not.toHaveBeenCalled();
   });
@@ -1656,14 +1677,24 @@ describe("Por corregir: la cola del profesor", () => {
   });
 
   // Mutación que la mata: enlazar todas las filas al mismo sitio, o a
-  // `/corregir` sin el id.
+  // `/pendientes` sin el id.
   it("cada fila enlaza a su propia corrección", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.escritosPorCorregir.mockResolvedValue([
       { intentoId: "i7", examenId: "ex1", titulo: "Examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 0 },
     ]);
     const html = renderToStaticMarkup(await Cola());
-    expect(html).toContain('href="/corregir/i7"');
+    expect(html).toContain('href="/pendientes/i7"');
+  });
+
+  // Mutación que la mata: quitar <RefrescarAlEntrar /> de la página. El
+  // layout de app/(sitio)/ no se repinta al navegar, y la cola crece por
+  // caminos que no pasan por firmar (un estudiante entrega): sin el refresco,
+  // el número de la cabecera y la lista no coincidirían al llegar aquí.
+  it("al entrar pide un refresco, para que el número de la cabecera cuadre", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("data-refrescar");
   });
 
   // Mutación que la mata: cerrar las que se pasaron de hora desde esta
@@ -1676,7 +1707,7 @@ describe("Por corregir: la cola del profesor", () => {
   });
 });
 
-describe("La pantalla de corregir una redacción: /corregir/[intentoId]", () => {
+describe("La pantalla de corregir una redacción: /pendientes/[intentoId]", () => {
   // Mutación que la mata: quitar exigirProfesor de esta página también. Es la
   // segunda mitad de la misma puerta que la cola: sin ella, un estudiante que
   // adivine el id de un compañero vería su texto entero y podría firmarle
@@ -1962,7 +1993,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   // la puerta por la que la clave del examen sale hacia un estudiante.
   it("la ficha no se le enseña a un estudiante", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(ana);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     // El `rejects.toThrow()` de aquí abajo NO basta solo: sin `exigirProfesor`,
     // `hojaDeRespuestas` (doblada, sin mockResolvedValue) da `undefined`, y
     // `if (!hoja) notFound()` también tira — la pantalla seguiría rechazando
@@ -1978,7 +2009,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   // hasta llamar a hojaDeRespuestas con un valor que no es una Prueba.
   it("una prueba que no existe contesta 404 sin llegar a mirar la base", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "XX" }) })).rejects.toThrow("NOT_FOUND");
     expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
   });
@@ -1989,7 +2020,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("sin ficha todavía (no entregada) contesta 404", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.hojaDeRespuestas.mockResolvedValue(null);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow("NOT_FOUND");
   });
 
@@ -1998,7 +2029,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("arriba: el nombre, el examen, la prueba y la nota congelada", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     const html = renderToStaticMarkup(
       await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
     );
@@ -2016,7 +2047,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   it("lo que dejó en blanco sale dicho como «sin contestar»", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
     const html = renderToStaticMarkup(
       await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
     );
@@ -2027,7 +2058,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
   // `marcada !== correcta`, o ponerlo también en la que acertó.
   it("la fila donde falló sale marcada en rojo; la que acertó, no", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
-    const { default: Hoja } = await import("@/app/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
 
     dobles.hojaDeRespuestas.mockResolvedValue(
       hojaDePrueba({ filas: [{ numero: 7, marcada: "A", correcta: "A" }] }),

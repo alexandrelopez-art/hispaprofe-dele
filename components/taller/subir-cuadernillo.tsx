@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { guardarCuadernilloAccion } from "@/app/examenes/acciones";
+import { guardarCuadernilloAccion } from "@/app/(sitio)/examenes/acciones";
 import { trozosDePdf } from "@/lib/taller/pdf-en-navegador";
 
 export function SubirCuadernillo({ examenId }: { examenId: string }) {

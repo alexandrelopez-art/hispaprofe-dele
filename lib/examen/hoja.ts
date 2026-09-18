@@ -22,7 +22,7 @@ export type HojaDeRespuestas = {
  * obvias:
  *
  * - No hay ficha de la escrita. `null` si `prueba === "EE"`, sin llegar a
- *   mirar nada más: la escrita se corrige en /corregir, que es otra
+ *   mirar nada más: la escrita se corrige en /pendientes, que es otra
  *   pantalla, y una entregada sin firmar (ESPERANDO) no tiene nota congelada
  *   que enseñar. Puesta aquí, y no solo en quien pinta el enlace, para que
  *   nadie pueda esquivarla escribiendo la dirección a mano.

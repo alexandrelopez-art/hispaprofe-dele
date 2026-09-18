@@ -55,7 +55,7 @@ import {
   salirDeLaEscritaAccion,
   volverALaEscritaAccion,
 } from "@/app/examen/acciones";
-import { guardarCorreccionAccion } from "@/app/corregir/acciones";
+import { guardarCorreccionAccion } from "@/app/(sitio)/pendientes/acciones";
 
 const ANA: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
 const PROFE: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
@@ -279,8 +279,12 @@ describe("guardarCorreccionAccion", () => {
 
     await guardarCorreccionAccion("i1", []);
 
-    expect(dobles.revalidatePath).toHaveBeenCalledWith("/corregir");
-    expect(dobles.revalidatePath).toHaveBeenCalledWith("/corregir/i1");
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/pendientes");
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/pendientes/i1");
+    // Mutación que la mata: quitar el revalidatePath de la cabecera. El
+    // número de Pendientes se cuenta en el layout, que no se repinta al
+    // navegar: sin esto seguiría diciendo lo de antes de firmar.
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 
   // Mutación que la mata: comerse el error que devuelva guardarCorreccion

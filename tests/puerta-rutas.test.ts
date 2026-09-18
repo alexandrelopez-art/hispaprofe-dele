@@ -16,7 +16,7 @@ describe("qué rutas exigen sesión", () => {
   // `ABIERTAS.some(...)`. Ninguna de estas rutas está en ABIERTAS, así que sin
   // la negación las tres pasarían a devolver false (abiertas) en vez de true.
   it("cierra todo lo demás", () => {
-    expect(exigeSesion("/personas")).toBe(true);
+    expect(exigeSesion("/estudiantes")).toBe(true);
     expect(exigeSesion("/examenes")).toBe(true);
     expect(exigeSesion("/pruebas/subir")).toBe(true);
   });
@@ -45,7 +45,7 @@ describe("qué rutas exigen sesión", () => {
   // `ruta.startsWith("//")`: cualquier ruta con doble barra delante quedaba
   // abierta. Comprobado a mano: con el código viejo estas dos se ponían rojas.
   it("una barra doble delante no cuela como la portada", () => {
-    expect(exigeSesion("//personas")).toBe(true);
+    expect(exigeSesion("//estudiantes")).toBe(true);
     expect(exigeSesion("//api/ficheros/permiso")).toBe(true);
   });
 });

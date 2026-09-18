@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // El formulario importa la acción, y la acción la base: aquí no hay base.
-vi.mock("@/app/examenes/acciones", () => ({ guardarTareaAccion: vi.fn(), rellenarTareaConIAAccion: vi.fn() }));
+vi.mock("@/app/(sitio)/examenes/acciones", () => ({ guardarTareaAccion: vi.fn(), rellenarTareaConIAAccion: vi.fn() }));
 
 import { reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";

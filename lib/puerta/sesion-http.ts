@@ -21,6 +21,9 @@ async function personaActual(ahora: Date): Promise<Persona | null> {
  * con el código HTTP que toque (401 sin sesión, 403 con sesión pero sin
  * permiso). Reutiliza la misma comprobación de cookie que exigirPersona, sin
  * duplicarla.
+ *
+ * También la usa el layout de app/(sitio)/ para pintar la cabecera: tampoco
+ * puede redirigir, porque `/` sin sesión es pública y el layout la envuelve.
  */
 export async function personaDeLaPeticion(): Promise<Persona | null> {
   return personaActual(new Date());

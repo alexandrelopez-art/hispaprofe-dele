@@ -2,6 +2,7 @@ import Link from "next/link";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { escritosPorCorregir } from "@/lib/examen/corregir";
 import { CAJA } from "@/components/examen/piezas";
+import { RefrescarAlEntrar } from "@/components/carcasa/refrescar-al-entrar";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /** «3 días esperando», «1 día esperando». Es el único dato que dice por dónde
@@ -18,7 +19,7 @@ function diasEnPalabras(dias: number): string {
  * 3c).
  *
  * `exigirProfesor` es media puerta: la otra mitad está en
- * app/corregir/[intentoId]/page.tsx y en guardarCorreccionAccion. Las tres
+ * app/(sitio)/pendientes/[intentoId]/page.tsx y en guardarCorreccionAccion. Las tres
  * hacen falta porque `lib/examen/corregir.ts` no comprueba papeles.
  */
 export default async function Cola() {
@@ -27,11 +28,9 @@ export default async function Cola() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
-      <nav>
-        <Link href="/" className="text-hp-600 underline">
-          ← Inicio
-        </Link>
-      </nav>
+      {/* El número de la cabecera sale del layout, que no se repinta al
+          navegar: este refresco lo pone al día con la lista de abajo. */}
+      <RefrescarAlEntrar />
       <header>
         <h1 className="text-2xl font-bold">Por corregir</h1>
       </header>
@@ -42,7 +41,7 @@ export default async function Cola() {
         <ul className="flex flex-col gap-4">
           {cola.map((c) => (
             <li key={c.intentoId}>
-              <Link href={`/corregir/${c.intentoId}`} className={CAJA}>
+              <Link href={`/pendientes/${c.intentoId}`} className={CAJA}>
                 <span className="font-bold">{c.persona.nombre}</span>
                 <span className="text-tinta-suave">{c.titulo}</span>
                 <span className="text-sm text-tinta-suave">

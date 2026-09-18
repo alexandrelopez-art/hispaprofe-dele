@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #f4f9fc; }
+    a { color: #0f567f; }
+    a:hover { color: #0f6fa8; }
+  </style>
+  <script src="./enye.js"></script>
+</helmet>
+<div style="font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #143a4f; max-width: 1000px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 44px;">
+
+  <nav style="display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 15px; font-weight: 700; padding: 14px 18px; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25);">
+    <a href="00-Indice.dc.html">Índice</a>
+    <a href="01-Carcasa.dc.html">Carcasa</a>
+    <a href="02-Pantallas-Estudiante.dc.html">Pantallas · Estudiante</a>
+    <a href="03-Pantallas-Profesor.dc.html">Pantallas · Profesor</a>
+    <span style="color: #0f567f; text-decoration: underline;">Kit de piezas</span>
+    <a href="05-Nota-de-construccion.dc.html">Nota de construcción</a>
+  </nav>
+
+  <header style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #0b8ad1;">04 · Kit de piezas</span>
+    <h1 style="font-size: 28px; margin: 0;">Las piezas que se repiten</h1>
+    <p style="font-size: 15px; line-height: 1.6; color: #5a7a8c; margin: 0; max-width: 700px;">Diez componentes. Nombres en español, como el CSS. Un botón azul con letra blanca dio problemas de lectura antes — aquí el primario usa <code>hp-700</code>, no <code>hp-400</code>.</p>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Boton</code></h2>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+      <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 15px; padding: 12px 22px; border-radius: 12px; cursor: pointer;">Primario</button>
+      <button style="background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 800; font-size: 15px; padding: 12px 22px; border-radius: 12px; cursor: pointer;">Secundario</button>
+      <button style="background: #c53a55; color: #fff; border: none; font-weight: 800; font-size: 15px; padding: 12px 22px; border-radius: 12px; cursor: pointer;">Peligro</button>
+      <button disabled style="background: #c9ebfc; color: #fff; border: none; font-weight: 800; font-size: 15px; padding: 12px 22px; border-radius: 12px; cursor: not-allowed;">Deshabilitado</button>
+      <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 15px; padding: 12px 22px; border-radius: 12px; opacity: .75; display: flex; align-items: center; gap: 8px;"><span style="width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; display: inline-block;"></span>Cargando</button>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;"><code>variante="primario" | "secundario" | "peligro"</code>, <code>estado="reposo" | "cargando"</code>, <code>disabled</code>. Foco visible: anillo de 2px en <code>hp-400</code> con 2px de separación, en los tres.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Enlace</code></h2>
+    <div style="display: flex; gap: 20px; font-size: 15px;">
+      <a href="#" style="color: #0f567f; font-weight: 700; text-decoration: underline;">Enlace normal</a>
+      <a href="#" style="color: #5a7a8c; font-weight: 700; text-decoration: underline;">Enlace visitado / discreto</a>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Tarjeta</code></h2>
+    <div style="background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25); max-width: 340px;">
+      <div style="font-weight: 800; font-size: 16px;">Título de la tarjeta</div>
+      <div style="font-size: 14px; color: #5a7a8c; margin-top: 6px;">Contenido de apoyo, dos líneas como mucho.</div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;"><code>radius-tarjeta</code> (16px), <code>shadow-tarjeta</code>. Sin borde — la sombra basta para separarla del fondo.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Aviso</code></h2>
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 480px;">
+      <div style="background: #eaf7fe; color: #0f567f; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 600;">Información — la fecha tope es blanda, se puede entregar tarde.</div>
+      <div style="background: #e4f5ef; color: #147a70; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 600;">Éxito — se ha guardado tu redacción.</div>
+      <div style="background: #fde8e8; color: #b42b2b; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 600;">Error — no se ha podido enviar. Inténtalo otra vez.</div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;"><code>tipo="info" | "exito" | "error"</code>. Sin icono decorativo — el color y el texto ya distinguen.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>EtiquetaEstado</code></h2>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <span style="background: #eaf7fe; color: #0f567f; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px;">En curso</span>
+      <span style="background: #e4f5ef; color: #147a70; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px;">Hecha / Publicado</span>
+      <span style="background: #fff8d6; color: #143a4f; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px;">Sin empezar / Borrador</span>
+      <span style="background: #fdeaef; color: #c53a55; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px;">Se pasó el plazo / No preparada</span>
+      <span style="background: #fde8e8; color: #b42b2b; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px;">Error</span>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Cinco tonos fijos, nunca color libre: <code>info</code>, <code>exito</code>, <code>espera</code>, <code>aviso</code>, <code>error</code>.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Campo</code></h2>
+    <div style="display: flex; flex-direction: column; gap: 14px; max-width: 340px;">
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700;">Correo electrónico
+        <input type="text" placeholder="tú@correo.es" style="padding: 10px 12px; border-radius: 10px; border: 1.5px solid #c9ebfc; font-family: inherit; font-size: 14px; font-weight: 400; color: #143a4f;" />
+      </label>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; color: #b42b2b;">Nombre
+        <input type="text" value="D" style="padding: 10px 12px; border-radius: 10px; border: 1.5px solid #d93a3a; font-family: inherit; font-size: 14px; font-weight: 400; color: #143a4f;" />
+        <span style="font-size: 12px; font-weight: 600; color: #b42b2b;">Escribe al menos dos letras.</span>
+      </label>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Casilla</code></h2>
+    <div style="display: flex; gap: 20px; font-size: 14px; align-items: center;">
+      <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" /> Sin marcar</label>
+      <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" checked /> Marcada</label>
+      <label style="display: flex; align-items: center; gap: 8px; color: #b42b2b;"><input type="checkbox" /> Con error</label>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>Desplegable</code></h2>
+    <select style="max-width: 260px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #c9ebfc; font-family: inherit; font-size: 14px; color: #143a4f; background: #fff;">
+      <option>Comprensión de lectura</option>
+      <option>Comprensión auditiva</option>
+      <option>Expresión escrita</option>
+    </select>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>EncabezadoPagina</code></h2>
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid #c9ebfc; max-width: 700px;">
+      <div>
+        <div style="font-size: 12px; color: #5a7a8c;">Exámenes</div>
+        <h3 style="font-size: 22px; margin: 4px 0 0;">Examen 3 — Modelo oficial B1</h3>
+      </div>
+      <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 10px 18px; border-radius: 10px;">Publicar</button>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="font-size: 18px; margin: 0;"><code>BloqueVacio</code></h2>
+    <div style="background: #fff; border-radius: 14px; padding: 32px 20px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; max-width: 360px;">
+      <div style="width: 56px; height: 56px; border-radius: 14px; background: repeating-linear-gradient(135deg, #eaf7fe, #eaf7fe 8px, #f4f9fc 8px, #f4f9fc 16px);"></div>
+      <div style="font-weight: 800; font-size: 15px;">No tienes nada pendiente</div>
+      <div style="font-size: 13px; color: #5a7a8c;">Título corto + una línea de apoyo. Nunca solo un icono.</div>
+    </div>
+  </section>
+
+</div>
+
+</x-dc>
+</body>
+</html>
