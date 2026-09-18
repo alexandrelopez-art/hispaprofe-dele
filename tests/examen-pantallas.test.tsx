@@ -53,6 +53,9 @@ vi.mock("next/navigation", () => ({
   // él en el doble, un render que llegara a dispararlo reventaría por
   // `push is not a function` en vez de fallar por lo que la prueba mira.
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  // La cabecera del sitio (la que vuelve con la prueba entregada) marca su
+  // enlace activo mirando la ruta.
+  usePathname: () => "/examen/x1/CE",
 }));
 // lib/examen/paraHacer.ts importa lib/db (prisma) al cargarse; sin este
 // doble, cargar el módulo real revienta por falta de DATABASE_URL (no hay
@@ -834,28 +837,43 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("Se entregó sola");
   });
 
-  // Mutación que la mata: quitar <VolverAInicio> del armazón, que es como salió
-  // la entrega: el sitio no tiene cabecera común, así que sin este enlace la
-  // pantalla del examen es un callejón y al terminar la lectura no hay forma de
-  // llegar a la auditiva salvo el botón de atrás. Lo cazó el profesor haciendo
-  // la aceptación, con la lectura ya entregada y sin saber cómo seguir.
-  it("las cuatro caras tienen salida a Inicio", async () => {
-    for (const cara of [sinEmpezar(), haciendoAuditiva(), entregadaCon19De25(), enLibre()]) {
+  // Mutación que la mata: quitar la CabeceraExamen de una cara, o no pintar
+  // la cabecera del sitio en la entregada. Ninguna cara puede quedarse sin
+  // salida: es el fallo que cazó el profesor en la aceptación de la 3c.
+  it("ninguna cara se queda sin salida", async () => {
+    for (const cara of [sinEmpezar(), haciendoAuditiva(), enLibre()]) {
+      expect(await pintarPagina(cara)).toContain(">Salir<");
+    }
+    const entregada = await pintarPagina(entregadaCon19De25());
+    expect(entregada).toContain("data-menu");
+    expect(entregada).toContain('href="/"');
+  });
+
+  // Mutación que la mata: quitar el reloj de la cabecera, o pintar un segundo
+  // reloj en el cuerpo. En pantalla solo puede haber uno.
+  it("con reloj, hay uno y solo uno; sin reloj, ninguno", async () => {
+    expect((await pintarPagina(haciendoLectura())).match(/data-reloj=/g) ?? []).toHaveLength(1);
+    expect(await pintarPagina(haciendoAuditiva())).not.toContain("data-reloj=");
+    expect(await pintarPagina(sinEmpezar())).not.toContain("data-reloj=");
+  });
+
+  // Mutación que la mata: `preguntar={false}` en PruebaHaciendo (o en
+  // EscritaHaciendo, o en PruebaLibre). Con la prueba en curso Salir pregunta
+  // siempre: un enlace directo a Inicio se saltaría la ventana.
+  it("con la prueba en curso, Salir pregunta y no es un enlace a Inicio", async () => {
+    for (const cara of [haciendoLectura(), haciendoAuditiva(), enLibre(), escritaParaHacer(), escritaLibreHaciendo()]) {
       const html = await pintarPagina(cara);
-      expect(html).not.toBe("");
-      expect(html).toContain('href="/"');
-      expect(html).toContain("Volver a Inicio");
+      expect(html).not.toContain('href="/"');
+      expect(html).toContain("¿Seguro que quieres salir?");
     }
   });
 
-  // Mutación que la mata: enseñar el aviso del reloj siempre, o no enseñarlo
-  // nunca. Irse a Inicio a media lectura es legal —las respuestas ya están
-  // guardadas—, pero irse creyendo que el reloj se para, no.
-  it("solo avisa de que el reloj sigue cuando hay reloj y está empezada", async () => {
-    expect(await pintarPagina(haciendoLectura())).toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(haciendoAuditiva())).not.toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(sinEmpezar())).not.toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(entregadaCon19De25())).not.toContain("El reloj sigue corriendo.");
+  // Mutación que la mata: pintar la cabecera del sitio mientras se hace la
+  // prueba (el menú distrae y el Inicio queda a un clic sin pregunta).
+  it("sin entregar no hay menú del sitio", async () => {
+    for (const cara of [sinEmpezar(), haciendoLectura(), enLibre()]) {
+      expect(await pintarPagina(cara)).not.toContain("data-menu");
+    }
   });
 
   // Mutación que la mata: dejar el reloj en la pantalla del modo libre.
@@ -1382,26 +1400,22 @@ describe("la escrita", () => {
     expect(html).toContain("sin reloj");
   });
 
-  // Mutación que la mata: encaminar la escrita ANTES del <VolverAInicio> de
-  // HacerPrueba y no poner ninguna salida en su sitio. Es exactamente el fallo
-  // que el profesor cazó en la lectura: la pantalla se queda sin salida y solo
-  // se sale con el botón de atrás del navegador.
-  it("las cuatro caras de la escrita tienen salida a Inicio", () => {
-    for (const cara of [escritaSinEmpezar(), escritaParaHacer(), escritaEsperando(), escritaCorregida()]) {
-      const html = renderToStaticMarkup(<HacerPrueba prueba={cara} />);
-      expect(html).toContain('href="/"');
-      expect(html).toContain("Volver a Inicio");
+  // Mutación que la mata: quitar la CabeceraExamen de una cara de la escrita.
+  it("las caras sin entregar de la escrita tienen su Salir", () => {
+    for (const cara of [escritaSinEmpezar(), escritaParaHacer(), escritaLibreHaciendo()]) {
+      expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).toContain(">Salir<");
     }
   });
 
-  // Mutación que la mata: avisar del reloj siempre (o nunca). Irse a Inicio a
-  // media redacción es legal —el borrador ya está guardado—, pero irse creyendo
-  // que el reloj se para, no.
-  it("solo avisa de que el reloj sigue cuando de verdad corre", () => {
-    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("El reloj sigue corriendo.");
-    for (const cara of [escritaSinEmpezar(), escritaEsperando(), escritaCorregida(), escritaLibreHaciendo()]) {
-      expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).not.toContain("El reloj sigue corriendo.");
-    }
+  // Mutación que la mata: no pasar `escrita` a la cabecera, o pasárselo en libre.
+  it("solo la escrita con reloj avisa al salir de que queda apuntado", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("Salir queda apuntado");
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaLibreHaciendo()} />)).not.toContain("Salir queda apuntado");
+  });
+
+  // Mutación que la mata: dejar el <Reloj> también en el cuerpo de la escrita.
+  it("la escrita con reloj tiene uno solo", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />).match(/data-reloj=/g) ?? []).toHaveLength(1);
   });
 
   // Mutación que la mata: dar por corregida la escrita con solo la firma (o con

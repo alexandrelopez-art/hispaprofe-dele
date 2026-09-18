@@ -3,6 +3,9 @@ import { exigirPersona } from "@/lib/puerta/sesion-http";
 import { esPrueba } from "@/lib/dele/estructura";
 import { cerrarLasQueSePasaron, registrarLasVueltas } from "@/lib/examen/hacer";
 import { pruebaParaHacer } from "@/lib/examen/paraHacer";
+import { estaEntregada } from "@/lib/examen/motor";
+import { usaCabeceraDelExamen } from "@/lib/carcasa/menu";
+import { Cabecera } from "@/components/carcasa/cabecera";
 import { HacerPrueba } from "@/components/examen/hacer-prueba";
 
 export default async function PantallaDelExamen({
@@ -36,5 +39,17 @@ export default async function PantallaDelExamen({
   await registrarLasVueltas({ personaId: persona.id, examenId: id }, new Date());
   const leida = await pruebaParaHacer(id, prueba, persona.id, new Date());
   if (!leida) notFound();
-  return <HacerPrueba prueba={leida} />;
+  // Entregada, lo que se ve es un resultado: vuelve la cabecera del sitio.
+  // Sin entregar, cada cara pinta la del examen (components/carcasa/cabecera-examen.tsx).
+  // Se espera aquí como función y no como <Cabecera> porque es asíncrona (lee
+  // los Pendientes del profesor): así la página entrega el árbol ya resuelto,
+  // igual en Next que en las pruebas, que la pintan con renderToStaticMarkup.
+  const conLaDelSitio = !usaCabeceraDelExamen(estaEntregada(leida.estado));
+  const cabecera = conLaDelSitio ? await Cabecera({ persona }) : null;
+  return (
+    <>
+      {cabecera}
+      <HacerPrueba prueba={leida} />
+    </>
+  );
 }

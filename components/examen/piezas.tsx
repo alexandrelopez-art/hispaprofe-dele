@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { TareaParaHacer } from "@/lib/examen/paraHacer";
 
 /**
@@ -79,30 +78,5 @@ export function PestanasDeTarea({
         </button>
       ))}
     </div>
-  );
-}
-
-/**
- * La salida. Sin esto la pantalla del examen es un callejón: no hay cabecera
- * común en el sitio, así que al terminar la lectura no había forma de volver
- * a Inicio para empezar la auditiva más que con el botón de atrás del
- * navegador. Lo cazó el profesor en la aceptación, no las pruebas.
- *
- * Va en las cuatro caras de las tres pruebas, también mientras se hace una con
- * reloj: lo que NO se puede hacer es irse creyendo que el reloj se para, y por
- * eso ahí lo dice. Es un enlace y no un formulario porque no cambia nada: las
- * respuestas ya están guardadas en el servidor según se marcan, y el borrador
- * de la escrita se descarga al desmontar esta pantalla (ver `useBorradores`).
- */
-export function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
-  return (
-    <p>
-      <Link href="/" className="text-hp-600 underline">
-        ← Volver a Inicio
-      </Link>
-      {haciendoConReloj && (
-        <span className="ml-2 text-sm text-tinta-suave">El reloj sigue corriendo.</span>
-      )}
-    </p>
   );
 }

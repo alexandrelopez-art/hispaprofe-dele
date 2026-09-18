@@ -14,8 +14,9 @@ import {
 } from "@/app/examen/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
-import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, enLista, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
+import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, enLista, PestanasDeTarea } from "@/components/examen/piezas";
 import { Reloj } from "@/components/examen/reloj";
+import { CabeceraExamen } from "@/components/carcasa/cabecera-examen";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /** Lo que el estudiante lleva escrito en UNA tarea: su folio y, si la tarea
@@ -268,10 +269,10 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
   // La descarga: lo pendiente se manda por DOS caminos, y cada uno cubre una
   // salida. Qué cubre cada cosa, exactamente:
   //
-  // - El desmontaje, que NO es raro: «← Volver a Inicio» es un <Link>, o sea una
-  //   navegación de cliente —la pantalla se desmonta, la aplicación sigue viva—,
-  //   y es justo la salida que la pantalla anima a usar. Sin esto, los hasta dos
-  //   segundos pendientes no llegaban nunca.
+  // - El desmontaje, que NO es raro: el Salir de la cabecera del examen es un
+  //   router.push, o sea una navegación de cliente —la pantalla se desmonta, la
+  //   aplicación sigue viva—, y es justo la salida que la pantalla anima a usar.
+  //   Sin esto, los hasta dos segundos pendientes no llegaban nunca.
   // - `pagehide`: cerrar la pestaña, recargar o navegar fuera del sitio, donde
   //   ya no va a haber desmontaje de React que valga.
   //
@@ -386,9 +387,9 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     return () => document.removeEventListener("visibilitychange", alCambiarLaVista);
   }, [conReloj, examenId, avisarDeLaSalida, descargar]);
 
-  // «← Volver a Inicio» también es salirse, y también se apunta: es un <Link>,
-  // o sea una navegación de cliente que desmonta esta pantalla sin disparar
-  // `visibilitychange` ni `pagehide`. Un registro que no viera la puerta más
+  // El Salir de la cabecera del examen también es salirse, y también se apunta:
+  // es un router.push, también navegación de cliente, que desmonta esta
+  // pantalla sin disparar `visibilitychange` ni `pagehide`. Un registro que no viera la puerta más
   // cómoda de la pantalla no sería un registro honesto. `pagehide` cubre lo
   // otro: cerrar la pestaña, recargar o irse fuera del sitio.
   //
@@ -401,7 +402,7 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     return () => window.removeEventListener("pagehide", avisarDeLaSalida);
   }, [conReloj, avisarDeLaSalida]);
 
-  // El aviso de «Volver a Inicio», atado al desmontaje DE VERDAD y no a este
+  // El aviso del Salir de la cabecera del examen, atado al desmontaje DE VERDAD y no a este
   // efecto: con dependencias vacías, la limpieza de aquí solo corre cuando el
   // componente se desmonta, nunca cuando el efecto de arriba se rearma por un
   // cambio de identidad en `avisarDeLaSalida` o `conReloj`. Antes la llamada
@@ -455,37 +456,41 @@ function AvisoDeLaEscrita({
   // preguntarlo dos veces y poder contestarlo distinto.
   const sinReloj = prueba.minutos === null;
   return (
-    <section className={CAJA}>
-      <h1 className="text-xl font-bold">
-        {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
-      </h1>
-      {sinReloj ? (
-        <p>
-          Esto es práctica: escribes <strong>sin reloj</strong> y lo mandas cuando quieras. Cuando lo mandes, ya no
-          se puede cambiar.
-        </p>
-      ) : (
-        <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
-      )}
-      <p>Lo que escribas se va guardando mientras escribes. La nota no sale al entregar: la pone tu profesor.</p>
-      {/* El registro de salidas, y solo en el examen de verdad: en práctica libre
-          no se apunta nada. Se dice ANTES de «Empezar» porque la disuasión ES
-          saberlo: un registro que nadie sabe que existe no disuade de nada, solo
-          delata. Y se dice sin miedo — no se borra nada, no se pierde nada: es
-          una regla, no un castigo. */}
-      {!sinReloj && (
-        <p>
-          <strong>No te salgas de esta pantalla mientras escribes.</strong>{" "}
-          <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil, cierras esta pestaña o vuelves a Inicio, queda apuntado.</span>{" "}
-          <span>Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.</span>{" "}
-          <span>No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo mientras estás fuera.</span>
-        </p>
-      )}
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
-      <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
-        Empezar
-      </button>
-    </section>
+    <>
+      {/* Antes de empezar no hay nada en juego: Salir es un enlace, sin pregunta. */}
+      <CabeceraExamen prueba={prueba.prueba} tarea={null} reloj={null} preguntar={false} />
+      <section className={CAJA}>
+        <h1 className="text-xl font-bold">
+          {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
+        </h1>
+        {sinReloj ? (
+          <p>
+            Esto es práctica: escribes <strong>sin reloj</strong> y lo mandas cuando quieras. Cuando lo mandes, ya no
+            se puede cambiar.
+          </p>
+        ) : (
+          <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
+        )}
+        <p>Lo que escribas se va guardando mientras escribes. La nota no sale al entregar: la pone tu profesor.</p>
+        {/* El registro de salidas, y solo en el examen de verdad: en práctica libre
+            no se apunta nada. Se dice ANTES de «Empezar» porque la disuasión ES
+            saberlo: un registro que nadie sabe que existe no disuade de nada, solo
+            delata. Y se dice sin miedo — no se borra nada, no se pierde nada: es
+            una regla, no un castigo. */}
+        {!sinReloj && (
+          <p>
+            <strong>No te salgas de esta pantalla mientras escribes.</strong>{" "}
+            <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil, cierras esta pestaña o vuelves a Inicio, queda apuntado.</span>{" "}
+            <span>Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.</span>{" "}
+            <span>No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo mientras estás fuera.</span>
+          </p>
+        )}
+        {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
+        <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
+          Empezar
+        </button>
+      </section>
+    </>
   );
 }
 
@@ -665,14 +670,16 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-4">
-        {conReloj && prueba.segundosQueQuedan !== null && (
-          <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
-        )}
-        {/* El cartelito del guardado, al lado del reloj: es lo que le dice al
-            chico si puede irse tranquilo. Callado hasta que toca algo. */}
-        {cartel && <span className="text-sm text-tinta-suave">{cartel}</span>}
-      </div>
+      <CabeceraExamen
+        prueba={prueba.prueba}
+        tarea={tarea ? { actual: tarea.numero, total: prueba.tareas.length } : null}
+        reloj={conReloj && prueba.segundosQueQuedan !== null ? <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} /> : null}
+        preguntar
+        escrita
+      />
+      {/* El cartelito del guardado, justo bajo la cabecera del reloj: es lo que
+          le dice al chico si puede irse tranquilo. Callado hasta que toca algo. */}
+      {cartel && <p className="text-sm text-tinta-suave">{cartel}</p>}
       {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={alCambiarDeTarea} />
       {tarea && (
@@ -812,10 +819,11 @@ function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
 
 /**
  * El armazón de la escrita: las mismas cuatro caras que la lectura, pero con
- * folios en vez de letras. Lleva su propio <VolverAInicio> porque el
- * encaminado de HacerPrueba manda aquí ANTES de llegar al suyo: sin esto, la
- * escrita nacería con el mismo callejón sin salida que ya costó una ronda en
- * la lectura.
+ * folios en vez de letras. Cada cara sin entregar pinta su CabeceraExamen
+ * (con su Salir), porque el encaminado de HacerPrueba manda aquí antes de
+ * elegir cara: sin ella, la escrita nacería con el mismo callejón sin salida
+ * que ya costó una ronda en la lectura. Las entregadas llevan la cabecera del
+ * sitio, que pinta la página.
  *
  * La práctica libre NO añade una quinta cara. La escrita es la única prueba
  * que en libre crea intento y se entrega de verdad (spec §9): las mismas
@@ -843,13 +851,5 @@ export function HacerEscrita({ prueba }: { prueba: PruebaParaHacer }) {
     : estaCorregida(prueba) ? <EscritaCorregida prueba={prueba} />
     : <EscritaEsperando prueba={prueba} />;
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* El reloj solo corre en un examen de verdad ya empezado. En práctica
-          libre no llegan minutos (los pone a null `pruebaParaHacer`), así que
-          basta con preguntar por ellos: el modo no hace falta otra vez. */}
-      <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
-      {cara}
-    </div>
-  );
+  return <div className="flex flex-col gap-4">{cara}</div>;
 }
