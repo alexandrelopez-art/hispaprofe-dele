@@ -47,6 +47,8 @@ beforeEach(() => {
 });
 
 describe("la pantalla de exámenes", () => {
+  // Mutación que la mata: quitar la tilde del título ("Examenes" en vez de
+  // "Exámenes") en el EncabezadoPagina.
   it("el h1 es Exámenes y hay un enlace a #nuevo con el texto Nuevo examen", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
