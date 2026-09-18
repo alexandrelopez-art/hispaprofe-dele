@@ -27,9 +27,30 @@ describe("lo que dice la ventana de salir", () => {
   it("siempre dice que se puede volver", () => {
     for (const conReloj of [true, false]) {
       for (const escrita of [true, false]) {
-        expect(frasesDeSalida({ conReloj, escrita }).join(" ")).toContain("Podrás volver a entrar");
+        expect(frasesDeSalida({ conReloj, escrita, libre: false }).join(" ")).toContain("Podrás volver a entrar");
       }
     }
+  });
+
+  // Mutación que la mata: volver a decir «mientras la prueba no esté
+  // entregada» en la práctica libre, que nunca se entrega, o callar que lo
+  // marcado se pierde (Corregir en libre no escribe nada en la base).
+  it("en la práctica libre dice que no se guarda, y nada de entregar", () => {
+    const frases = frasesDeSalida({ conReloj: false, escrita: false, libre: true }).join(" ");
+    expect(frases).toContain("Lo que marches en esta práctica no se guarda: al volver empiezas de nuevo.");
+    expect(frases).not.toContain("entregada");
+  });
+
+  // Mutación que la mata: tratar libre como «sin reloj» y perder el aviso del
+  // registro en la escrita de verdad.
+  it("la escrita con reloj sigue diciendo que queda apuntado", () => {
+    expect(frasesDeSalida({ conReloj: true, escrita: true }).join(" ")).toContain("queda apuntado");
+  });
+
+  // Mutación que la mata: no pasar `libre` de CabeceraExamen a frasesDeSalida.
+  it("la cabecera lleva la frase de la práctica libre a su ventana", () => {
+    const html = renderToStaticMarkup(<CabeceraExamen prueba="CE" tarea={{ actual: 1, total: 4 }} reloj={null} preguntar libre />);
+    expect(html).toContain("no se guarda");
   });
 });
 

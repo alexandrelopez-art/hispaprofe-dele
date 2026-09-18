@@ -10,10 +10,11 @@ import { Boton, clasesDeBoton } from "@/components/ui/boton";
 /**
  * Lo que dice la ventana antes de salir. El reloj solo se nombra si corre; lo
  * de «queda apuntado» solo en la escrita con reloj, que es la única prueba que
- * registra las salidas (en práctica libre no se apunta nada, y decirlo sería
- * mentir).
+ * registra las salidas (en práctica libre de lectura y auditiva no se apunta nada, y decirlo sería
+ * mentir; la escrita en libre nunca llega aquí porque guarda y se entrega de verdad).
  */
-export function frasesDeSalida({ conReloj, escrita }: { conReloj: boolean; escrita: boolean }): string[] {
+export function frasesDeSalida({ conReloj, escrita, libre = false }: { conReloj: boolean; escrita: boolean; libre?: boolean }): string[] {
+  if (libre) return ["Lo que marches en esta práctica no se guarda: al volver empiezas de nuevo."];
   const frases: string[] = [];
   if (conReloj) frases.push("El reloj sigue corriendo aunque salgas.");
   frases.push("Podrás volver a entrar mientras la prueba no esté entregada.");
@@ -94,12 +95,14 @@ export function CabeceraExamen({
   reloj,
   preguntar,
   escrita = false,
+  libre = false,
 }: {
   prueba: Prueba;
   tarea: { actual: number; total: number } | null;
   reloj: ReactNode | null;
   preguntar: boolean;
   escrita?: boolean;
+  libre?: boolean;
 }) {
   const router = useRouter();
   const [preguntando, setPreguntando] = useState(false);
@@ -132,7 +135,7 @@ export function CabeceraExamen({
         <VentanaDeSalida
           abierta={preguntando}
           saliendo={saliendo}
-          frases={frasesDeSalida({ conReloj: reloj !== null, escrita })}
+          frases={frasesDeSalida({ conReloj: reloj !== null, escrita, libre })}
           alSeguir={() => setPreguntando(false)}
           alSalir={() => {
             setSaliendo(true);
