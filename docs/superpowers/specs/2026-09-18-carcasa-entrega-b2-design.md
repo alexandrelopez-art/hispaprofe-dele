@@ -56,8 +56,9 @@ escrita con una sección propia dentro de la página. Pasan a **una sola pieza,
 
 - Es un `<dialog>` de la página, como la ventana de Salir: Escape la cierra y el foco vuelve
   a «Entregar».
-- Lista lo que falta. En lectura y auditiva, por tarea: «Tarea 2: preguntas 8 y 9». En la
-  escrita, lo que ya lista hoy. Si no falta nada: «Entregar no se puede deshacer».
+- Lista lo que falta, tras un «Ojo:», una línea por cosa. En lectura y auditiva, por tarea:
+  «en la tarea 2 no has contestado la 8 ni la 9», o «no has contestado nada en la tarea 1».
+  En la escrita, lo que ya lista hoy. Siempre dice «Entregar no se puede deshacer».
 - Dos botones: «Sí, entregar» (principal, con `enviando`) y «Seguir con la prueba» (en la
   escrita, «Seguir escribiendo»).
 - Cuando el reloj entrega solo, **no** sale.
@@ -96,7 +97,8 @@ libre sí guarda el texto y conserva su frase de hoy.
 - La nota grande y la nota por tarea, en `Tarjeta`.
 - «Se entregó sola: se acabó el tiempo.» en `Aviso` informativo.
 - La prueba que queda: `EtiquetaEstado` y un `Enlace` «Ir a hacerla».
-- Las falladas, en coral. El contenido es el de hoy.
+- Las falladas, en coral. El contenido es el de hoy, salvo la frase que explica el color:
+  «En rojo, las que fallaste» pasa a «Marcadas en coral, las que fallaste».
 
 ### 4.5 Escrita, escribiendo
 
@@ -118,6 +120,12 @@ Los criterios salen de `CRITERIOS_EE` con su banda. El comentario del profesor v
 ### 4.8 `/entrar`
 
 Se quitan sus `bg-hp-400` y `bg-hp-50`.
+
+### 4.9 La página del examen
+
+Hoy ninguna cara pone ancho máximo y en un monitor ancho las columnas se estiran de borde a
+borde. La página envuelve las caras en un `<main>` centrado con ancho máximo, como las
+pantallas de `(sitio)`.
 
 ## 5. Errores
 
