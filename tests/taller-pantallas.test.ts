@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
-import { reglaDe } from "@/lib/dele/estructura";
+import { nombreCortoDeTarea, reglaDe } from "@/lib/dele/estructura";
 import { formularioVacio } from "@/lib/taller/formas";
 
 // Cada pantalla se importa tal cual (no un resumen de su lógica), para que
@@ -250,6 +250,30 @@ describe("lo que el profesor ve de verdad (camino feliz)", () => {
     );
     expect(marcado).toContain('src="/api/ficheros/f1"');
     expect(marcado).toContain('src="/api/ficheros/f2"');
+  });
+
+  // Mutación que la mata: dejar dos enlaces al examen (el <nav> viejo y otro
+  // debajo), o pintar en el h1 un rótulo fijo en vez de nombreCortoDeTarea.
+  it("la pantalla de una tarea: un solo enlace al examen y el h1 con nombreCortoDeTarea", async () => {
+    const regla = reglaDe("A2_B1_ESCOLAR", "EE", 1)!;
+    dobles.tareaParaElTaller.mockResolvedValue({
+      examen: { id: "x1", titulo: "Examen 1" },
+      prueba: "EE",
+      numero: 1,
+      regla,
+      formulario: formularioVacio(regla),
+      guardada: false,
+      publicado: false,
+      estado: { estado: "VACIA", motivos: ["Sin guardar todavía."] },
+      respuestas: null,
+      paginas: [],
+      temasDeLaHermana: null,
+    });
+    const marcado = renderToStaticMarkup(
+      await PantallaDeTarea({ params: Promise.resolve({ id: "x1", prueba: "EE", numero: "1" }) }),
+    );
+    expect(marcado.match(/href="\/examenes\/x1"/g) ?? []).toHaveLength(1);
+    expect(marcado).toMatch(new RegExp(`<h1[^>]*>${nombreCortoDeTarea("EE", 1)}</h1>`));
   });
 
   // El `key` que se le puso a <ElegirCuadernillo> en app/(sitio)/examenes/[id]/page.tsx

@@ -68,17 +68,19 @@ describe("el formulario de una tarea", () => {
 });
 
 describe("el botón de rellenar con IA", () => {
-  // Mutación que la mata: no apagar el botón sin hojas.
+  // Mutación que la mata: no apagar el botón sin hojas. Se mira el atributo
+  // `disabled=""`, no la palabra suelta (la clase `disabled:` del kit daría
+  // un falso verde).
   it("sin hojas etiquetadas sale apagado y dice por qué", () => {
     const html = pintar("CE", 3, null, null, true, false);
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Rellenar con IA<\/button>/);
     expect(html).toContain("Etiqueta primero las hojas de esta tarea.");
   });
 
   // Mutación que la mata: no apagar el botón sin clave.
   it("sin clave sale apagado y dice por qué", () => {
     const html = pintar("CE", 3, null, null, false, true);
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Rellenar con IA<\/button>/);
     expect(html).toContain("Falta la clave de la IA.");
   });
 
@@ -86,7 +88,7 @@ describe("el botón de rellenar con IA", () => {
   it("con hojas y clave sale encendido y sin avisos", () => {
     const html = pintar("CE", 3, null, null, true, true);
     expect(html).toMatch(/<button[^>]*>Rellenar con IA<\/button>/);
-    expect(html).not.toMatch(/<button[^>]*disabled[^>]*>Rellenar con IA/);
+    expect(html).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>Rellenar con IA/);
     expect(html).not.toContain("Falta la clave de la IA.");
   });
 
@@ -96,6 +98,21 @@ describe("el botón de rellenar con IA", () => {
     expect(html.indexOf(">Rellenar con IA<")).toBeGreaterThan(-1);
     expect(html.indexOf("Consigna, ya corregida")).toBeGreaterThan(-1);
     expect(html.indexOf(">Rellenar con IA<")).toBeLessThan(html.indexOf("Consigna, ya corregida"));
+  });
+
+  // Mutación que la mata: volver a la clase a mano (border-hp-400) en vez del
+  // Boton secundario del kit. No hay jsdom para fijar `rellenando` desde
+  // fuera, así que se comprueba la clase que trae ese estado.
+  it("el botón de Rellenar con IA lleva la clase del Boton secundario del kit", () => {
+    const html = pintar("CE", 3, null, null, true, true);
+    expect(html).toMatch(/<button[^>]*border-hp-300[^>]*>Rellenar con IA<\/button>/);
+  });
+
+  // Mutación que la mata: dejar el Guardar de hoy con bg-hp-400 en vez del
+  // Boton principal del kit (bg-hp-700).
+  it("no queda ninguna clase bg-hp-400 en el formulario", () => {
+    const html = pintar("CE", 3, null);
+    expect(html).not.toContain("bg-hp-400");
   });
 });
 

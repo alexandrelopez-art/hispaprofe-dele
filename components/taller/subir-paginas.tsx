@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sustituirPaginasAccion } from "@/app/(sitio)/examenes/acciones";
+import { Aviso } from "@/components/ui/aviso";
+import { Boton } from "@/components/ui/boton";
 import { subirAlAlmacen } from "@/lib/ficheros/subir-desde-navegador";
 import { paginasDePdf } from "@/lib/taller/pdf-en-navegador";
 import { idsEnOrden, type EstadoDePagina } from "@/lib/taller/lista-de-subida";
@@ -122,14 +124,14 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
   return (
     <div className="flex flex-col gap-3">
       {hayPaginas && !confirmando && (
-        <button type="button" onClick={() => setConfirmando(true)} className="self-start rounded-2xl border border-tinta-suave/30 px-4 py-2">
+        <Boton variante="secundario" className="self-start" disabled={ocupado} onClick={() => setConfirmando(true)}>
           Sustituir las páginas
-        </button>
+        </Boton>
       )}
       {hayPaginas && confirmando && (
-        <p className="rounded-2xl bg-sol-100 p-4">
+        <Aviso tono="aviso">
           Cuando el PDF nuevo termine de subir se sustituyen las páginas de ahora <strong>y sus etiquetas</strong>. Las tareas guardadas no se tocan.
-        </p>
+        </Aviso>
       )}
       {puedeElegir && (
         <label className="flex flex-col gap-2">
@@ -147,11 +149,15 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
           />
         </label>
       )}
-      {aviso && <p role="status" className="rounded-2xl bg-hp-50 p-4">{aviso}</p>}
+      {aviso && (
+        <div role="status">
+          <Aviso tono="info">{aviso}</Aviso>
+        </div>
+      )}
       {puedeRegistrarDeNuevo && (
-        <button type="button" disabled={ocupado} onClick={() => void registrarDeNuevo()} className="self-start rounded-2xl border border-tinta-suave/30 px-4 py-2">
+        <Boton variante="secundario" className="self-start" disabled={ocupado} onClick={() => void registrarDeNuevo()}>
           Registrar de nuevo
-        </button>
+        </Boton>
       )}
       {paginas.length > 0 && (
         <ol className="flex flex-col gap-1">
@@ -162,9 +168,9 @@ export function SubirPaginas({ examenId, hayPaginas }: { examenId: string; hayPa
                 {NOMBRE_DEL_ESTADO[p.estado]}{p.error ? `: ${p.error}` : ""}
               </span>
               {p.estado === "FALLIDA" && (
-                <button type="button" disabled={ocupado} onClick={() => void reintentar(i)} className="rounded-xl border border-tinta-suave/30 px-3 py-1">
+                <Boton variante="secundario" className="px-3 py-1" disabled={ocupado} onClick={() => void reintentar(i)}>
                   Reintentar
-                </button>
+                </Boton>
               )}
             </li>
           ))}

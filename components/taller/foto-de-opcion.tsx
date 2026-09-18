@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Boton } from "@/components/ui/boton";
 import { subirAlAlmacen } from "@/lib/ficheros/subir-desde-navegador";
 import { reducirFoto } from "@/lib/taller/medios-en-navegador";
 
@@ -48,7 +49,7 @@ export function FotoDeOpcion({
           <img src={`/api/ficheros/${ficheroId}`} alt={etiqueta} className="max-h-48 w-auto max-w-full self-start rounded-lg" />
           <div className="flex flex-wrap gap-2">
             {selector("Cambiar")}
-            <button type="button" onClick={() => alCambiar(null)} className="rounded-xl border border-tinta-suave/30 px-3 py-2">Quitar</button>
+            <Boton variante="secundario" onClick={() => alCambiar(null)}>Quitar</Boton>
           </div>
         </>
       ) : (

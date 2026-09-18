@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Aviso } from "@/components/ui/aviso";
+import { Boton } from "@/components/ui/boton";
 import { subirAlAlmacen } from "@/lib/ficheros/subir-desde-navegador";
 import type { Medios } from "@/lib/taller/formas";
 import { muestrasDeAudio } from "@/lib/taller/medios-en-navegador";
@@ -84,7 +86,7 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
       <section data-bloque-audio className={`${CAJA} bg-sol-100`}>
         <h3 className="font-bold">Audio</h3>
         {selector("Subir la pista")}
-        {error && <span role="alert" className="text-error-600">{error}</span>}
+        {error && <Aviso tono="error">{error}</Aviso>}
       </section>
     );
   }
@@ -137,9 +139,9 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
           )}
           <div className="flex flex-wrap gap-2">
             {leida && (
-              <button type="button" onClick={() => cambiarCortes(proponerCortes(leida.silencios, trozos, leida.duracion))} className="rounded-xl border border-tinta-suave/30 px-3 py-2">
+              <Boton variante="secundario" className="px-3 py-1" onClick={() => cambiarCortes(proponerCortes(leida.silencios, trozos, leida.duracion))}>
                 Proponer marcas por los silencios
-              </button>
+              </Boton>
             )}
             {selector("Cambiar la pista")}
           </div>
@@ -156,18 +158,18 @@ export function BloqueDeAudio({ audio, trozos, alCambiar }: { audio: Medios["aud
           {trozosDe(audio.cortes, duracion).map(([inicio, fin], i) => (
             <li key={i} className="flex flex-wrap items-center gap-2">
               <span className="font-bold">{`Trozo ${i + 1} · ${formatearTiempo(inicio)}–${formatearTiempo(fin)}`}</span>
-              <button type="button" onClick={() => oir(inicio, fin)} className="rounded-xl border border-tinta-suave/30 px-3 py-1">Oír</button>
+              <Boton variante="secundario" className="px-3 py-1" onClick={() => oir(inicio, fin)}>Oír</Boton>
               {i > 0 && (
                 <>
-                  <button type="button" onClick={() => oir(inicio, inicio + 5)} className="rounded-xl border border-tinta-suave/30 px-3 py-1">Oír 5 s desde la marca</button>
-                  <button type="button" onClick={() => cambiarCortes(audio.cortes.filter((_, j) => j !== i - 1))} className="rounded-xl border border-tinta-suave/30 px-3 py-1">Quitar marca</button>
+                  <Boton variante="secundario" className="px-3 py-1" onClick={() => oir(inicio, inicio + 5)}>Oír 5 s desde la marca</Boton>
+                  <Boton variante="secundario" className="px-3 py-1" onClick={() => cambiarCortes(audio.cortes.filter((_, j) => j !== i - 1))}>Quitar marca</Boton>
                 </>
               )}
             </li>
           ))}
         </ol>
       )}
-      {error && <span role="alert" className="text-error-600">{error}</span>}
+      {error && <Aviso tono="error">{error}</Aviso>}
     </section>
   );
 }

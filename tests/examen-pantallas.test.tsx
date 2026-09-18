@@ -2154,9 +2154,8 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
     expect(html).toContain("sin contestar");
   });
 
-  // Mutación que la mata: quitar el `bg-error-100` de la fila donde
-  // `marcada !== correcta`, o ponerlo también en la que acertó.
-  it("la fila donde falló sale marcada en rojo; la que acertó, no", async () => {
+  // Mutación que la mata: volver al rojo de error: fallar una pregunta no es un fallo del sistema.
+  it("la fila donde falló sale marcada en coral; la que acertó, no", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
 
@@ -2166,6 +2165,7 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
     const sinFallos = renderToStaticMarkup(
       await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
     );
+    expect(sinFallos).not.toContain("bg-coral-100");
     expect(sinFallos).not.toContain("bg-error-100");
 
     dobles.hojaDeRespuestas.mockResolvedValue(
@@ -2174,6 +2174,18 @@ describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]
     const conUnFallo = renderToStaticMarkup(
       await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
     );
-    expect(conUnFallo).toContain("bg-error-100");
+    expect(conUnFallo).toContain("bg-coral-100");
+    expect(conUnFallo).not.toContain("bg-error-100");
+  });
+
+  // Mutación que la mata: dejar el «← Volver al examen» de abajo, con lo que habría dos enlaces al examen.
+  it("un solo enlace al examen", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const html = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(html.match(/href="\/examenes\/ex1"/g) ?? []).toHaveLength(1);
   });
 });
