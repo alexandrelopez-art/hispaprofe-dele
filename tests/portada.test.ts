@@ -292,4 +292,28 @@ describe("Inicio del estudiante", () => {
 
     expect(escritosPorCorregir).not.toHaveBeenCalled();
   });
+
+  // Mutación que la mata: pintar el plazo pasado con el tono de error. La
+  // fecha es blanda: llegar tarde no es un fallo del sistema.
+  it("el plazo pasado sale en coral, no en rojo de error", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([{ ...ASIGNADO, fechaTope: new Date("2020-01-01T00:00:00Z") }]);
+
+    const marcado = await html();
+    const trozo = marcado.slice(Math.max(0, marcado.indexOf("Se pasó el plazo") - 300), marcado.indexOf("Se pasó el plazo"));
+    expect(trozo).toContain("coral");
+    expect(trozo).not.toContain("error-");
+  });
+
+  // Mutación que la mata: volver al bg-hp-400 de antes en los botones.
+  it("los botones de las pruebas son del kit, azul oscuro", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([ASIGNADO]);
+
+    const marcado = await html();
+    expect(marcado).toContain("bg-hp-700");
+    expect(marcado).not.toContain("bg-hp-400");
+  });
 });
