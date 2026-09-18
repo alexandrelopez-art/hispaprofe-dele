@@ -245,6 +245,79 @@ describe("la red contra una marca que llega tarde", () => {
   });
 });
 
+describe("dos peticiones a la vez no cuentan la misma ausencia dos veces", () => {
+  // La lectura de `registrarLasVueltas` (`findMany`) y la escritura de
+  // `cerrarLaAusencia` (antes, un `update` por `id` a secas) no son atómicas:
+  // la carga de la página y la acción del `visibilitychange` —o dos pestañas—
+  // pueden leer las dos la MISMA ausencia abierta antes de que ninguna haya
+  // escrito, y las dos harían el `increment`. Se repite 10 veces porque la
+  // carrera depende del entrelazado real de dos conexiones a Postgres, no es
+  // determinista con una sola pasada (mismo patrón que
+  // tests/base/taller-paginas.test.ts).
+  //
+  // Mutación que la mata: en `cerrarLaAusencia`, volver a
+  // `prisma.intento.update({ where: { id: marca.id } })` sin `salioEn:
+  // marca.salioEn` en el `where` (el compare-and-swap quitado). Comprobado en
+  // esta máquina: con el `update` a secas la prueba cae en rojo por
+  // `segundosFuera`/`salidas` duplicados en varias de las 10 vueltas.
+  it("diez vueltas a la vez, una por ausencia, no doblan ni una sola cuenta", async () => {
+    await conLasDosTareasEscritas();
+    for (let i = 0; i < 10; i++) {
+      await salirDeLaEscrita(examen.id, ana.id, 1, enSegundos(i * 100));
+      const resultados = await Promise.all([
+        volverALaEscrita(examen.id, ana.id, enSegundos(i * 100 + 5)),
+        volverALaEscrita(examen.id, ana.id, enSegundos(i * 100 + 5)),
+      ]);
+      expect(resultados).toEqual([{}, {}]);
+    }
+    expect(await registro()).toMatchObject({ salidas: 10, segundosFuera: 50 });
+  });
+});
+
+describe("la vuelta adelanta volvioEn aunque no encuentre nada que cerrar", () => {
+  // Mutación que la mata: quitar el segundo `updateMany` de
+  // `registrarLasVueltas` (el que adelanta `volvioEn` sobre las filas SIN
+  // ausencia abierta). Sin él, una vuelta que no cierra nada no deja rastro.
+  it("una vuelta sin ausencia que cerrar adelanta volvioEn igual", async () => {
+    await conLasDosTareasEscritas();
+    expect((await intento()).volvioEn).toBeNull();
+
+    expect(await volverALaEscrita(examen.id, ana.id, enSegundos(10))).toEqual({});
+
+    expect((await intento()).volvioEn).toEqual(enSegundos(10));
+  });
+
+  // El caso completo que motiva el arreglo: dos pestañas, dos colas
+  // independientes (`encadenar` solo ordena dentro de UNA pantalla montada).
+  // La vuelta de la pestaña B llega primero y no encuentra nada que cerrar; el
+  // «me voy» de la pestaña A aterriza después, sellado con una fecha que la
+  // red de `cerrarLaAusencia` sí puede cazar PORQUE esta vuelta, aunque no
+  // cerró nada, ya había adelantado `volvioEn`. Sin el arreglo, `volvioEn`
+  // seguiría en null y esta misma marca se contaría como una ausencia de
+  // veinte minutos que nunca ocurrió (es el mismo escenario que en «la red
+  // contra una marca que llega tarde», pero el `volvioEn` que la caza lo puso
+  // una vuelta que no cerró nada, no una que sí).
+  //
+  // Mutación que la mata: la misma que en la prueba anterior.
+  it("un me-voy tardío que aterriza después de una vuelta sin nada que cerrar no se cuenta", async () => {
+    await conLasDosTareasEscritas();
+    // La vuelta de la pestaña B: no hay ausencia abierta todavía.
+    expect(await volverALaEscrita(examen.id, ana.id, enSegundos(10))).toEqual({});
+
+    // El «me voy» de la pestaña A, sellado con una fecha anterior a esa
+    // vuelta: no hay ausencia abierta con la que `salirDeLaEscrita` pueda
+    // chocar, así que se escribe igual.
+    expect(await salirDeLaEscrita(examen.id, ana.id, 1, enSegundos(5))).toEqual({});
+    expect(await marca()).toEqual({ salioEn: enSegundos(5), salioDeTarea: 1 });
+
+    // Veinte minutos después, el chico sigue escribiendo y cualquier vuelta la
+    // encuentra. Se limpia y no suma.
+    expect(await registrarLasVueltas({ personaId: ana.id, examenId: examen.id }, enSegundos(1200))).toEqual({ cerradas: 0 });
+    expect(await registro()).toMatchObject({ salidas: 0, segundosFuera: 0 });
+    expect(await marca()).toEqual({ salioEn: null, salioDeTarea: null });
+  });
+});
+
 describe("cerrar la pestaña también queda registrado", () => {
   // Por esto el rastro vive en el servidor y no en el navegador: cerrar la
   // pestaña no lo borra. La vuelta no la avisa nadie — cargar la pantalla YA es
@@ -446,6 +519,34 @@ describe("con la prueba entregada", () => {
     expect(await entregarPrueba(examen.id, "EE", ana.id, enSegundos(600))).toEqual({});
 
     expect(await registro()).toMatchObject({ salidas: 1, segundosFuera: 5, ultimaSalidaSinVuelta: false });
+  });
+});
+
+describe("el tope del reloj también vale al cerrar por una vuelta normal", () => {
+  // La misma regla que en `ausenciaSinVuelta` («hasta dónde se cuenta, y ni un
+  // segundo más»), pero por la otra puerta: aquí no hace falta que el reloj
+  // cierre la prueba primero, basta con llamar a `registrarLasVueltas`
+  // directamente —la ventana exacta que puede colarse entre las dos llamadas
+  // de `app/examen/[id]/[prueba]/page.tsx` si `cerrarLasQueSePasaron` todavía
+  // no ha corrido sobre este intento—, y el intento sigue `entregadaEn: null`.
+  //
+  // Mutación que la mata: quitar el tope de `cerrarLaAusencia` (contar hasta
+  // `ahora.getTime()` en vez de hasta `Math.min(ahora.getTime(), tope)`). Sin
+  // él, esta vuelta le apuntaría al chico casi tres horas fuera en una prueba
+  // de cincuenta minutos.
+  it("una vuelta que llega tras el fin de la prueba no cuenta más allá del minuto 50", async () => {
+    await conLasDosTareasEscritas();
+    // Se va a los diez minutos.
+    await salirDeLaEscrita(examen.id, ana.id, 1, enSegundos(600));
+
+    // Tres horas después, sin haber pasado por `cerrarLasQueSePasaron`.
+    expect(
+      await registrarLasVueltas({ personaId: ana.id, examenId: examen.id }, enSegundos(3 * 60 * 60)),
+    ).toEqual({ cerradas: 1 });
+
+    // 50 minutos de prueba menos los 10 que llevaba escritos: 40 minutos
+    // fuera, ni uno más.
+    expect(await registro()).toMatchObject({ salidas: 1, segundosFuera: 40 * 60 });
   });
 });
 

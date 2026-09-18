@@ -401,6 +401,22 @@ type Marca = { id: string; salioEn: Date; salioDeTarea: number | null; volvioEn:
  * exactamente eso: se limpia y no suma. Un registro que miente es peor que no
  * tenerlo, porque el profesor va a hablar con un alumno con esto delante.
  *
+ * **El mismo compare-and-swap que al ABRIR la ausencia** (`salirDeLaEscrita:381`):
+ * `registrarLasVueltas` lee las ausencias abiertas con `findMany` y esto escribe
+ * después, y leer y escribir no son atómicos. La carga de la página y la acción
+ * del `visibilitychange` —o dos pestañas— pueden leer las dos la MISMA ausencia
+ * abierta antes de que ninguna haya escrito, y sin repetir `salioEn:
+ * marca.salioEn` en el `where` las dos harían el `increment`: el profesor leería
+ * el doble de salidas y de minutos de una sola ausencia. Con la condición
+ * dentro del `where`, la segunda en llegar no encuentra fila que actualizar
+ * —`count` sale en 0— y no suma nada.
+ *
+ * **El mismo tope que `ausenciaSinVuelta`.** No se cuenta hasta `ahora` a
+ * secas: se cuenta hasta que la prueba dejó de poder escribirse —`empezadaEn`
+ * más sus minutos—, o hasta `ahora` si es antes. La regla «no inventar tiempo»
+ * tiene que valer en las DOS puertas de cierre, no solo en la del reloj
+ * automático.
+ *
  * `Math.max(0, …)` sobre los segundos por la misma razón: el registro no puede
  * restar tiempo.
  *
@@ -408,18 +424,25 @@ type Marca = { id: string; salioEn: Date; salioDeTarea: number | null; volvioEn:
  * noticia. Una mitad sin la otra deja la ausencia contada con la marca puesta
  * (se volvería a contar) o la marca limpia sin haberla contado (se perdió).
  */
-async function cerrarLaAusencia(marca: Marca, ahora: Date): Promise<boolean> {
+async function cerrarLaAusencia(
+  marca: Marca,
+  ahora: Date,
+  reloj: { empezadaEn: Date; minutos: number | null },
+): Promise<boolean> {
   const limpia = { salioEn: null, salioDeTarea: null, volvioEn: ahora };
 
   // Llegó tarde: es de una ausencia ya contada. Se limpia y no suma.
   if (marca.volvioEn !== null && marca.salioEn <= marca.volvioEn) {
-    await prisma.intento.update({ where: { id: marca.id }, data: limpia });
+    await prisma.intento.updateMany({ where: { id: marca.id, salioEn: marca.salioEn }, data: limpia });
     return false;
   }
 
-  const segundos = Math.max(0, Math.floor((ahora.getTime() - marca.salioEn.getTime()) / 1000));
-  await prisma.intento.update({
-    where: { id: marca.id },
+  const tope =
+    reloj.minutos === null ? ahora.getTime() : reloj.empezadaEn.getTime() + reloj.minutos * 60_000;
+  const acaba = Math.min(ahora.getTime(), tope);
+  const segundos = Math.max(0, Math.floor((acaba - marca.salioEn.getTime()) / 1000));
+  const { count } = await prisma.intento.updateMany({
+    where: { id: marca.id, salioEn: marca.salioEn },
     data: {
       ...limpia,
       salidas: { increment: 1 },
@@ -430,7 +453,7 @@ async function cerrarLaAusencia(marca: Marca, ahora: Date): Promise<boolean> {
       ultimaSalidaSinVuelta: false,
     },
   });
-  return true;
+  return count > 0;
 }
 
 /**
@@ -455,25 +478,65 @@ export async function registrarLasVueltas(
   donde: { personaId: string; examenId: string },
   ahora: Date,
 ): Promise<{ cerradas: number }> {
+  // Acotado a la escrita: es la única prueba donde `salirDeLaEscrita` toca
+  // `salioEn`/`volvioEn`. Sin esto, el segundo `updateMany` de abajo (el que
+  // adelanta `volvioEn`) escribiría también sobre los intentos de CE y CO de
+  // este examen, que nunca lo usan.
+  const alcance = {
+    entregadaEn: null,
+    prueba: "EE" as const,
+    asignacion: { ...donde, modo: "COMPLETO" as const, examen: { estado: "PUBLICADO" as const } },
+  };
+
   const filas = await prisma.intento.findMany({
     where: {
-      entregadaEn: null,
+      ...alcance,
       // Sin ausencia abierta no hay nada que cerrar. Es el `where` quien lo
       // decide, y no una guarda dentro de `cerrarLaAusencia`: si no, cada carga
       // de la pantalla apuntaría una salida de cero segundos, y el profesor
       // leería veinte salidas de un chico que no se movió.
       salioEn: { not: null },
-      asignacion: { ...donde, modo: "COMPLETO", examen: { estado: "PUBLICADO" } },
     },
-    select: { id: true, salioEn: true, salioDeTarea: true, volvioEn: true },
+    select: {
+      id: true,
+      salioEn: true,
+      salioDeTarea: true,
+      volvioEn: true,
+      empezadaEn: true,
+      asignacion: { select: { examen: { select: { nivel: true } } } },
+    },
   });
-  // El `!` es el eco, en el tipo, de ese `salioEn: { not: null }` de arriba —el
-  // mismo `!` que usan las demás funciones de aquí con `abierta.intento`—. Una
-  // segunda comprobación en JavaScript sería una rama que nadie puede alcanzar,
-  // y una rama inalcanzable es un sitio donde esconder un fallo.
-  const marcas: Marca[] = filas.map((f) => ({ ...f, salioEn: f.salioEn! }));
   let cerradas = 0;
-  for (const marca of marcas) if (await cerrarLaAusencia(marca, ahora)) cerradas++;
+  for (const f of filas) {
+    // El `!` es el eco, en el tipo, de ese `salioEn: { not: null }` de arriba —el
+    // mismo `!` que usan las demás funciones de aquí con `abierta.intento`—. Una
+    // segunda comprobación en JavaScript sería una rama que nadie puede alcanzar,
+    // y una rama inalcanzable es un sitio donde esconder un fallo.
+    const marca: Marca = { id: f.id, salioEn: f.salioEn!, salioDeTarea: f.salioDeTarea, volvioEn: f.volvioEn };
+    // El `modo` ya está fijado por `alcance` (COMPLETO): es el mismo dato que
+    // `abrirLaPrueba` usa para calcular el tope del reloj, aquí leído desde la
+    // fila que ya trajo el nivel.
+    const minutos = minutosConReloj("COMPLETO", f.asignacion.examen.nivel, "EE");
+    if (await cerrarLaAusencia(marca, ahora, { empezadaEn: f.empezadaEn, minutos })) cerradas++;
+  }
+
+  // Adelanta `volvioEn` en TODA vuelta registrada, aunque no haya ninguna
+  // ausencia que cerrar. `encadenar` solo ordena «me voy» y «he vuelto» DENTRO
+  // de una pantalla montada; dos pestañas son dos colas independientes. Si la
+  // vuelta de la pestaña B llega primero y no encuentra ausencia —el «me voy»
+  // de la pestaña A sigue en el aire—, antes esta función no tocaba nada: sin
+  // marca que cerrar, `volvioEn` se quedaba atrás. Cuando el «me voy» tardío de
+  // A aterriza después, `salirDeLaEscrita` lo escribe igual —no encuentra
+  // ausencia abierta con la que chocar— y esa marca se queda puesta mientras el
+  // chico sigue escribiendo en B; la siguiente vuelta la contaría como una
+  // ausencia entera. Adelantando `volvioEn` aquí, sobre CUALQUIER vuelta y no
+  // solo sobre las que cierran algo, la red de `cerrarLaAusencia` tiene la
+  // mejor fecha posible con la que comparar la próxima marca que aparezca.
+  await prisma.intento.updateMany({
+    where: { ...alcance, salioEn: null },
+    data: { volvioEn: ahora },
+  });
+
   return { cerradas };
 }
 
