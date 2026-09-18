@@ -1669,11 +1669,45 @@ describe("Por corregir: la cola del profesor", () => {
 
   // Mutación que la mata: pintar la cola vacía sin decir nada (una lista
   // vacía y ya está), que deja al profesor sin saber si es que no hay nada o
-  // si es que la pantalla se rompió a medias.
+  // si es que la pantalla se rompió a medias; o volver a mencionar citas,
+  // que no existen hasta la 3e.
   it("con la cola vacía lo dice en una línea", async () => {
     dobles.personaDeLaCookie.mockResolvedValue(profe);
     const html = renderToStaticMarkup(await Cola());
-    expect(html).toContain("No hay nada esperando.");
+    expect(html).toContain("No hay redacciones por corregir");
+    expect(html.toLowerCase()).not.toContain("cita");
+  });
+
+  // Mutación que la mata: dejar el título «Por corregir». El menú dice
+  // «Pendientes»: la pantalla tiene que llamarse igual que su enlace.
+  it("se titula Pendientes", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toMatch(/<h1[^>]*>Pendientes<\/h1>/);
+  });
+
+  // Mutación que la mata: copiar del dibujo «Grabación», «Cita oral» o «Ver
+  // grabación». Nada de eso existe hasta la 3e.
+  it("solo hay redacciones: ni grabaciones ni citas", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i1", examenId: "ex1", titulo: "Examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("Redacción");
+    expect(html).not.toMatch(/Grabación|Cita|Ver grabación/);
+  });
+
+  // Mutación que la mata: reordenar la lista (por nombre, o la más nueva arriba).
+  // Lo más viejo es lo primero que hay que corregir.
+  it("respeta el orden de la cola: la más antigua arriba", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "vieja", examenId: "ex1", titulo: "E", persona: { id: "p2", nombre: "Zoe" }, entregadaEn: new Date("2026-09-10T09:00:00Z"), porTiempo: false, diasEsperando: 8 },
+      { intentoId: "nueva", examenId: "ex1", titulo: "E", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-17T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html.indexOf("/pendientes/vieja")).toBeLessThan(html.indexOf("/pendientes/nueva"));
   });
 
   // Mutación que la mata: enlazar todas las filas al mismo sitio, o a
