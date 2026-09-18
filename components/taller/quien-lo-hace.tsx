@@ -1,10 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { asignarExamenAccion, quitarAsignacionAccion } from "@/app/examenes/acciones";
 import type { EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";
+import type { Prueba } from "@/lib/generated/prisma";
+
+// Solo lectura y auditiva tienen ficha: la escrita se corrige en /corregir,
+// que es otra pantalla, y una escrita ESPERANDO (entregada sin firmar) no
+// tiene nada congelado que enseñar todavía. Tipada como Prueba[] (no
+// inferida como string[]) para que una errata aquí ("CO" mal escrito, o un
+// valor que no es una prueba de verdad) la cace el compilador, no una prueba.
+const PRUEBAS_CON_FICHA: Prueba[] = ["CE", "CO"];
 
 type Estudiante = { id: string; nombre: string };
 type Asignada = { personaId: string; nombre: string; fechaTope: Date; pruebas: EstadoDeUnaPrueba[] };
@@ -91,12 +100,27 @@ export function QuienLoHace({
                   <button type="submit" className="text-hp-600 underline">Quitárselo</button>
                 </form>
               </div>
-              {/* En modo libre no hay intento nunca, y `pruebas` llega vacío: no se
-                  pinta ningún estado, porque uno inventado sería mentira. */}
+              {/* `pruebas` trae solo las que dejan rastro: las tres en un examen
+                  completo, y en práctica libre únicamente la escrita (la
+                  lectura y la auditiva se corrigen al vuelo y no guardan nada,
+                  así que un estado suyo sería inventado). Puede llegar vacía
+                  —una libre sin escrita empezada—, y entonces no se pinta la
+                  línea. Hoy nunca llega vacía; la guarda es para que un
+                  <QuienLoHace> pintado con una lista vacía no deje un renglón
+                  suelto. */}
               {a.pruebas.length > 0 && (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-tinta-suave">
                   {a.pruebas.map((p) => (
-                    <span key={p.prueba}>{NOMBRE_CORTO[p.prueba]}: {p.texto}</span>
+                    <span key={p.prueba}>
+                      {NOMBRE_CORTO[p.prueba]}:{" "}
+                      {p.estado.estado === "ENTREGADA" && PRUEBAS_CON_FICHA.includes(p.prueba) ? (
+                        <Link href={`/examenes/${examenId}/hoja/${a.personaId}/${p.prueba}`} className="text-hp-600 underline">
+                          {p.texto}
+                        </Link>
+                      ) : (
+                        p.texto
+                      )}
+                    </span>
                   ))}
                 </div>
               )}

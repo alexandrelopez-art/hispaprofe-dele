@@ -56,6 +56,22 @@ export function piezasDelFormulario(f: Formulario): PiezaParaGuardar[] {
   ];
 }
 
+/**
+ * El contrato de entrada de `formularioDePiezas`, como se le pide a Prisma:
+ * exactamente los campos que esa función lee, ni uno más. Es lo que hay que
+ * poner en `select` en cualquier consulta que luego la llame.
+ *
+ * Está aquí, al lado de la función, y no copiado a mano en cada consulta, por
+ * dos razones. La primera: copiado en tres sitios (paraHacer, hacer, corregir)
+ * eran tres sitios donde olvidar un campo al añadirlo, y un campo que falta
+ * hace que `formularioDePiezas` devuelva null y que la tarea desaparezca de la
+ * pantalla sin decir por qué. La segunda, y la que importa: esta lista es
+ * también lo que GARANTIZA que la clave del examen no viaja. `Clave` cuelga de
+ * la actividad, y al pedir campo a campo no hay forma de que se cuele; un
+ * `include` en su lugar se la llevaría entera al navegador del estudiante.
+ */
+export const SELECT_DE_PIEZAS = { select: { orden: true, tipo: true, texto: true, etiqueta: true, ficheroId: true, cortes: true, actividad: { select: { datos: true } } } } as const;
+
 /** Lo contrario. null si la tarea no se guardó nunca o si lo guardado ya no casa con ninguna forma. */
 export function formularioDePiezas(piezas: readonly PiezaLeida[]): Formulario | null {
   const ordenadas = [...piezas].sort((a, b) => a.orden - b.orden);

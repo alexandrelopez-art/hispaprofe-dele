@@ -140,7 +140,7 @@ model Pieza {
   ficheroId String?
 
   /// Solo AUDIO: los segundos de cada marca, en orden. Parten la pista en trozos.
-  cortes    Float[]  @default([])
+  cortes Float[] @default([])
 
   @@unique([tareaId, orden])
   @@index([tareaId])
@@ -190,6 +190,7 @@ model Persona {
 
   asignaciones       Asignacion[] @relation("recibidas")
   asignacionesHechas Asignacion[] @relation("hechas")
+  correcciones       Intento[]    @relation("correcciones")
 }
 
 /// El enlace que llega al correo. Del secreto se guarda solo la huella.
@@ -301,6 +302,48 @@ model Intento {
   /// la clave no vuelve a salir de su tabla después de entregar.
   fallos       Int[]      @default([])
 
+  /// El registro de salidas de la escrita. No se borra nada por salirse: se
+  /// apunta, y el profesor lo ve al corregir. La disuasión es saber que lo ve.
+  ///
+  /// Se apunta AQUÍ, en el servidor, y no en el navegador: si el rastro viviera
+  /// en el navegador, cerrar la pestaña lo borraría, y a un chaval de catorce
+  /// años ese truco le dura media tarde. Solo en modo COMPLETO.
+  ///
+  /// Las dos primeras son la marca VIVA de una ausencia en curso: se ponen al
+  /// irse y se limpian al volver, cuando la ausencia pasa a los contadores.
+  /// null = está aquí.
+  salioEn             DateTime?
+  /// De qué tarea estaba cuando se fue.
+  salioDeTarea        Int?
+  /// La última vuelta registrada. Es la red contra una marca que llega tarde:
+  /// una salida con fecha ANTERIOR a la última vuelta es de una ausencia ya
+  /// contada —dos peticiones que se cruzaron—, y contarla otra vez inventaría
+  /// minutos fuera que nunca ocurrieron. Un registro que miente es peor que no
+  /// tenerlo: el profesor va a hablar con un alumno con esto delante.
+  volvioEn            DateTime?
+  /// Los contadores, que es lo que el profesor lee: «salió 3 veces, 4 minutos en
+  /// total, la última a las 10:42». No hay tabla de salidas: con esto basta para
+  /// la línea que él quiere, y una fila por ausencia no le diría nada más.
+  salidas             Int       @default(0)
+  segundosFuera       Int       @default(0)
+  ultimaSalidaEn      DateTime?
+  ultimaSalidaDeTarea Int?
+  /// Si de esa última salida ya no volvió: la prueba se cerró con él fuera, por
+  /// el botón de otro o por el reloj. Es el caso más sospechoso de todos, y
+  /// antes era justo el que llegaba al profesor con cero salidas — un agujero en
+  /// el sitio exacto donde el registro hace falta. Se pone al cerrar la prueba
+  /// con una ausencia abierta y se quita en cuanto vuelve de una salida
+  /// posterior, así que siempre habla de la ÚLTIMA.
+  ultimaSalidaSinVuelta Boolean @default(false)
+
+  /// Cuándo firmó el profesor la corrección de la escrita. null = esperando.
+  /// Lo que dice si una escrita está corregida es ESTE campo, no `bandas`:
+  /// una corrección legítima puede ser cuatro ceros.
+  corregidaEn    DateTime?
+  corregidaPor   Persona?           @relation("correcciones", fields: [corregidaPorId], references: [id], onDelete: SetNull)
+  corregidaPorId String?
+  escritos       EscritoDeIntento[]
+
   respuestas  RespuestaDeIntento[]
   trozosOidos TrozoOido[]
 
@@ -319,6 +362,30 @@ model RespuestaDeIntento {
   marcadaEn DateTime @updatedAt
 
   @@unique([intentoId, numero])
+}
+
+/// Lo que el estudiante escribió en una tarea de la escrita, y su corrección.
+/// Una fila por tarea (la 1 y la 2): nace en cuanto se guarda el primer
+/// borrador y se reescribe en cada guardado automático.
+model EscritoDeIntento {
+  id         String   @id @default(cuid())
+  intento    Intento  @relation(fields: [intentoId], references: [id], onDelete: Cascade)
+  intentoId  String
+  tarea      Int
+  /// Solo la tarea 2: cuál de las opciones eligió (1..n). null mientras no elige.
+  opcion     Int?
+  texto      String
+  /// Las cuenta el SERVIDOR sobre el texto que llegó, nunca el navegador.
+  palabras   Int      @default(0)
+  guardadoEn DateTime @updatedAt
+
+  /// La corrección: cuatro valores 0-3, en el orden de CRITERIOS_EE. Vacío
+  /// mientras no se ha corregido, pero quien manda es Intento.corregidaEn.
+  bandas     Int[]  @default([])
+  comentario String @default("")
+
+  @@unique([intentoId, tarea])
+  @@index([intentoId])
 }
 
 /// Un trozo de pista que ya ha sonado. Su existencia es lo que impide repetirlo.

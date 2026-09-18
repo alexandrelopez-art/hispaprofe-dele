@@ -542,4 +542,61 @@ describe("la caja de quién hace el examen", () => {
     expect(marcado).toContain("Marcar todos");
     expect(marcado).not.toContain("Desmarcar todos");
   });
+
+  // Mutación que la mata: enlazar también una lectura o auditiva que todavía
+  // no está ENTREGADA (HACIENDO, ESPERANDO o SIN_EMPEZAR). Ahí no hay ficha
+  // que enseñar: `hojaDeRespuestas` daría null.
+  it("solo la lectura y la auditiva ENTREGADAS enlazan a su ficha", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      {
+        personaId: "e1",
+        nombre: "Ana",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "CE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 19, total: 25, porTiempo: false }, texto: "Entregada, 19 de 25" },
+          { prueba: "CO" as const, estado: { estado: "HACIENDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "A medias" },
+        ],
+      },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain('href="/examenes/x1/hoja/e1/CE"');
+    expect(marcado).not.toContain('href="/examenes/x1/hoja/e1/CO"');
+  });
+
+  // Mutación que la mata: enlazar también la escrita cuando está ENTREGADA (o
+  // ESPERANDO). La escrita se corrige en /corregir, que es otra pantalla; una
+  // que espera corrección no tiene ficha congelada que enseñar todavía.
+  it("la escrita nunca enlaza a la ficha, esté ENTREGADA o ESPERANDO", async () => {
+    dobles.asignacionesDelExamen.mockResolvedValue([
+      {
+        personaId: "e1",
+        nombre: "Ana",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "EE" as const, estado: { estado: "ESPERANDO" as const, aciertos: null, total: null, porTiempo: false }, texto: "Esperando corrección" },
+        ],
+      },
+      // El caso que rebotaba antes por el estado (ESPERANDO) no basta para
+      // probar la guarda de la prueba: sin `&& PRUEBAS_CON_FICHA.includes(...)`,
+      // una escrita ENTREGADA (que sí pasa el filtro de estado) enlazaría a
+      // una ficha que hojaDeRespuestas nunca da para "EE".
+      {
+        personaId: "e2",
+        nombre: "Luis",
+        fechaTope: new Date("2026-10-20T21:59:59.999Z"),
+        pruebas: [
+          { prueba: "EE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 20, total: 24, porTiempo: false }, texto: "Entregada, 20 de 24" },
+        ],
+      },
+    ]);
+
+    const marcado = await pintar("PUBLICADO");
+
+    expect(marcado).toContain("Esperando corrección");
+    expect(marcado).not.toContain('href="/examenes/x1/hoja/e1/EE"');
+    expect(marcado).toContain("Entregada, 20 de 24");
+    expect(marcado).not.toContain('href="/examenes/x1/hoja/e2/EE"');
+  });
 });

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Prueba } from "@/lib/generated/prisma";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { NOMBRE_DE_PRUEBA } from "@/lib/dele/estructura";
-import { textoDelEstado } from "@/lib/examen/motor";
+import { estaEntregada, textoDelEstado } from "@/lib/examen/motor";
 import { itemsDelFormulario } from "@/lib/taller/estado";
 import {
   corregirEnLibreAccion,
@@ -16,15 +16,15 @@ import {
   marcarTrozoAccion,
 } from "@/app/examen/acciones";
 import { Cinta } from "@/components/examen/cinta";
+// Las piezas comunes con la escrita viven en su propio fichero: ver el
+// comentario de piezas.tsx (era un círculo de imports entre las dos pantallas).
+import { AVISO_DE_ERROR, BOTON, CAJA, PestanasDeTarea, VolverAInicio } from "@/components/examen/piezas";
+import { HacerEscrita } from "@/components/examen/hacer-escrita";
 import { Reloj } from "@/components/examen/reloj";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 
 type Marcadas = Record<string, string>;
 type NotaDeTarea = { aciertos: number; total: number; fallos: number[] };
-
-const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
-const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
-const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
 
 function totalDePreguntas(tareas: TareaParaHacer[]): number {
   return tareas.reduce((n, t) => n + (t.regla.items ?? 0), 0);
@@ -140,45 +140,6 @@ function AvisoPrevio({
         Empezar
       </button>
     </section>
-  );
-}
-
-/**
- * Las pestañas de las cuatro tareas. Cambiar de pestaña es solo estado local:
- * no va al servidor.
- *
- * `bloqueadas` las apaga mientras suena un trozo racionado. Cambiar de tarea
- * con el audio sonando desmonta la cinta (le cambia la `key`), y ese trozo ya
- * está apuntado como oído en el servidor: se perdería sin haber sonado entero
- * y sin ningún aviso. No se pregunta con un `confirm` a propósito: un cartel a
- * mitad de una audición es justo lo que no puede pasar mientras se escucha.
- *
- * Exportada para poder pintarla sola en las pruebas: `renderToStaticMarkup`
- * solo ve el estado inicial de `PruebaHaciendo`, donde nada suena todavía.
- */
-export function PestanasDeTarea({
-  tareas, abierta, alElegir, bloqueadas = false,
-}: {
-  tareas: TareaParaHacer[];
-  abierta: number;
-  alElegir: (numero: number) => void;
-  bloqueadas?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {tareas.map((t) => (
-        <button
-          key={t.numero}
-          type="button"
-          aria-current={t.numero === abierta ? "true" : undefined}
-          disabled={bloqueadas}
-          onClick={() => alElegir(t.numero)}
-          className={`rounded-full px-4 py-2 font-bold disabled:opacity-50 ${t.numero === abierta ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
-        >
-          Tarea {t.numero}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -311,7 +272,7 @@ function notaDeCadaTarea(prueba: PruebaParaHacer): { numero: number; aciertos: n
  */
 function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
   const porTarea = notaDeCadaTarea(prueba);
-  const queda = prueba.otras.filter((o) => o.estado.estado !== "ENTREGADA");
+  const queda = prueba.otras.filter((o) => !estaEntregada(o.estado));
   return (
     <section className={CAJA}>
       <p className="text-tinta-suave">
@@ -337,15 +298,19 @@ function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
         En rojo, las que fallaste. No se dice cuál era la buena: vuelve al texto y búscala.
       </p>
 
+      {/* Ni el número de pruebas ni el singular se escriben a mano: `otras` son
+          dos desde que la escrita tiene pantalla (antes una), y serán tres con
+          la oral. «Ya has terminado las dos pruebas» ya era falso. */}
       {queda.length > 0 ? (
         <p>
-          Te queda {queda.map((o) => NOMBRE_DE_PRUEBA[o.prueba]).join(" y ")}.{" "}
+          {queda.length === 1 ? "Te queda" : "Te quedan"}{" "}
+          {queda.map((o) => NOMBRE_DE_PRUEBA[o.prueba]).join(" y ")}.{" "}
           <Link href="/" className="text-hp-600 underline">
-            Ir a hacerla
+            {queda.length === 1 ? "Ir a hacerla" : "Ir a hacerlas"}
           </Link>
         </p>
       ) : (
-        <p className="font-bold">Ya has terminado las dos pruebas.</p>
+        <p className="font-bold">Ya has terminado el examen.</p>
       )}
     </section>
   );
@@ -454,12 +419,18 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
     });
   }
 
+  // La escrita tiene sus propias caras: un folio no se parece en nada a
+  // veinticinco letras marcadas, y meterla en PruebaHaciendo obligaría a que
+  // cada rama de allí preguntara de qué prueba se trata. Sale antes del
+  // <VolverAInicio> de abajo y por eso HacerEscrita lleva el suyo.
+  if (prueba.prueba === "EE") return <HacerEscrita prueba={prueba} />;
+
   // El modo libre no tiene intento que abrir ni que cerrar: se corrige al
   // vuelo desde el primer momento, así que no pasa por el aviso previo.
   const cara =
     prueba.modo === "LIBRE" ? <PruebaLibre prueba={prueba} />
     : prueba.estado.estado === "SIN_EMPEZAR" ? <AvisoPrevio prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />
-    : prueba.estado.estado === "ENTREGADA" ? <PruebaEntregada prueba={prueba} />
+    : estaEntregada(prueba.estado) ? <PruebaEntregada prueba={prueba} />
     : <PruebaHaciendo prueba={prueba} />;
 
   return (
@@ -467,29 +438,5 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
       <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
       {cara}
     </div>
-  );
-}
-
-/**
- * La salida. Sin esto la pantalla del examen es un callejón: no hay cabecera
- * común en el sitio, así que al terminar la lectura no había forma de volver
- * a Inicio para empezar la auditiva más que con el botón de atrás del
- * navegador. Lo cazó el profesor en la aceptación, no las pruebas.
- *
- * Va en las cuatro caras, también mientras se hace una prueba con reloj: lo
- * que NO se puede hacer es irse creyendo que el reloj se para, y por eso ahí
- * lo dice. Es un enlace y no un formulario porque no cambia nada: las
- * respuestas ya están guardadas en el servidor según se marcan.
- */
-function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
-  return (
-    <p>
-      <Link href="/" className="text-hp-600 underline">
-        ← Volver a Inicio
-      </Link>
-      {haciendoConReloj && (
-        <span className="ml-2 text-sm text-tinta-suave">El reloj sigue corriendo.</span>
-      )}
-    </p>
   );
 }
