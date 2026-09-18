@@ -5,7 +5,7 @@ export default async function PruebaDeGrabacion() {
   await exigirPersona();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
       <p className="rounded-2xl bg-hp-50 p-4 font-bold text-tinta">
         Pantalla de comprobación. Se tira cuando llegue el taller.
       </p>

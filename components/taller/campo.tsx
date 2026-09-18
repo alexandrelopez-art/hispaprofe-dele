@@ -2,12 +2,13 @@
 
 import type { Ruta } from "@/lib/taller/editar";
 import { claveDeRuta } from "@/lib/taller/ia/dudas";
+import { Boton } from "@/components/ui/boton";
 import { useDuda } from "./dudas";
 
 const ENTRADA = "w-full rounded-xl border p-3";
 
-/** Un campo del taller. Vacío y obligatorio, o con duda de la IA, se pinta en amarillo. */
-export function Campo({
+/** No es el `Campo` del kit: este lleva el resaltado de "la IA duda". */
+export function CampoDelTaller({
   etiqueta,
   valor,
   alCambiar,
@@ -44,7 +45,7 @@ export function Campo({
 
 /** Una letra sola: la del ejemplo. */
 export function Letra({ etiqueta, valor, alCambiar, ruta }: { etiqueta: string; valor: string; alCambiar: (v: string) => void; ruta: Ruta }) {
-  return <Campo etiqueta={etiqueta} valor={valor} alCambiar={(v) => alCambiar(v.trim().toUpperCase().slice(-1))} ruta={ruta} />;
+  return <CampoDelTaller etiqueta={etiqueta} valor={valor} alCambiar={(v) => alCambiar(v.trim().toUpperCase().slice(-1))} ruta={ruta} />;
 }
 
 /** La respuesta del cuadernillo: se enseña y no se edita. */
@@ -53,7 +54,7 @@ export function Respuesta({ numero, respuestas }: { numero: number; respuestas: 
   return (
     <span
       data-respuesta={numero}
-      className={`rounded-full px-3 py-1 text-sm font-bold ${letra ? "bg-verde-100 text-verde-600" : "bg-error-100 text-error-600"}`}
+      className={`rounded-full px-3 py-1 text-sm font-bold ${letra ? "bg-verde-100 text-verde-600" : "bg-coral-100 text-coral-600"}`}
     >
       {letra ? `Respuesta del cuadernillo: ${letra}` : "Sin respuesta en el cuadernillo"}
     </span>
@@ -67,17 +68,17 @@ export function Pautas({ etiqueta, pautas, alCambiar, ruta }: { etiqueta: string
       {pautas.map((pauta, i) => (
         <div key={i} className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
-            <Campo etiqueta={`Pauta ${i + 1}`} valor={pauta} alCambiar={(v) => alCambiar(pautas.map((p, j) => (j === i ? v : p)))} ruta={[...ruta, i]} />
+            <CampoDelTaller etiqueta={`Pauta ${i + 1}`} valor={pauta} alCambiar={(v) => alCambiar(pautas.map((p, j) => (j === i ? v : p)))} ruta={[...ruta, i]} />
           </div>
-          <button type="button" onClick={() => alCambiar(pautas.filter((_, j) => j !== i))} className="rounded-xl border border-tinta-suave/30 px-3 py-2">
+          <Boton variante="secundario" onClick={() => alCambiar(pautas.filter((_, j) => j !== i))}>
             Quitar
-          </button>
+          </Boton>
         </div>
       ))}
       {pautas.length < 12 && (
-        <button type="button" onClick={() => alCambiar([...pautas, ""])} className="self-start rounded-xl border border-tinta-suave/30 px-3 py-2">
+        <Boton variante="secundario" className="self-start" onClick={() => alCambiar([...pautas, ""])}>
           Añadir pauta
-        </button>
+        </Boton>
       )}
     </fieldset>
   );
@@ -100,4 +101,4 @@ export function Numero({ etiqueta, valor, alCambiar, ruta }: { etiqueta: string;
   );
 }
 
-export const CAJA = "flex min-w-0 flex-col gap-3 rounded-2xl border border-tinta-suave/20 bg-white p-4";
+export const CAJA = "flex min-w-0 flex-col gap-3 rounded-tarjeta bg-white p-4 shadow-suave";

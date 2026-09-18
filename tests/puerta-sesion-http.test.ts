@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { exigirPersona, exigirProfesor } from "@/lib/puerta/sesion-http";
 import type { Persona } from "@/lib/generated/prisma";
@@ -69,6 +70,16 @@ beforeEach(() => {
   // una prueba anterior, y eso dejaba colar el resultado de un test en el
   // siguiente.
   vi.resetAllMocks();
+});
+
+// Mutación que la mata: en exigirPersona, volver a `personaActual(new Date())`.
+// La sesión se leería dos veces por pantalla, que es lo que cache() quitó.
+it("solo la envoltura cacheada llama a personaActual", () => {
+  const fuente = readFileSync("lib/puerta/sesion-http.ts", "utf8");
+  const llamadas = fuente.match(/personaActual\(/g) ?? [];
+  // Una en la definición y una dentro de cache(): ninguna más.
+  expect(llamadas).toHaveLength(2);
+  expect(fuente).toMatch(/cache\(async \(\): Promise<Persona \| null> => personaActual\(new Date\(\)\)\)/);
 });
 
 describe("exigirPersona", () => {

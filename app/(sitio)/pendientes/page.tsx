@@ -1,9 +1,12 @@
-import Link from "next/link";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
-import { escritosPorCorregir } from "@/lib/examen/corregir";
-import { CAJA } from "@/components/examen/piezas";
+import { colaPorCorregir } from "@/lib/carcasa/pendientes";
 import { RefrescarAlEntrar } from "@/components/carcasa/refrescar-al-entrar";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
+import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
+import { Tarjeta } from "@/components/ui/tarjeta";
+import { EtiquetaEstado } from "@/components/ui/etiqueta-estado";
+import { Enlace } from "@/components/ui/enlace";
+import { BloqueVacio } from "@/components/ui/bloque-vacio";
 
 /** «3 días esperando», «1 día esperando». Es el único dato que dice por dónde
  *  empezar: lo más viejo de la cola es lo primero que hay que corregir. */
@@ -24,32 +27,34 @@ function diasEnPalabras(dias: number): string {
  */
 export default async function Cola() {
   await exigirProfesor();
-  const cola = await escritosPorCorregir(new Date());
+  // La misma consulta que ya hizo la cabecera para el número (cache()).
+  const cola = await colaPorCorregir();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
-      {/* El número de la cabecera sale del layout, que no se repinta al
-          navegar: este refresco lo pone al día con la lista de abajo. */}
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
       <RefrescarAlEntrar />
-      <header>
-        <h1 className="text-2xl font-bold">Por corregir</h1>
-      </header>
-
+      <EncabezadoPagina titulo="Pendientes" subtitulo="Redacciones entregadas que esperan tu nota, la más antigua primero." />
       {cola.length === 0 ? (
-        <p className="text-tinta-suave">No hay nada esperando.</p>
+        <BloqueVacio titulo="No hay redacciones por corregir" texto="Cuando un estudiante entregue una, aparecerá aquí." />
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-3">
           {cola.map((c) => (
-            <li key={c.intentoId}>
-              <Link href={`/pendientes/${c.intentoId}`} className={CAJA}>
-                <span className="font-bold">{c.persona.nombre}</span>
+            <Tarjeta as="li" key={c.intentoId} className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold">{c.persona.nombre}</span>
+                  <EtiquetaEstado tono="info">Redacción</EtiquetaEstado>
+                </span>
                 <span className="text-tinta-suave">{c.titulo}</span>
                 <span className="text-sm text-tinta-suave">
                   Entregada el {fechaHoraEnPalabras(c.entregadaEn)}
                   {c.porTiempo ? " · por tiempo" : ""} · {diasEnPalabras(c.diasEsperando)}
                 </span>
-              </Link>
-            </li>
+              </div>
+              <Enlace href={`/pendientes/${c.intentoId}`} comoBoton="principal">
+                Corregir
+              </Enlace>
+            </Tarjeta>
           ))}
         </ul>
       )}

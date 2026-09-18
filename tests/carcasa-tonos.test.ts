@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/db", () => ({ prisma: {} }));
-import { tonoDelEstado, varianteDelBoton } from "@/lib/carcasa/tonos";
+import { tonoDeTarea, tonoDelEstado, tonoDelExamen, tonoParaElProfesor, varianteDelBoton } from "@/lib/carcasa/tonos";
 
 const con = (estado: "SIN_EMPEZAR" | "HACIENDO" | "ESPERANDO" | "ENTREGADA") => ({
   prueba: "CE" as const,
@@ -30,5 +30,40 @@ describe("el color del estado de cada prueba", () => {
     expect(varianteDelBoton(con("SIN_EMPEZAR"))).toBe("principal");
     expect(varianteDelBoton(con("HACIENDO"))).toBe("principal");
     expect(varianteDelBoton(undefined)).toBe("principal");
+  });
+});
+
+describe("el color del estado de cada prueba, en la lista del profesor", () => {
+  // Mutación que la mata: delegar ESPERANDO en tonoDelEstado (saldría
+  // "exito", igual que para el estudiante) en vez de pintarla en "aviso": para
+  // el profesor una escrita ESPERANDO es justo lo que tiene pendiente de
+  // corregir, no algo ya resuelto.
+  it("esperando corrección se pinta en aviso, no en éxito", () => {
+    expect(tonoParaElProfesor(con("ESPERANDO"))).toBe("aviso");
+  });
+
+  // Mutación que la mata: devolver siempre "aviso" sin delegar en
+  // tonoDelEstado para los demás estados.
+  it("entregada sigue en éxito, como para el estudiante", () => {
+    expect(tonoParaElProfesor(con("ENTREGADA"))).toBe("exito");
+  });
+});
+
+describe("el color de la etiqueta de un examen", () => {
+  // Mutación que la mata: PUBLICADO en "info" en vez de "exito".
+  it("en construcción y archivado son neutros; publicado, éxito", () => {
+    expect(tonoDelExamen("EN_CONSTRUCCION")).toBe("neutro");
+    expect(tonoDelExamen("PUBLICADO")).toBe("exito");
+    expect(tonoDelExamen("ARCHIVADO")).toBe("neutro");
+  });
+});
+
+describe("el color de la etiqueta de una tarea del taller", () => {
+  // Mutación que la mata: «A medias» en "error" (no es un fallo, es algo por
+  // terminar), o «Completa» en un tono que no sea éxito.
+  it("completa es éxito; a medias, aviso; vacía, neutra", () => {
+    expect(tonoDeTarea("COMPLETA")).toBe("exito");
+    expect(tonoDeTarea("A_MEDIAS")).toBe("aviso");
+    expect(tonoDeTarea("VACIA")).toBe("neutro");
   });
 });

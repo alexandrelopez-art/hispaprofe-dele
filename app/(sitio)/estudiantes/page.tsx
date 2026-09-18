@@ -1,6 +1,14 @@
 import type { Papel } from "@/lib/generated/prisma";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { listarPersonas } from "@/lib/puerta/personas";
+import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
+import { Enlace } from "@/components/ui/enlace";
+import { Tarjeta } from "@/components/ui/tarjeta";
+import { Aviso } from "@/components/ui/aviso";
+import { Campo } from "@/components/ui/campo";
+import { Desplegable } from "@/components/ui/desplegable";
+import { Boton } from "@/components/ui/boton";
+import { EtiquetaEstado } from "@/components/ui/etiqueta-estado";
 import { crearPersona } from "./acciones";
 
 // Tipado con el enum: los dos papeles que existen están aquí, así que no
@@ -11,7 +19,18 @@ const NOMBRE_DEL_PAPEL: Record<Papel, string> = {
   ESTUDIANTE: "Estudiante",
 };
 
-export default async function Personas({
+/** «Ana Pérez» → «AP»; «Ana» → «A». Sin nombre (o solo espacios), «?» para
+ *  que el círculo no se quede vacío. Solo presentación. */
+function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  return partes
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("");
+}
+
+export default async function Estudiantes({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;
@@ -20,56 +39,48 @@ export default async function Personas({
   const [personas, { error }] = await Promise.all([listarPersonas(), searchParams]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 p-6">
-      <h1 className="text-2xl font-bold text-tinta">Personas</h1>
-
-      <ul className="flex flex-col gap-2">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-6">
+      <EncabezadoPagina titulo="Estudiantes" acciones={<Enlace href="#alta" comoBoton="principal">Dar de alta</Enlace>} />
+      <ul className="flex flex-col divide-y divide-tinta-suave/10 rounded-tarjeta bg-white shadow-tarjeta">
         {personas.map((persona) => (
-          <li
-            key={persona.id}
-            className="flex items-center justify-between rounded-2xl border border-tinta-suave/30 p-4"
-          >
-            <div>
-              <p className="font-bold text-tinta">{persona.nombre}</p>
-              <p className="text-tinta-suave">{persona.correo}</p>
-            </div>
-            <span className="text-tinta-suave">{NOMBRE_DEL_PAPEL[persona.papel]}</span>
+          <li key={persona.id} className="flex items-center gap-3 p-4">
+            <span
+              aria-hidden="true"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sol-100 font-bold text-tinta"
+            >
+              {iniciales(persona.nombre)}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="font-bold">{persona.nombre}</span>
+              <span className="truncate text-sm text-tinta-suave">{persona.correo}</span>
+            </span>
+            <EtiquetaEstado tono="neutro">{NOMBRE_DEL_PAPEL[persona.papel]}</EtiquetaEstado>
           </li>
         ))}
       </ul>
-
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold text-tinta">Dar de alta</h2>
-        {error && <p className="rounded-2xl bg-hp-50 p-4 text-tinta">{error}</p>}
+      <Tarjeta as="section" className="flex flex-col gap-4">
+        <h2 id="alta" className="scroll-mt-20 text-xl font-bold">
+          Dar de alta
+        </h2>
+        {error && <Aviso tono="error">{error}</Aviso>}
         <form action={crearPersona} className="flex flex-col gap-4">
-          <input
-            type="text"
-            name="nombre"
-            required
-            placeholder="Nombre"
-            className="rounded-2xl border border-tinta-suave/30 p-4"
-          />
-          <input
-            type="email"
-            name="correo"
-            required
-            autoComplete="email"
-            placeholder="correo@ejemplo.com"
-            className="rounded-2xl border border-tinta-suave/30 p-4"
-          />
-          <select
+          <Campo id="alta-nombre" name="nombre" etiqueta="Nombre" required />
+          <Campo id="alta-correo" name="correo" etiqueta="Correo" type="email" required autoComplete="email" placeholder="correo@ejemplo.com" />
+          <Desplegable
+            id="alta-papel"
             name="papel"
+            etiqueta="Papel"
             defaultValue="ESTUDIANTE"
-            className="rounded-2xl border border-tinta-suave/30 p-4"
-          >
-            <option value="ESTUDIANTE">Estudiante</option>
-            <option value="PROFESOR">Profesor</option>
-          </select>
-          <button type="submit" className="rounded-2xl bg-hp-400 p-4 font-bold text-white">
-            Dar de alta
-          </button>
+            opciones={[
+              { valor: "ESTUDIANTE", texto: "Estudiante" },
+              { valor: "PROFESOR", texto: "Profesor" },
+            ]}
+          />
+          <div>
+            <Boton type="submit">Dar de alta</Boton>
+          </div>
         </form>
-      </section>
+      </Tarjeta>
     </main>
   );
 }

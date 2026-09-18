@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { etiquetarPaginaAccion } from "@/app/(sitio)/examenes/acciones";
+import { Aviso } from "@/components/ui/aviso";
 import { nombreDeEtiqueta } from "@/lib/dele/estructura";
 import { alternarEtiqueta } from "@/lib/taller/etiquetas";
 
@@ -42,14 +43,14 @@ export function EtiquetasDePagina({ examenId, pagina, todas }: { examenId: strin
                 aria-pressed={puesta}
                 disabled={pendiente}
                 onClick={() => pulsar(etiqueta)}
-                className={`rounded-full px-2 py-1 text-sm ${puesta ? "bg-hp-400 font-bold text-white" : "border border-tinta-suave/30"}`}
+                className={`rounded-full px-2 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hp-600 ${puesta ? "bg-hp-700 font-bold text-white" : "border border-tinta-suave/30"}`}
               >
                 {nombreDeEtiqueta(etiqueta)}
               </button>
             );
           })}
         </div>
-        {error && <span role="alert" className="text-error-600">{error}</span>}
+        {error && <Aviso tono="error">{error}</Aviso>}
       </figcaption>
     </figure>
   );

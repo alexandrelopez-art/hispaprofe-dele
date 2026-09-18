@@ -13,9 +13,9 @@ import { Cabecera } from "@/components/carcasa/cabecera";
 export default async function LayoutDelSitio({ children }: { children: React.ReactNode }) {
   const persona = await personaDeLaPeticion();
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <Cabecera persona={persona} />
-      {children}
-    </>
+      <div className="flex flex-1 flex-col">{children}</div>
+    </div>
   );
 }

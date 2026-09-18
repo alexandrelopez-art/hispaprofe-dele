@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { esPrueba, nombreCortoDeTarea } from "@/lib/dele/estructura";
 import { tareaParaElTaller } from "@/lib/taller/examenes";
 import { hayClaveDeIA } from "@/lib/taller/ia/llamar";
+import { Aviso } from "@/components/ui/aviso";
+import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
+import { Enlace } from "@/components/ui/enlace";
 import { FormularioDeTarea } from "@/components/taller/formulario-de-tarea";
 
 // Rellenar con IA puede tardar: una tarea con varias hojas y razonamiento, en torno al minuto.
@@ -18,14 +20,14 @@ export default async function PantallaDeTarea({ params }: { params: Promise<{ id
   if (!tarea) notFound();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-6">
-      <nav><Link href={`/examenes/${id}`} className="text-hp-600 underline">← {tarea.examen.titulo}</Link></nav>
-      <h1 className="text-2xl font-bold">{nombreCortoDeTarea(prueba, n)}</h1>
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
+      <nav><Enlace href={`/examenes/${id}`}>← {tarea.examen.titulo}</Enlace></nav>
+      <EncabezadoPagina titulo={nombreCortoDeTarea(prueba, n)} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Columna con scroll propio y alto de ventana: una columna sticky más alta que la ventana no deja ver su final. */}
         <section className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
           {tarea.paginas.length === 0 ? (
-            <p className="rounded-2xl bg-sol-100 p-4">Ninguna hoja lleva esta tarea. Etiquétala en la pantalla del examen.</p>
+            <Aviso tono="aviso">Ninguna hoja lleva esta tarea. Etiquétala en la pantalla del examen.</Aviso>
           ) : (
             tarea.paginas.map((p) => (
               // eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de 5 minutos

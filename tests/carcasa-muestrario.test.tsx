@@ -40,4 +40,12 @@ describe("el muestrario", () => {
       expect(html).toContain(`id="pieza-${pieza}"`);
     }
   });
+
+  // Mutación que la mata: quitar la sección de GrupoDeOpciones del muestrario.
+  it("el muestrario enseña el GrupoDeOpciones sin control (valorInicial)", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
+    personaDeLaCookie.mockResolvedValue(PROFESOR);
+    const html = renderToStaticMarkup(await Muestrario());
+    expect(html).toContain('name="muestra-banda-vacia"');
+  });
 });

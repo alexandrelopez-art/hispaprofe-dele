@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Persona } from "@/lib/generated/prisma";
+import type { Papel, Persona } from "@/lib/generated/prisma";
 import { crearSecreto, huellaDe } from "@/lib/puerta/secretos";
 import {
   caducidadDelEnlace,
@@ -77,7 +77,7 @@ export async function pedirEnlace(
 }
 
 export type ResultadoDeEntrada =
-  | { cookie: string }
+  | { cookie: string; papel: Papel }
   | { error: MotivoDeRechazo | "desconocido" };
 
 export async function usarEnlace(secreto: string, ahora: Date): Promise<ResultadoDeEntrada> {
@@ -115,7 +115,7 @@ export async function usarEnlace(secreto: string, ahora: Date): Promise<Resultad
       createdAt: ahora,
     },
   });
-  return { cookie: cookie.secreto };
+  return { cookie: cookie.secreto, papel: enlace.persona.papel };
 }
 
 export async function personaDeLaCookie(cookie: string, ahora: Date): Promise<Persona | null> {

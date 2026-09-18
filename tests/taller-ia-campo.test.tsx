@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Campo, Numero, Pautas } from "@/components/taller/campo";
+import { CampoDelTaller, Numero, Pautas } from "@/components/taller/campo";
 import { DudasContext } from "@/components/taller/dudas";
 
 const nada = () => {};
 
 describe("un campo con duda de la IA", () => {
-  // Mutación que la mata: no leer el contexto en Campo.
+  // Mutación que la mata: no leer el contexto en CampoDelTaller.
   it("pinta la nota de su duda", () => {
     const html = renderToStaticMarkup(
       <DudasContext.Provider value={new Map([["actividad.titulo", "no se lee la tilde"]])}>
-        <Campo etiqueta="Título" valor="Canción" alCambiar={nada} ruta={["actividad", "titulo"]} opcional />
+        <CampoDelTaller etiqueta="Título" valor="Canción" alCambiar={nada} ruta={["actividad", "titulo"]} opcional />
       </DudasContext.Provider>,
     );
     expect(html).toContain('data-duda="actividad.titulo"');
@@ -22,7 +22,7 @@ describe("un campo con duda de la IA", () => {
   it("un campo sin duda no pinta ninguna, aunque otro la tenga", () => {
     const html = renderToStaticMarkup(
       <DudasContext.Provider value={new Map([["consigna", "retocada"]])}>
-        <Campo etiqueta="Título" valor="Canción" alCambiar={nada} ruta={["actividad", "titulo"]} opcional />
+        <CampoDelTaller etiqueta="Título" valor="Canción" alCambiar={nada} ruta={["actividad", "titulo"]} opcional />
       </DudasContext.Provider>,
     );
     expect(html).not.toContain("data-duda");

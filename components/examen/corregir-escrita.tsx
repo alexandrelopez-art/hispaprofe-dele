@@ -2,12 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
+import type { ParaCorregir } from "@/lib/examen/corregir";
 import { BANDA_MAXIMA, CRITERIOS_EE } from "@/lib/dele/estructura";
 import { guardarCorreccionAccion } from "@/app/(sitio)/pendientes/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { huboSalidas, tiempoFueraEnPalabras, vecesEnPalabras, type ResumenDeSalidas } from "@/lib/examen/motor";
-import { AVISO_DE_ERROR, AVISO_SUAVE, BOTON, BOTON_SUAVE, CAJA, enLista } from "@/components/examen/piezas";
+import { motivoParaNoGuardar, sumaDeNotas, type Bandas } from "@/components/examen/notas";
+import { Aviso } from "@/components/ui/aviso";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
+import { GrupoDeOpciones } from "@/components/ui/grupo-de-opciones";
+import { Tarjeta } from "@/components/ui/tarjeta";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /**
@@ -20,7 +26,7 @@ import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
  * tarea de la última salida: tres salidas de cinco segundos y una de doce
  * minutos son dos cosas muy distintas y no se pueden contar igual.
  *
- * Lleva el aviso SUAVE y no el de error: no se ha roto nada, y el registro no es
+ * Va en coral y no en rojo: no se ha roto nada, y el registro no es
  * una acusación. Que el chico se saliera puede ser una llamada de su madre.
  *
  * Pieza aparte y exportada para poder pintarla sin montar la pantalla entera.
@@ -28,23 +34,20 @@ import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 export function SalidasDelEstudiante({ resumen }: { resumen: ResumenDeSalidas }) {
   if (!huboSalidas(resumen)) return null;
   return (
-    <p role="status" data-salidas className={AVISO_SUAVE}>
-      Salió de la pantalla {vecesEnPalabras(resumen.salidas)}, {tiempoFueraEnPalabras(resumen.segundosFuera)} en
-      total
-      {resumen.ultimaSalidaEn !== null && `; la última, el ${fechaHoraEnPalabras(resumen.ultimaSalidaEn)}`}
-      {resumen.ultimaSalidaDeTarea !== null && `, desde la tarea ${resumen.ultimaSalidaDeTarea}`}.
-      {/* El caso que más le dice: se fue y la prueba se cerró con él fuera. Se
-          nombra con todas las letras, porque el tiempo de esa última ausencia se
-          cuenta solo hasta el cierre y no hasta que alguien miró la pantalla. */}
-      {resumen.ultimaSalidaSinVuelta && " De esa última no volvió: la prueba se cerró con él fuera."}
-    </p>
+    <div role="status" data-salidas>
+      <Aviso tono="aviso">
+        Salió de la pantalla {vecesEnPalabras(resumen.salidas)}, {tiempoFueraEnPalabras(resumen.segundosFuera)} en
+        total
+        {resumen.ultimaSalidaEn !== null && `; la última, el ${fechaHoraEnPalabras(resumen.ultimaSalidaEn)}`}
+        {resumen.ultimaSalidaDeTarea !== null && `, desde la tarea ${resumen.ultimaSalidaDeTarea}`}.
+        {/* El caso que más le dice: se fue y la prueba se cerró con él fuera. Se
+            nombra con todas las letras, porque el tiempo de esa última ausencia se
+            cuenta solo hasta el cierre y no hasta que alguien miró la pantalla. */}
+        {resumen.ultimaSalidaSinVuelta && " De esa última no volvió: la prueba se cerró con él fuera."}
+      </Aviso>
+    </div>
   );
 }
-
-/** Una banda por criterio. `null` = todavía sin nota: es distinto de un 0, que
- *  es una nota válida. Confundir los dos es justo el agujero que esta forma
- *  existe para tapar. */
-type Bandas = (number | null)[];
 
 /** Nace vacía si nunca se corrigió (`bandas.length === 0`); si ya tiene las
  *  cuatro, son las de verdad, no ceros de relleno. */
@@ -52,37 +55,30 @@ function bandasIniciales(bandas: number[]): Bandas {
   return bandas.length === CRITERIOS_EE.length ? bandas : CRITERIOS_EE.map(() => null);
 }
 
-/** Los números de tarea a los que les falta alguna banda. */
-function tareasIncompletas(bandas: Record<number, Bandas>, tareas: TareaParaCorregir[]): number[] {
-  return tareas.filter((t) => (bandas[t.numero] ?? []).some((b) => b === null)).map((t) => t.numero);
-}
-
-/** «Te faltan notas en la tarea 2.» / «Te faltan notas en las tareas 1 y 2.» */
-function mensajeDeFaltantes(faltan: number[]): string {
-  const tareas = faltan.length === 1 ? "la tarea" : "las tareas";
-  return `Te faltan notas en ${tareas} ${enLista(faltan.map(String))}.`;
+/** La nota marcada de un criterio, como la pide `GrupoDeOpciones`: `null` si
+ *  todavía no hay, que deja los cuatro botones sin marcar (NO marca el 0). */
+function valorDeBanda(bandas: Record<number, Bandas>, tarea: number, i: number): string | null {
+  const b = bandas[tarea]?.[i] ?? null;
+  return b === null ? null : String(b);
 }
 
 /**
  * Los dos botones de guardar, aparte de la pantalla para poder pintarlos
  * solos con `procesando` fijo: dentro de `CorregirEscrita` solo se apagan
  * tras un clic, y aquí no hay jsdom para simular uno.
+ *
+ * Con `motivo` (falta alguna nota) nacen apagados y el motivo va escrito al
+ * lado: un botón apagado sin decir por qué parece roto. Solo el primero cambia
+ * su texto a «Guardando…»: dos botones diciendo lo mismo confunden.
  */
-export function BotonesDeGuardar({
-  procesando, alGuardar, alGuardarYSeguir,
-}: {
-  procesando: boolean;
-  alGuardar: () => void;
-  alGuardarYSeguir: () => void;
+export function BotonesDeGuardar({ procesando, motivo, alGuardar, alGuardarYSeguir }: {
+  procesando: boolean; motivo: string | null; alGuardar: () => void; alGuardarYSeguir: () => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-3">
-      <button type="button" disabled={procesando} onClick={alGuardar} className={BOTON}>
-        Guardar
-      </button>
-      <button type="button" disabled={procesando} onClick={alGuardarYSeguir} className={BOTON_SUAVE}>
-        Guardar y seguir
-      </button>
+    <div className="flex flex-wrap items-center gap-3">
+      <Boton onClick={alGuardar} disabled={motivo !== null} enviando={procesando} textoEnviando="Guardando…">Guardar</Boton>
+      <Boton variante="secundario" onClick={alGuardarYSeguir} disabled={motivo !== null || procesando}>Guardar y seguir</Boton>
+      {motivo && <span className="text-sm text-tinta-suave">{motivo}</span>}
     </div>
   );
 }
@@ -90,16 +86,18 @@ export function BotonesDeGuardar({
 /**
  * La pantalla de corregir UNA redacción: el enunciado de cada tarea (de
  * lectura, con `<EnunciadoDeEscrita bloqueado>`), lo que escribió el
- * estudiante, y las cuatro casillas de banda más el comentario, tarea a
- * tarea. Guardar firma la corrección entera de golpe (las dos tareas juntas),
+ * estudiante, y las cuatro notas (0 a 3, en botones) más el comentario,
+ * tarea a tarea. Guardar firma la corrección entera de golpe (las dos tareas juntas),
  * como hace `guardarCorreccion` en el servidor.
  *
- * Las ocho casillas NACEN VACÍAS cuando no hay corrección previa, no a cero:
+ * Las ocho notas NACEN SIN MARCAR cuando no hay corrección previa, no a cero:
  * `guardarCorreccion` firma con la fecha en cualquier guardado, así que un
  * profesor que solo rellenara la tarea 1 y guardara firmaría la tarea 2 con
  * cuatro ceros sin querer, y esa redacción saldría de la cola con una nota
- * que nadie puso. «Guardar» y «Guardar y seguir» se niegan mientras falte
- * alguna casilla; un 0 escrito a mano sigue siendo una nota válida.
+ * que nadie puso. «Guardar» y «Guardar y seguir» vienen apagados mientras
+ * falte alguna, con el motivo escrito al lado; un 0 marcado a mano sigue
+ * siendo una nota válida. Arriba va la suma («17 de 24»), que solo informa:
+ * nunca se traduce a apto.
  */
 export function CorregirEscrita({ para }: { para: ParaCorregir }) {
   const router = useRouter();
@@ -118,10 +116,15 @@ export function CorregirEscrita({ para }: { para: ParaCorregir }) {
   // gana, que es lo que el profesor esperaría.
   const [procesando, empezarTransicion] = useTransition();
 
+  const numeros = para.tareas.map((t) => t.numero);
+  const motivo = motivoParaNoGuardar(bandas, numeros);
+  const { suma, maximo } = sumaDeNotas(bandas, numeros);
+
   function guardar(irASiguiente: boolean) {
-    const incompletas = tareasIncompletas(bandas, para.tareas);
-    if (incompletas.length > 0) {
-      setError(mensajeDeFaltantes(incompletas));
+    // Red por debajo de los botones apagados: no debería llegar nunca aquí
+    // con huecos, pero si llega no se firma nada.
+    if (motivo !== null) {
+      setError(motivo);
       return;
     }
     const tareas = para.tareas.map((t) => ({
@@ -152,71 +155,63 @@ export function CorregirEscrita({ para }: { para: ParaCorregir }) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 p-6">
-      <header className={CAJA}>
-        <h1 className="text-2xl font-bold">{para.persona.nombre}</h1>
-        <p className="text-tinta-suave">{para.examen.titulo}</p>
-        <p className="text-sm text-tinta-suave">
-          Entregada el {fechaHoraEnPalabras(para.entregadaEn)}
-          {para.porTiempo ? " · por tiempo" : ""}
-        </p>
-        {/* Firmar es un acto con fecha: si ya la corrigió, la pantalla lo dice
-            y avisa de que volver a guardar cambia la corrección ya firmada.
-            No es un error —nada se ha roto—, así que lleva el aviso suave. */}
-        {para.corregidaEn !== null && (
-          <p role="status" className={AVISO_SUAVE}>
-            Ya la corregiste el {fechaHoraEnPalabras(para.corregidaEn)}; si guardas, se cambia.
-          </p>
-        )}
-        <SalidasDelEstudiante resumen={para.salidas} />
-      </header>
-
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
+      <EncabezadoPagina
+        titulo={para.persona.nombre}
+        subtitulo={`${para.examen.titulo} · entregada el ${fechaHoraEnPalabras(para.entregadaEn)}${para.porTiempo ? " · por tiempo" : ""}`}
+        acciones={<p className="text-lg font-extrabold" data-suma>{suma} de {maximo}</p>}
+      />
+      {/* Firmar es un acto con fecha: si ya la corrigió, la pantalla lo dice
+          y avisa de que volver a guardar cambia la corrección ya firmada.
+          No es un error —nada se ha roto—, así que va en info. */}
+      {para.corregidaEn !== null && (
+        <div role="status">
+          <Aviso tono="info">Ya la corregiste el {fechaHoraEnPalabras(para.corregidaEn)}; si guardas, se cambia.</Aviso>
+        </div>
+      )}
+      <SalidasDelEstudiante resumen={para.salidas} />
+      {error && <Aviso tono="error">{error}</Aviso>}
 
       {para.tareas.map((t) => (
-        <section key={t.numero} className={CAJA}>
+        <Tarjeta as="section" key={t.numero} className="flex flex-col gap-4">
           <h2 className="text-xl font-bold">Tarea {t.numero}</h2>
-          <div className="grid gap-6 md:grid-cols-2">
-            <EnunciadoDeEscrita formulario={t.formulario} opcionElegida={t.opcion} bloqueado />
-            <div className="flex min-w-0 flex-col gap-2">
-              <p className="min-w-0 rounded-2xl border border-tinta-suave/20 bg-tinta-suave/5 p-4 whitespace-pre-line">
-                {t.texto}
-              </p>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="flex min-w-0 flex-col gap-3">
+              <EnunciadoDeEscrita formulario={t.formulario} opcionElegida={t.opcion} bloqueado />
+              <p className="min-w-0 rounded-2xl border border-tinta-suave/20 bg-fondo p-4 whitespace-pre-line">{t.texto}</p>
               <p className="text-sm text-tinta-suave">{t.palabras} palabras</p>
             </div>
-          </div>
-          <div className="flex flex-col gap-3">
-            {CRITERIOS_EE.map((criterio, i) => (
-              <label key={criterio.clave} className="flex flex-col gap-1">
-                <span className="font-bold">{criterio.nombre}</span>
-                {criterio.ayuda !== "" && <span data-ayuda className="text-sm text-tinta-suave">{criterio.ayuda}</span>}
-                <input
-                  type="number"
-                  min={0}
-                  max={BANDA_MAXIMA}
-                  step={1}
-                  value={bandas[t.numero]?.[i] ?? ""}
+            <div className="flex min-w-0 flex-col gap-4">
+              {CRITERIOS_EE.map((criterio, i) => (
+                <GrupoDeOpciones
+                  key={criterio.clave}
+                  nombre={`nota-${t.numero}-${i}`}
+                  leyenda={criterio.nombre}
+                  ayuda={criterio.ayuda || undefined}
+                  forma="segmentos"
+                  opciones={Array.from({ length: BANDA_MAXIMA + 1 }, (_, v) => ({ valor: String(v), texto: String(v) }))}
+                  valor={valorDeBanda(bandas, t.numero, i)}
+                  alCambiar={(v) => cambiarBanda(t.numero, i, Number(v))}
                   disabled={procesando}
-                  onChange={(e) => cambiarBanda(t.numero, i, e.target.value === "" ? null : Number(e.target.value))}
-                  className="w-24 rounded-xl border border-tinta-suave/30 p-2 disabled:opacity-50"
                 />
-              </label>
-            ))}
-            <label className="flex flex-col gap-1">
-              <span className="font-bold">Comentario</span>
-              <textarea
+              ))}
+              <Campo
+                multilinea
+                id={`comentario-${t.numero}`}
+                etiqueta="Comentario"
+                rows={4}
                 value={comentarios[t.numero] ?? ""}
                 disabled={procesando}
                 onChange={(e) => setComentarios((actual) => ({ ...actual, [t.numero]: e.target.value }))}
-                className="rounded-2xl border border-tinta-suave/30 p-3 disabled:opacity-50"
-                rows={4}
               />
-            </label>
+            </div>
           </div>
-        </section>
+        </Tarjeta>
       ))}
 
-      <BotonesDeGuardar procesando={procesando} alGuardar={() => guardar(false)} alGuardarYSeguir={() => guardar(true)} />
+      <div className="sticky bottom-0 border-t border-tinta-suave/20 bg-fondo py-3">
+        <BotonesDeGuardar procesando={procesando} motivo={motivo} alGuardar={() => guardar(false)} alGuardarYSeguir={() => guardar(true)} />
+      </div>
     </main>
   );
 }
