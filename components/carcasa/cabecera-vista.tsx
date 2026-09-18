@@ -2,17 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { enlacesDe, inicioDe, seccionActiva, type EnlaceDelMenu, type Papel } from "@/lib/carcasa/menu";
 
 const FOCO = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hp-600";
 
+/** El número de Pendientes. Un aria-label sobre un <span> sin papel no lo lee
+ *  ningún lector de pantalla: el texto para ellos va aparte, en sr-only, y el
+ *  número visible se les oculta para que no lo oigan dos veces. */
 function Contador({ n }: { n: number | null }) {
   if (!n) return null;
   return (
-    <span aria-label={`Por corregir: ${n}`} className="ml-1 rounded-full bg-coral-600 px-2 text-xs font-bold text-white">
-      {n}
-    </span>
+    <>
+      <span className="sr-only">{`Por corregir: ${n}`}</span>
+      <span aria-hidden="true" className="ml-1 rounded-full bg-coral-600 px-2 text-xs font-bold text-white">
+        {n}
+      </span>
+    </>
   );
 }
 
@@ -54,24 +60,40 @@ function Salir() {
   );
 }
 
-/** El panel del móvil: cubre la pantalla bajo la barra. Exportado para poder
- *  probarlo abierto sin navegador. */
+/** El panel del móvil: cubre la pantalla bajo la barra. Está SIEMPRE en la
+ *  página y cerrado lleva `hidden`, para que el aria-controls del botón Menú
+ *  apunte a algo que existe. Exportado para poder probarlo abierto sin
+ *  navegador. */
 export function PanelMovil({
+  abierto,
   enlaces,
   activa,
   nombre,
   pendientes,
   alCerrar,
+  refCerrar,
 }: {
+  abierto: boolean;
   enlaces: EnlaceDelMenu[];
   activa: string | null;
   nombre: string;
   pendientes: number | null;
   alCerrar: () => void;
+  refCerrar?: RefObject<HTMLButtonElement | null>;
 }) {
   return (
-    <div id="panel-del-menu" className="fixed inset-x-0 bottom-0 top-16 z-20 flex flex-col gap-2 bg-white p-4 md:hidden">
-      <button type="button" aria-label="Cerrar el menú" onClick={alCerrar} className={`self-end rounded-full p-2 text-xl ${FOCO}`}>
+    <div
+      id="panel-del-menu"
+      hidden={!abierto}
+      className="fixed inset-x-0 bottom-0 top-16 z-20 flex flex-col gap-2 bg-white p-4 md:hidden"
+    >
+      <button
+        ref={refCerrar}
+        type="button"
+        aria-label="Cerrar el menú"
+        onClick={alCerrar}
+        className={`self-end rounded-full p-2 text-xl ${FOCO}`}
+      >
         ✕
       </button>
       <nav aria-label="Menú" className="flex flex-col gap-1">
@@ -92,6 +114,39 @@ export function CabeceraVista({ papel, nombre, pendientes }: { papel: Papel; nom
   const enlaces = enlacesDe(papel);
   const activa = seccionActiva(ruta, enlaces);
   const [abierto, setAbierto] = useState(false);
+  const botonMenu = useRef<HTMLButtonElement>(null);
+  const botonCerrar = useRef<HTMLButtonElement>(null);
+  const nombreDetalles = useRef<HTMLDetailsElement>(null);
+
+  // El foco sigue al panel: al abrir va a la ✕, al cerrar vuelve a «Menú».
+  // Se compara con el valor anterior (y no con «es la primera vez») para no
+  // mover el foco al cargar la página, tampoco cuando el modo estricto de
+  // React corre el efecto dos veces.
+  const abiertoAntes = useRef(abierto);
+  useEffect(() => {
+    if (abiertoAntes.current === abierto) return;
+    abiertoAntes.current = abierto;
+    (abierto ? botonCerrar : botonMenu).current?.focus();
+  }, [abierto]);
+
+  // Escape cierra el panel. Escucha en `document` solo mientras está abierto.
+  useEffect(() => {
+    if (!abierto) return;
+    const alTeclear = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setAbierto(false);
+    };
+    document.addEventListener("keydown", alTeclear);
+    return () => document.removeEventListener("keydown", alTeclear);
+  }, [abierto]);
+
+  // Escape cierra también el menú del nombre y devuelve el foco a su
+  // <summary> (el <details> no lo hace solo).
+  const cerrarNombreConEscape = (e: KeyboardEvent<HTMLDetailsElement>) => {
+    const d = nombreDetalles.current;
+    if (e.key !== "Escape" || !d?.open) return;
+    d.open = false;
+    d.querySelector("summary")?.focus();
+  };
 
   return (
     <header className="border-b border-tinta-suave/10 bg-white">
@@ -100,15 +155,15 @@ export function CabeceraVista({ papel, nombre, pendientes }: { papel: Papel; nom
           HispaProfe
         </Link>
 
-        <nav aria-label="Menú" className="hidden flex-1 items-center gap-1 md:flex">
+        <nav data-menu-escritorio="" aria-label="Menú" className="hidden flex-1 items-center gap-1 md:flex">
           {enlaces.map((e) => (
             <EnlaceDeMenu key={e.href} enlace={e} activa={activa} pendientes={pendientes} />
           ))}
         </nav>
 
         {/* El nombre abre un menú con Salir. <details> no necesita estado ni
-            efecto, y el teclado lo abre con Intro. */}
-        <details className="relative ml-auto hidden md:block">
+            efecto, y el teclado lo abre con Intro; Escape lo cierra. */}
+        <details ref={nombreDetalles} onKeyDown={cerrarNombreConEscape} className="relative ml-auto hidden md:block">
           <summary className={`cursor-pointer list-none rounded-2xl px-3 py-2 font-bold ${FOCO}`}>{nombre} ▾</summary>
           <div className="absolute right-0 z-20 mt-2 rounded-2xl bg-white p-2 shadow-tarjeta">
             <Salir />
@@ -116,6 +171,7 @@ export function CabeceraVista({ papel, nombre, pendientes }: { papel: Papel; nom
         </details>
 
         <button
+          ref={botonMenu}
           type="button"
           className={`ml-auto rounded-2xl px-3 py-2 font-bold md:hidden ${FOCO}`}
           aria-expanded={abierto}
@@ -126,7 +182,15 @@ export function CabeceraVista({ papel, nombre, pendientes }: { papel: Papel; nom
           <Contador n={pendientes} />
         </button>
       </div>
-      {abierto && <PanelMovil enlaces={enlaces} activa={activa} nombre={nombre} pendientes={pendientes} alCerrar={() => setAbierto(false)} />}
+      <PanelMovil
+        abierto={abierto}
+        enlaces={enlaces}
+        activa={activa}
+        nombre={nombre}
+        pendientes={pendientes}
+        alCerrar={() => setAbierto(false)}
+        refCerrar={botonCerrar}
+      />
     </header>
   );
 }

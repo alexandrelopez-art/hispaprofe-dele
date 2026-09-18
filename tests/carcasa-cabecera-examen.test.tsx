@@ -48,6 +48,38 @@ describe("la ventana", () => {
   });
 });
 
+/** La etiqueta de apertura del <button> cuyo texto es `texto`. Se mira el
+ *  atributo en la etiqueta, no `toContain("disabled")`, que pasaría por
+ *  casualidad con la clase `disabled:…` de todos los botones. */
+function botonQueDice(html: string, texto: string): string {
+  const m = html.match(new RegExp(`(<button[^>]*>)${texto}</button>`));
+  expect(m, `no hay botón «${texto}»`).not.toBeNull();
+  return m![1]!;
+}
+
+describe("la ventana mientras sale", () => {
+  // Mutación que la mata: no pasar `enviando={saliendo}` al botón de salir
+  // (sigue encendido y mudo mientras navega: invita al segundo clic), o no
+  // apagar «Seguir la prueba» mientras sale.
+  it("con saliendo, salir dice «Saliendo…» y los dos botones se apagan", () => {
+    const html = renderToStaticMarkup(
+      <VentanaDeSalida abierta saliendo frases={["Uno."]} alSeguir={() => {}} alSalir={() => {}} />,
+    );
+    expect(botonQueDice(html, "Saliendo…")).toMatch(/\sdisabled=""/);
+    expect(html).not.toContain("Salir de todos modos");
+    expect(botonQueDice(html, "Seguir la prueba")).toMatch(/\sdisabled=""/);
+  });
+
+  // Mutación que la mata: apagar los botones siempre (la ventana no serviría).
+  it("sin salir todavía, los dos botones están encendidos", () => {
+    const html = renderToStaticMarkup(
+      <VentanaDeSalida abierta frases={["Uno."]} alSeguir={() => {}} alSalir={() => {}} />,
+    );
+    expect(botonQueDice(html, "Salir de todos modos")).not.toMatch(/\sdisabled=""/);
+    expect(botonQueDice(html, "Seguir la prueba")).not.toMatch(/\sdisabled=""/);
+  });
+});
+
 describe("la cabecera del examen", () => {
   // Mutación que la mata: pintar un hueco de reloj vacío en libre, o no pintar
   // el que llega.

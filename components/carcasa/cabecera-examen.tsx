@@ -29,14 +29,20 @@ export function frasesDeSalida({ conReloj, escrita }: { conReloj: boolean; escri
  * navegador devuelve el foco al botón que la abrió. Abrirla o cerrarla con
  * «Seguir la prueba» NO desmonta la pantalla de la prueba, así que no apunta
  * ninguna salida: lo que apunta es irse de verdad.
+ *
+ * `saliendo` es el rato entre pulsar «Salir de todos modos» y que llegue
+ * Inicio: sin señal, el botón parece roto e invita al segundo clic, y
+ * «Seguir la prueba» ya no puede cumplir lo que dice.
  */
 export function VentanaDeSalida({
   abierta,
+  saliendo = false,
   frases,
   alSeguir,
   alSalir,
 }: {
   abierta: boolean;
+  saliendo?: boolean;
   frases: string[];
   alSeguir: () => void;
   alSalir: () => void;
@@ -65,10 +71,10 @@ export function VentanaDeSalida({
         </p>
       ))}
       <div className="mt-4 flex flex-wrap justify-end gap-2">
-        <Boton variante="secundario" onClick={alSeguir} autoFocus>
+        <Boton variante="secundario" onClick={alSeguir} disabled={saliendo} autoFocus>
           Seguir la prueba
         </Boton>
-        <Boton variante="peligro" onClick={alSalir}>
+        <Boton variante="peligro" onClick={alSalir} enviando={saliendo} textoEnviando="Saliendo…">
           Salir de todos modos
         </Boton>
       </div>
@@ -97,6 +103,7 @@ export function CabeceraExamen({
 }) {
   const router = useRouter();
   const [preguntando, setPreguntando] = useState(false);
+  const [saliendo, setSaliendo] = useState(false);
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta bg-white px-4 py-3 shadow-suave">
@@ -124,9 +131,13 @@ export function CabeceraExamen({
       {preguntar && (
         <VentanaDeSalida
           abierta={preguntando}
+          saliendo={saliendo}
           frases={frasesDeSalida({ conReloj: reloj !== null, escrita })}
           alSeguir={() => setPreguntando(false)}
-          alSalir={() => router.push("/")}
+          alSalir={() => {
+            setSaliendo(true);
+            router.push("/");
+          }}
         />
       )}
     </header>

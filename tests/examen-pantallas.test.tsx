@@ -840,6 +840,8 @@ describe("la pantalla que hace el estudiante", () => {
   // Mutación que la mata: quitar la CabeceraExamen de una cara, o no pintar
   // la cabecera del sitio en la entregada. Ninguna cara puede quedarse sin
   // salida: es el fallo que cazó el profesor en la aceptación de la 3c.
+  // Mutación que la mata (la escrita): decidir la cabecera del sitio con
+  // `estado === "ENTREGADA"` en vez de estaEntregada (ESPERANDO se queda fuera).
   it("ninguna cara se queda sin salida", async () => {
     for (const cara of [sinEmpezar(), haciendoAuditiva(), enLibre()]) {
       expect(await pintarPagina(cara)).toContain(">Salir<");
@@ -847,6 +849,9 @@ describe("la pantalla que hace el estudiante", () => {
     const entregada = await pintarPagina(entregadaCon19De25());
     expect(entregada).toContain("data-menu");
     expect(entregada).toContain('href="/"');
+    // La escrita entregada y sin firmar vive en otra cara (ESPERANDO), que
+    // también tiene que devolver la cabecera del sitio.
+    expect(await pintarPagina(escritaEsperando())).toContain("data-menu");
   });
 
   // Mutación que la mata: quitar el reloj de la cabecera, o pintar un segundo
@@ -870,8 +875,10 @@ describe("la pantalla que hace el estudiante", () => {
 
   // Mutación que la mata: pintar la cabecera del sitio mientras se hace la
   // prueba (el menú distrae y el Inicio queda a un clic sin pregunta).
+  // Mutación que la mata (la escrita): `|| leida.prueba === "EE"` al decidir
+  // la cabecera del sitio en la página.
   it("sin entregar no hay menú del sitio", async () => {
-    for (const cara of [sinEmpezar(), haciendoLectura(), enLibre()]) {
+    for (const cara of [sinEmpezar(), haciendoLectura(), enLibre(), escritaParaHacer()]) {
       expect(await pintarPagina(cara)).not.toContain("data-menu");
     }
   });
@@ -1678,6 +1685,16 @@ describe("Por corregir: la cola del profesor", () => {
     ]);
     const html = renderToStaticMarkup(await Cola());
     expect(html).toContain('href="/pendientes/i7"');
+  });
+
+  // Mutación que la mata: quitar <RefrescarAlEntrar /> de la página. El
+  // layout de app/(sitio)/ no se repinta al navegar, y la cola crece por
+  // caminos que no pasan por firmar (un estudiante entrega): sin el refresco,
+  // el número de la cabecera y la lista no coincidirían al llegar aquí.
+  it("al entrar pide un refresco, para que el número de la cabecera cuadre", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("data-refrescar");
   });
 
   // Mutación que la mata: cerrar las que se pasaron de hora desde esta

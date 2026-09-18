@@ -2,6 +2,7 @@ import Link from "next/link";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { escritosPorCorregir } from "@/lib/examen/corregir";
 import { CAJA } from "@/components/examen/piezas";
+import { RefrescarAlEntrar } from "@/components/carcasa/refrescar-al-entrar";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
 
 /** «3 días esperando», «1 día esperando». Es el único dato que dice por dónde
@@ -27,6 +28,9 @@ export default async function Cola() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
+      {/* El número de la cabecera sale del layout, que no se repinta al
+          navegar: este refresco lo pone al día con la lista de abajo. */}
+      <RefrescarAlEntrar />
       <header>
         <h1 className="text-2xl font-bold">Por corregir</h1>
       </header>

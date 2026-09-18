@@ -23,8 +23,15 @@ async function pintar(persona: Persona | null): Promise<string> {
   return elemento ? renderToStaticMarkup(elemento) : "";
 }
 
-/** Los href de los enlaces de navegación (los que llevan data-menu). */
-function hrefsDelMenu(html: string): string[] {
+/** Los href de los enlaces de navegación (los que llevan data-menu) del menú
+ *  de ESCRITORIO. El panel del móvil se pinta siempre (oculto con `hidden`,
+ *  para que `aria-controls` apunte a algo que existe) y repite los mismos
+ *  enlaces: contar en la página entera los daría dos veces. Se recorta el
+ *  <nav> marcado con data-menu-escritorio y la comparación sigue siendo exacta. */
+function hrefsDelMenu(pagina: string): string[] {
+  const nav = pagina.match(/<nav[^>]*data-menu-escritorio=""[^>]*>[\s\S]*?<\/nav>/);
+  expect(nav, "no hay menú de escritorio").not.toBeNull();
+  const html = nav![0];
   return [...html.matchAll(/<a[^>]*data-menu=""[^>]*href="([^"]+)"|<a[^>]*href="([^"]+)"[^>]*data-menu=""/g)].map((m) => m[1] ?? m[2]!);
 }
 
@@ -69,11 +76,16 @@ describe("la cabecera", () => {
     expect(await pintar(PROFESOR)).toMatch(/<a[^>]*href="\/examenes"[^>]*aria-current="page"|<a[^>]*aria-current="page"[^>]*href="\/examenes"/);
   });
 
-  // Mutación que la mata: pintar el número siempre, o no pintarlo nunca.
-  it("el número de Pendientes: con aria-label, y sin dibujar el cero", async () => {
+  // Mutación que la mata: pintar el número siempre, o no pintarlo nunca; o
+  // volver al aria-label sobre un <span> sin papel (los lectores de pantalla
+  // lo ignoran): el texto para ellos va en sr-only y el número visible, oculto
+  // a ellos para que no lo lean dos veces.
+  it("el número de Pendientes: con texto para lectores de pantalla, y sin dibujar el cero", async () => {
     dobles.escritosPorCorregir.mockResolvedValue([{}, {}, {}]);
     const conTres = await pintar(PROFESOR);
-    expect(conTres).toContain('aria-label="Por corregir: 3"');
+    expect(conTres).toContain('<span class="sr-only">Por corregir: 3</span>');
+    expect(conTres).toMatch(/<span aria-hidden="true"[^>]*>3<\/span>/);
+    expect(conTres).not.toContain('aria-label="Por corregir');
     dobles.escritosPorCorregir.mockResolvedValue([]);
     expect(await pintar(PROFESOR)).not.toContain("Por corregir:");
   });
@@ -105,13 +117,25 @@ describe("el panel del móvil", () => {
   // Mutación que la mata: no pintar los enlaces o el salir dentro del panel.
   it("abierto, lleva los enlaces, el nombre, salir y la ✕", () => {
     const html = renderToStaticMarkup(
-      <PanelMovil enlaces={enlacesDe("PROFESOR")} activa="/pendientes" nombre="Pablo" pendientes={2} alCerrar={() => {}} />,
+      <PanelMovil abierto enlaces={enlacesDe("PROFESOR")} activa="/pendientes" nombre="Pablo" pendientes={2} alCerrar={() => {}} />,
     );
     expect(html).toContain('href="/examenes"');
     expect(html).toContain('href="/pendientes"');
     expect(html).toContain("Pablo");
     expect(html).toContain('action="/salir"');
     expect(html).toContain('aria-label="Cerrar el menú"');
-    expect(html).toContain('aria-label="Por corregir: 2"');
+    expect(html).toContain('<span class="sr-only">Por corregir: 2</span>');
+    expect(html).not.toMatch(/<div[^>]*id="panel-del-menu"[^>]*\shidden=""/);
+  });
+
+  // Mutación que la mata: volver a montar el panel solo al abrirlo (el
+  // aria-controls="panel-del-menu" del botón Menú apuntaría a nada), o
+  // pintarlo cerrado sin `hidden` (se vería encima de la página).
+  it("cerrado, está en la página pero oculto, y el botón Menú apunta a él", async () => {
+    const html = await pintar(PROFESOR);
+    expect(html).toMatch(/<button[^>]*aria-controls="panel-del-menu"/);
+    const panel = html.match(/<div[^>]*id="panel-del-menu"[^>]*>/);
+    expect(panel, "el panel no está en la página").not.toBeNull();
+    expect(panel![0]).toMatch(/\shidden=""/);
   });
 });

@@ -8,7 +8,7 @@ import { NOMBRE_CORTO } from "@/lib/dele/estructura";
 import { fechaEnPalabras } from "@/lib/tiempo/madrid";
 import type { Prueba } from "@/lib/generated/prisma";
 
-// Solo lectura y auditiva tienen ficha: la escrita se corrige en /corregir,
+// Solo lectura y auditiva tienen ficha: la escrita se corrige en /pendientes,
 // que es otra pantalla, y una escrita ESPERANDO (entregada sin firmar) no
 // tiene nada congelado que enseñar todavía. Tipada como Prueba[] (no
 // inferida como string[]) para que una errata aquí ("CO" mal escrito, o un
