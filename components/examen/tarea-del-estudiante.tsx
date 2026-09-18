@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Desplegable } from "@/components/ui/desplegable";
 import type { ReglaTarea } from "@/lib/dele/estructura";
 import type { TareaParaHacer } from "@/lib/examen/paraHacer";
 import { letrasPosibles } from "@/lib/taller/estado";
@@ -18,11 +19,11 @@ function TextoSuelto({ etiqueta, texto }: { etiqueta: string; texto: string }) {
   );
 }
 
-const CAJA = "flex min-w-0 flex-col gap-3 rounded-2xl border border-tinta-suave/20 bg-white p-4";
+const CAJA = "flex min-w-0 flex-col gap-3 rounded-tarjeta bg-white p-4 shadow-suave";
 
-/** La caja de una pregunta: roja y con `data-fallo` si el estudiante la falló. */
+/** La caja de una pregunta: coral y con `data-fallo` si el estudiante la falló. */
 function cajaPregunta(fallo: boolean): string {
-  return `flex min-w-0 flex-col gap-3 rounded-2xl border bg-white p-4 ${fallo ? "border-error-600" : "border-tinta-suave/20"}`;
+  return `flex min-w-0 flex-col gap-3 rounded-2xl border bg-white p-4 ${fallo ? "border-coral-500 bg-coral-100/40" : "border-tinta-suave/20"}`;
 }
 
 function esFallo(numero: number, fallos: number[] | null): boolean {
@@ -184,26 +185,26 @@ function OpcionRadio({
   disabled: boolean;
   onChange: () => void;
 }) {
-  const borde = seleccionada ? "border-hp-400" : "border-tinta-suave/30";
+  const borde = seleccionada ? "border-tinta bg-fondo" : "border-tinta-suave/30";
   // Con foto, la foto manda: ocupa la caja entera y la letra va debajo, al lado
   // del botón. Antes iba en una fila de ancho completo con la foto pequeña a un
   // lado, y quedaban tres cintas alargadas y casi vacías: en esta tarea la
   // respuesta ES la foto, así que tiene que ser lo que se ve.
   if (conImagen) {
     return (
-      <label className={`flex min-w-0 cursor-pointer flex-col gap-1 rounded-xl border p-1 sm:gap-2 sm:p-2 ${borde}`}>
+      <label className={`flex min-w-0 cursor-pointer flex-col gap-1 rounded-xl border p-1 focus-within:outline-2 focus-within:outline-hp-600 sm:gap-2 sm:p-2 ${borde}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- la ruta redirige a un enlace firmado de vida corta */}
         <img src={`/api/ficheros/${ficheroId}`} alt={`Opción ${letra}`} className="aspect-4/3 w-full max-w-full rounded-lg object-contain" />
         <span className="flex items-center gap-2 font-bold">
-          <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} />
+          <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} className="accent-tinta" />
           {letra}
         </span>
       </label>
     );
   }
   return (
-    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-2 ${borde}`}>
-      <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} />
+    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-2 focus-within:outline-2 focus-within:outline-hp-600 ${borde}`}>
+      <input type="radio" name={nombre} value={letra} checked={seleccionada} disabled={disabled} onChange={onChange} className="accent-tinta" />
       <span>
         {letra}. {texto}
       </span>
@@ -258,7 +259,7 @@ function ActividadOpciones({
         return (
           <section key={p.numero} data-pregunta={p.numero} data-fallo={fallo ? p.numero : undefined} className={cajaPregunta(fallo)}>
             {p.grupo !== null && (i === 0 || a.preguntas[i - 1].grupo !== p.grupo) && (
-              <p className="text-sm font-bold uppercase text-hp-600">Noticia {p.grupo}</p>
+              <p className="text-sm font-bold uppercase text-tinta-suave">Noticia {p.grupo}</p>
             )}
             <h3 className="font-bold">Pregunta {p.numero}</h3>
             <p>{p.enunciado}</p>
@@ -425,7 +426,7 @@ function BarraDeRespuestas({
               type="button"
               aria-current={p.numero === pregunta.numero ? "true" : undefined}
               onClick={() => setEnfocada(p.numero)}
-              className={`min-w-11 rounded-full px-2.5 py-1.5 text-sm font-bold ${p.numero === pregunta.numero ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
+              className={`min-w-11 rounded-full px-2.5 py-1.5 text-sm font-bold ${p.numero === pregunta.numero ? "bg-tinta text-white" : "border border-tinta-suave/30"}`}
             >
               {p.numero}
               {letra ? ` ${letra}` : ""}
@@ -436,22 +437,16 @@ function BarraDeRespuestas({
       <p className="text-sm text-tinta-suave">
         {pregunta.numero}. {pregunta.texto}
       </p>
-      <select
-        aria-label={`Pregunta ${pregunta.numero}, respuesta rápida`}
+      <Desplegable
+        id={`barra-${pregunta.numero}`}
+        etiqueta={`Pregunta ${pregunta.numero}, respuesta rápida`}
+        marcador="Elige una letra"
+        opciones={pregunta.letras.map((l) => ({ valor: l, texto: l }))}
         value={marcadas[String(pregunta.numero)] ?? ""}
         disabled={bloqueada}
         onChange={(ev) => alMarcar(pregunta.numero, ev.target.value)}
-        className="w-full rounded-xl border border-tinta-suave/30 p-3"
-      >
-        <option value="" disabled>
-          Elige una letra
-        </option>
-        {pregunta.letras.map((l) => (
-          <option key={l} value={l}>
-            {l}
-          </option>
-        ))}
-      </select>
+        className="w-full p-3"
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 import { corregirTareaEnLibre, HacerPrueba } from "@/components/examen/hacer-prueba";
 import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { Cinta } from "@/components/examen/cinta";
+import { clasesDeBoton } from "@/components/ui/boton";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
 import { avisoDePalabras, Folio } from "@/components/examen/folio";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
@@ -403,6 +404,33 @@ describe("TareaDelEstudiante", () => {
     const html = pintar(lecturaCuatro(), { fallos: [20] });
     expect(html).not.toBe("");
     expect(html).toContain('data-fallo="20"');
+  });
+
+  // Mutación que la mata: volver a pintar la fallada con border-error-600. Una
+  // respuesta fallada no es un fallo del sistema: va en coral (spec B1 §2).
+  it("la fallada va en coral, sin el tono de error", () => {
+    const html = pintar(lecturaDos(), { marcadas: { "8": "B" }, fallos: [8], bloqueada: true });
+    const caja = html.match(/<section[^>]*data-fallo="8"[^>]*>/)?.[0] ?? "";
+    expect(caja).not.toBe(""); // que la caja fallada exista de verdad
+    expect(caja).toContain("border-coral-500");
+    expect(caja).not.toContain("error");
+  });
+
+  // Tres tareas porque los tres colores a mano vivían en tres sitios: la
+  // opción marcada (lectura 3, OPCIONES, pregunta 13), «Noticia N» (auditiva
+  // 4) y el número enfocado de la barra (lectura 2, lista común).
+  // Mutación que la mata: dejar bg-hp-400/border-hp-400/text-hp-600 a mano
+  // (cualquiera de los tres).
+  it("sin colores de marca escritos a mano", () => {
+    const pintadas = [
+      pintar(lecturaTres(), { marcadas: { "13": "A" } }),
+      pintar(auditivaCuatro(), {}),
+      pintar(lecturaDos(), { marcadas: { "8": "B" } }),
+    ];
+    for (const html of pintadas) {
+      expect(html).toContain("Pregunta"); // que se pintó de verdad
+      expect(html).not.toMatch(/(bg|border|text)-hp-/);
+    }
   });
 });
 
@@ -1044,6 +1072,16 @@ describe("la cinta", () => {
     expect(html).toContain('src="/api/ficheros/audio-co-4"');
     expect(html).toContain("Escuchar el audio");
     expect(html).not.toContain("Este audio ya ha sonado.");
+  });
+
+  // Mutación que la mata: volver a la constante `BOTON` local (bg-hp-400 a
+  // mano) en vez del botón principal del kit.
+  it("el botón de escuchar es el principal del kit", () => {
+    const html = pintarCinta();
+    const boton = html.match(/<button[^>]*>Escuchar el audio<\/button>/)?.[0] ?? "";
+    expect(boton).not.toBe("");
+    expect(boton).toContain(`class="${clasesDeBoton("principal")}`);
+    expect(html).not.toContain("bg-hp-400");
   });
 
   // Mutación que la mata: quitar el `siguienteTrozo(oidos, trozos) === null`

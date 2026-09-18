@@ -101,6 +101,15 @@ describe("Campo y Desplegable", () => {
     expect(html).toContain('aria-invalid="true"');
   });
 
+  // Mutación que la mata: pintar el marcador como opción elegible (elegirlo
+  // mandaría "" al servidor como si fuera una respuesta).
+  it("Desplegable con marcador: primera opción vacía y desactivada", () => {
+    const html = renderToStaticMarkup(
+      <Desplegable id="d" etiqueta="E" marcador="Elige una letra" opciones={[{ valor: "A", texto: "A" }]} />,
+    );
+    expect(html).toMatch(/<option value="" disabled="">Elige una letra<\/option>/);
+  });
+
   // Mutación que la mata: ignorar `multilinea` y pintar siempre un input.
   it("multilinea es un textarea", () => {
     expect(renderToStaticMarkup(<Campo id="t" etiqueta="Texto" multilinea />)).toContain("<textarea");

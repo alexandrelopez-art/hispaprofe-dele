@@ -12,12 +12,11 @@
 //    que la reproducción encadenada siga sola después.
 import { useEffect, useRef, useState } from "react";
 import { limitesDelTrozo, siguienteTrozo } from "@/lib/examen/motor";
+import { Aviso } from "@/components/ui/aviso";
+import { Boton } from "@/components/ui/boton";
+import { Tarjeta } from "@/components/ui/tarjeta";
 
 export const SEGUNDOS_DE_PAUSA = 10;
-
-const CAJA = "flex flex-col gap-3 rounded-2xl border border-tinta-suave/20 bg-white p-5";
-const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white";
-const AVISO_DE_ERROR = "text-error-600";
 
 type Estado =
   | { tipo: "listo" }
@@ -193,35 +192,39 @@ export function Cinta({
     // estudiante puede entregar sin haber oído las cuatro tareas, y aquí no
     // hay ningún clic que el servidor vaya a aceptar.
     return (
-      <section data-cinta className={CAJA}>
-        <p>Este audio ya ha sonado.</p>
+      <section data-cinta>
+        <Tarjeta className="flex flex-col gap-3">
+          <p>Este audio ya ha sonado.</p>
+        </Tarjeta>
       </section>
     );
   }
 
   return (
-    <section data-cinta className={CAJA}>
-      <audio
-        ref={reproductor}
-        src={`/api/ficheros/${ficheroId}`}
-        preload="auto"
-        onTimeUpdate={(e) => {
-          if (hasta.current !== null && e.currentTarget.currentTime >= hasta.current) {
-            e.currentTarget.pause();
-            trozoTerminado();
-          }
-        }}
-        onEnded={trozoTerminado}
-        onError={() => setEstado({ tipo: "error" })}
-      />
-      {estado.tipo === "error" && <p role="alert" className={AVISO_DE_ERROR}>No se pudo preparar el audio. Vuelve a entrar.</p>}
-      {estado.tipo === "agotado" && <p>Este audio ya ha sonado.</p>}
-      {estado.tipo === "sonando" && <p aria-live="polite">Sonando…</p>}
-      {(estado.tipo === "listo" || estado.tipo === "pausa") && (
-        <button type="button" onClick={avanzar} className={BOTON}>
-          {estado.tipo === "pausa" ? `Sigue (${estado.segundos})` : "Escuchar el audio"}
-        </button>
-      )}
+    <section data-cinta>
+      <Tarjeta className="flex flex-col gap-3">
+        <audio
+          ref={reproductor}
+          src={`/api/ficheros/${ficheroId}`}
+          preload="auto"
+          onTimeUpdate={(e) => {
+            if (hasta.current !== null && e.currentTarget.currentTime >= hasta.current) {
+              e.currentTarget.pause();
+              trozoTerminado();
+            }
+          }}
+          onEnded={trozoTerminado}
+          onError={() => setEstado({ tipo: "error" })}
+        />
+        {estado.tipo === "error" && <Aviso tono="error">No se pudo preparar el audio. Vuelve a entrar.</Aviso>}
+        {estado.tipo === "agotado" && <p>Este audio ya ha sonado.</p>}
+        {estado.tipo === "sonando" && <p aria-live="polite">Sonando…</p>}
+        {(estado.tipo === "listo" || estado.tipo === "pausa") && (
+          <Boton onClick={avanzar} className="self-start">
+            {estado.tipo === "pausa" ? `Sigue (${estado.segundos})` : "Escuchar el audio"}
+          </Boton>
+        )}
+      </Tarjeta>
     </section>
   );
 }
