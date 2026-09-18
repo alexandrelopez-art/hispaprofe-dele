@@ -27,7 +27,7 @@ export default async function Cola() {
   const cola = await escritosPorCorregir(new Date());
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
       {/* El número de la cabecera sale del layout, que no se repinta al
           navegar: este refresco lo pone al día con la lista de abajo. */}
       <RefrescarAlEntrar />

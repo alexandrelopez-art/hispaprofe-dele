@@ -18,7 +18,7 @@ export default async function PantallaDeTarea({ params }: { params: Promise<{ id
   if (!tarea) notFound();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-6">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
       <nav><Link href={`/examenes/${id}`} className="text-hp-600 underline">← {tarea.examen.titulo}</Link></nav>
       <h1 className="text-2xl font-bold">{nombreCortoDeTarea(prueba, n)}</h1>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

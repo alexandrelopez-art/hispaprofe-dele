@@ -37,7 +37,7 @@ export default async function Portada() {
 
   if (!persona) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
         <h1 className="text-3xl font-extrabold">HispaProfe</h1>
         <p>
           <Link href="/entrar" className="text-hp-600 underline">
@@ -64,7 +64,7 @@ export async function InicioDelEstudiante({ persona }: { persona: Persona }) {
   const asignaciones = await asignacionesDe(persona.id);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-4 sm:p-6">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
       <EncabezadoPagina titulo={`Hola, ${persona.nombre}`} subtitulo="¿Qué tienes que hacer hoy?" />
       {asignaciones.length === 0 ? (
         <BloqueVacio titulo="No tienes nada pendiente" texto="Cuando el profesor te asigne un examen, aparecerá aquí." />

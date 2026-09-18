@@ -16,7 +16,7 @@ export default async function Examenes({ searchParams }: { searchParams: Promise
   const [examenes, { error }] = await Promise.all([listarExamenes(), searchParams]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
       <h1 className="text-2xl font-bold">Exámenes</h1>
 
       {examenes.length === 0 ? (

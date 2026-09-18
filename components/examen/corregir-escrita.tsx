@@ -152,7 +152,7 @@ export function CorregirEscrita({ para }: { para: ParaCorregir }) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6">
       <header className={CAJA}>
         <h1 className="text-2xl font-bold">{para.persona.nombre}</h1>
         <p className="text-tinta-suave">{para.examen.titulo}</p>

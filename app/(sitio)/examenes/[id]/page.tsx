@@ -60,7 +60,7 @@ export default async function PantallaDelExamen({
     : [[], []];
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6">
       <nav><Link href="/examenes" className="text-hp-600 underline">← Exámenes</Link></nav>
       <header>
         <h1 className="text-2xl font-bold">{examen.titulo}</h1>

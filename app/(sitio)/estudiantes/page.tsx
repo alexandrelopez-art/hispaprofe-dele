@@ -20,7 +20,7 @@ export default async function Personas({
   const [personas, { error }] = await Promise.all([listarPersonas(), searchParams]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
       <h1 className="text-2xl font-bold text-tinta">Personas</h1>
 
       <ul className="flex flex-col gap-2">
