@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #f4f9fc; }
+    a { color: #0f567f; }
+    a:hover { color: #0f6fa8; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+  </style>
+  <script src="./enye.js"></script>
+</helmet>
+<div style="font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #143a4f; max-width: 1160px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 56px;">
+
+  <nav style="display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 15px; font-weight: 700; padding: 14px 18px; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25);">
+    <a href="00-Indice.dc.html">Índice</a>
+    <a href="01-Carcasa.dc.html">Carcasa</a>
+    <span style="color: #0f567f; text-decoration: underline;">Pantallas · Estudiante</span>
+    <a href="03-Pantallas-Profesor.dc.html">Pantallas · Profesor</a>
+    <a href="04-Kit-de-piezas.dc.html">Kit de piezas</a>
+    <a href="05-Nota-de-construccion.dc.html">Nota de construcción</a>
+  </nav>
+
+  <header style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #0b8ad1;">02 · Pantallas del estudiante</span>
+    <h1 style="font-size: 28px; margin: 0;">Inicio, hacer una prueba y ver el resultado</h1>
+    <p style="font-size: 15px; line-height: 1.6; color: #5a7a8c; margin: 0; max-width: 720px;">
+      Todos los marcos van bajo <code>Cabecera</code> (papel estudiante) salvo las pruebas
+      cronometradas, que van bajo <code>CabeceraExamen</code> — ver 01-Carcasa.
+    </p>
+  </header>
+
+  <!-- INICIO -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Inicio</h2>
+    <p style="font-size: 14px; color: #5a7a8c; margin: 0;">«¿Qué tengo que hacer hoy?» — una tarjeta por examen asignado, con una fila por prueba y su botón.</p>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Con datos — ordenador, 1280 px</span>
+      <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+        <div style="width: 1280px; padding: 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <h3 style="font-size: 22px; margin: 0;">Hola, María José</h3>
+          </div>
+          <div style="background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25); display: flex; flex-direction: column; gap: 16px; max-width: 760px;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+              <div>
+                <div style="font-weight: 800; font-size: 18px;">Examen 3 — modo completo</div>
+                <div style="font-size: 14px; color: #5a7a8c; margin-top: 2px;">Nivel B1 · fecha tope 22 de septiembre</div>
+              </div>
+              <span style="background: #eaf7fe; color: #0f567f; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap;">En curso</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #f4f9fc; border-radius: 12px;">
+                <span style="font-weight: 700; font-size: 15px;">Comprensión de lectura</span>
+                <span style="background: #e4f5ef; color: #147a70; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 999px;">Hecha</span>
+                <button style="background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 700; font-size: 14px; padding: 8px 16px; border-radius: 10px; cursor: pointer;">Ver resultado</button>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #f4f9fc; border-radius: 12px;">
+                <span style="font-weight: 700; font-size: 15px;">Comprensión auditiva</span>
+                <span style="background: #fff8d6; color: #143a4f; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 999px;">Sin empezar</span>
+                <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 8px 18px; border-radius: 10px; cursor: pointer;">Empezar</button>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #f4f9fc; border-radius: 12px;">
+                <span style="font-weight: 700; font-size: 15px;">Expresión escrita</span>
+                <span style="background: #eaf7fe; color: #0f567f; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 999px;">Empezada</span>
+                <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 8px 18px; border-radius: 10px; cursor: pointer;">Seguir</button>
+              </div>
+            </div>
+          </div>
+          <div style="background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25); display: flex; flex-direction: column; gap: 16px; max-width: 760px;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+              <div>
+                <div style="font-weight: 800; font-size: 18px;">Examen 2 — modo libre</div>
+                <div style="font-size: 14px; color: #5a7a8c; margin-top: 2px;">Nivel A2 · sin fecha tope</div>
+              </div>
+              <span style="background: #fdeaef; color: #c53a55; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap;">Se pasó el plazo el 10 sep.</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #f4f9fc; border-radius: 12px;">
+              <span style="font-weight: 700; font-size: 15px;">Expresión escrita</span>
+              <button style="background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 700; font-size: 14px; padding: 8px 16px; border-radius: 10px; cursor: pointer;">Practicar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Móvil, 400 px</span>
+        <div style="width: 400px; padding: 20px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="font-size: 18px; margin: 0;">Hola, María José</h3>
+          <div style="background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25); display: flex; flex-direction: column; gap: 12px;">
+            <div>
+              <div style="font-weight: 800; font-size: 16px;">Examen 3</div>
+              <div style="font-size: 13px; color: #5a7a8c;">B1 · tope 22 sep.</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f4f9fc; border-radius: 10px; gap: 8px;">
+                <span style="font-weight: 700; font-size: 13px;">Lectura</span>
+                <button style="background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 700; font-size: 12px; padding: 6px 10px; border-radius: 8px;">Ver resultado</button>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f4f9fc; border-radius: 10px; gap: 8px;">
+                <span style="font-weight: 700; font-size: 13px;">Auditiva</span>
+                <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 12px; padding: 6px 12px; border-radius: 8px;">Empezar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Vacío</span>
+        <div style="width: 400px; padding: 20px 16px; box-sizing: border-box;">
+          <div style="background: #fff; border-radius: 14px; padding: 32px 20px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+            <div style="width: 100%; height: 64px; border-radius: 10px; background: repeating-linear-gradient(135deg, #eaf7fe, #eaf7fe 8px, #f4f9fc 8px, #f4f9fc 16px);"></div>
+            <div style="font-weight: 800; font-size: 15px;">No tienes nada pendiente</div>
+            <div style="font-size: 13px; color: #5a7a8c;">Cuando el profesor te asigne un examen, aparecerá aquí.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Cargando</span>
+        <div style="width: 400px; padding: 20px 16px; box-sizing: border-box;">
+          <div style="background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18); display: flex; flex-direction: column; gap: 10px;">
+            <div style="width: 60%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+            <div style="width: 100%; height: 44px; border-radius: 10px; background: #eaf7fe;"></div>
+            <div style="width: 100%; height: 44px; border-radius: 10px; background: #eaf7fe;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Error</span>
+        <div style="width: 400px; padding: 20px 16px; box-sizing: border-box;">
+          <div style="background: #fde8e8; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-weight: 800; font-size: 14px; color: #b42b2b;">No hemos podido cargar tu inicio</div>
+            <div style="font-size: 13px; color: #b42b2b;">Comprueba tu conexión e inténtalo otra vez.</div>
+            <button style="align-self: flex-start; background: #b42b2b; color: #fff; border: none; font-weight: 800; font-size: 13px; padding: 8px 14px; border-radius: 8px; margin-top: 4px;">Reintentar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: <code>Tarjeta</code>, <code>EtiquetaEstado</code> (En curso / Hecha / Sin empezar / Empezada / Se pasó el plazo), <code>Boton</code> primario y secundario, <code>BloqueVacio</code>.</p>
+  </section>
+
+  <!-- HACER LA LECTURA -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Hacer la lectura</h2>
+    <p style="font-size: 14px; color: #5a7a8c; margin: 0; max-width: 720px;">El texto largo en su propia columna con su desplazamiento; las preguntas al lado. Esta pantalla es donde se gana o se pierde el sitio.</p>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Ordenador, 1280 px — dos columnas</span>
+      <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+        <div style="width: 1280px; height: 560px; display: flex; box-sizing: border-box;">
+          <div style="flex: 1.3; padding: 28px; overflow: hidden; border-right: 1px solid #eaf7fe; display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-size: 12px; font-weight: 800; color: #0b8ad1; text-transform: uppercase; letter-spacing: .04em;">Texto 2 de 4</div>
+            <div style="height: 480px; overflow-y: auto; padding-right: 12px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="width: 100%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 92%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 96%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 100%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 88%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 95%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 100%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="width: 90%; height: 14px; border-radius: 6px; background: #eaf7fe;"></div>
+              <div style="font-size: 12px; color: #93d8f9; align-self: center; margin-top: 8px;">— texto continúa, columna con desplazamiento propio —</div>
+            </div>
+          </div>
+          <div style="flex: 1; padding: 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+            <div style="font-weight: 700; font-size: 15px;">Pregunta 3 de 6</div>
+            <p style="font-size: 15px; line-height: 1.5; margin: 0;">Según el texto, ¿qué hace el protagonista al llegar a la estación?</p>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #c9ebfc; border-radius: 10px; font-size: 14px;"><span style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid #4fbff5;"></span>a) Espera a su hermana</label>
+              <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #0f567f; border-radius: 10px; font-size: 14px; background: #eaf7fe;"><span style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid #0f567f; background: #0f567f;"></span>b) Compra un billete</label>
+              <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #c9ebfc; border-radius: 10px; font-size: 14px;"><span style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid #4fbff5;"></span>c) Llama a un taxi</label>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: auto;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #147a70;"></span>
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #147a70;"></span>
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #0f567f;"></span>
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #c9ebfc;"></span>
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #c9ebfc;"></span>
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #c9ebfc;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Móvil, 400 px — barra de preguntas pegada abajo</span>
+      <div style="width: 400px; border: 1px solid #c9ebfc; border-radius: 14px; overflow: hidden; position: relative;">
+        <div style="padding: 20px 16px; height: 260px; overflow: hidden; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 12px; font-weight: 800; color: #0b8ad1; text-transform: uppercase;">Texto 2 de 4</div>
+          <div style="width: 100%; height: 12px; border-radius: 6px; background: #eaf7fe;"></div>
+          <div style="width: 88%; height: 12px; border-radius: 6px; background: #eaf7fe;"></div>
+          <div style="width: 95%; height: 12px; border-radius: 6px; background: #eaf7fe;"></div>
+          <div style="width: 90%; height: 12px; border-radius: 6px; background: #eaf7fe;"></div>
+        </div>
+        <div style="background: #fff; box-shadow: 0 -8px 20px -8px rgba(4,161,241,0.25); padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #eaf7fe;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-weight: 700; font-size: 13px;">Pregunta 3 de 6</span>
+            <span style="font-size: 13px; color: #0f567f;">▾ ver todas</span>
+          </div>
+          <div style="font-size: 14px;">¿Qué hace al llegar a la estación?</div>
+          <select style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #c9ebfc; font-size: 14px; font-family: inherit; color: #143a4f; background: #fff;">
+            <option>b) Compra un billete</option>
+            <option>a) Espera a su hermana</option>
+            <option>c) Llama a un taxi</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Pregunta con foto (auditiva) — la foto manda</span>
+      <div style="display: flex; gap: 12px; max-width: 600px;">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+          <div style="height: 110px; border-radius: 10px; border: 2px solid #0f567f; background: repeating-linear-gradient(135deg, #eaf7fe, #eaf7fe 10px, #fff 10px, #fff 20px); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #5a7a8c; font-family: monospace;">foto A — cocina</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+          <div style="height: 110px; border-radius: 10px; border: 1.5px solid #c9ebfc; background: repeating-linear-gradient(135deg, #eaf7fe, #eaf7fe 10px, #fff 10px, #fff 20px); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #5a7a8c; font-family: monospace;">foto B — salón</div>
+        </div>
+      </div>
+      <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Sin texto de opción: la imagen entera es la respuesta pulsable. Reemplaza a las fotos en gris del libro escaneado.</p>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: dos paneles con <code>overflow-y: auto</code> independientes; en móvil, barra fija (<code>position: sticky</code> al fondo del viewport de la app, no de la ventana) con <code>Desplegable</code>. Estados de cargando/error: igual que Inicio, un esqueleto en el panel de texto.</p>
+  </section>
+
+  <!-- HACER LA ESCRITA -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Hacer la escrita</h2>
+    <p style="font-size: 14px; color: #5a7a8c; margin: 0; max-width: 720px;">Dos redacciones, reloj de 50 minutos, contador de palabras, enunciado plegable.</p>
+    <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+      <div style="width: 900px; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; gap: 8px;">
+          <span style="background: #eaf7fe; color: #0f567f; font-weight: 700; font-size: 14px; padding: 8px 16px; border-radius: 10px 10px 0 0;">Tarea 1</span>
+          <span style="color: #5a7a8c; font-weight: 700; font-size: 14px; padding: 8px 16px;">Tarea 2</span>
+        </div>
+        <div style="border: 1px solid #eaf7fe; border-radius: 4px 12px 12px 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <button style="display: flex; align-items: center; gap: 6px; background: none; border: none; font-weight: 700; font-size: 14px; color: #0f567f; padding: 0; cursor: pointer;">▾ Enunciado</button>
+            <span style="font-weight: 800; font-size: 18px; color: #143a4f; font-variant-numeric: tabular-nums;">42:18</span>
+          </div>
+          <p style="font-size: 14px; line-height: 1.6; margin: 0; color: #143a4f; background: #f4f9fc; padding: 12px 14px; border-radius: 10px;">Escribe un correo a un amigo contándole tus planes para el verano. Menciona dónde vas a ir, con quién y qué esperas hacer allí. (Entre 60 y 70 palabras)</p>
+          <textarea rows="8" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #c9ebfc; font-family: inherit; font-size: 15px; color: #143a4f; resize: vertical;" placeholder="Escribe aquí tu redacción…"></textarea>
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; color: #5a7a8c;">58 palabras</span>
+            <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 10px 20px; border-radius: 10px; cursor: pointer;">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700; color: #143a4f;">Botón de enviar mientras envía</span>
+      <button style="align-self: flex-start; background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 10px 20px; border-radius: 10px; opacity: .75; display: flex; align-items: center; gap: 8px;">
+        <span style="width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; display: inline-block; animation: girar 0.8s linear infinite;"></span>
+        Guardando…
+      </button>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: pestañas con <code>Tarjeta</code>, enunciado en bloque <code>Aviso</code>-info sin icono, <code>Campo</code> tipo textarea, <code>Boton</code> primario con estado de carga. En móvil las pestañas se apilan a ancho completo, mismo patrón vertical.</p>
+  </section>
+
+  <!-- RESULTADO -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Resultado de una prueba</h2>
+    <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+      <div style="width: 900px; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <div style="width: 96px; height: 96px; border-radius: 50%; background: #eaf7fe; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <span style="font-size: 30px; font-weight: 800; color: #0f567f; line-height: 1;">19</span>
+            <span style="font-size: 12px; color: #0b8ad1;">de 25</span>
+          </div>
+          <div>
+            <div style="font-weight: 800; font-size: 20px;">Comprensión de lectura</div>
+            <div style="font-size: 14px; color: #5a7a8c; margin-top: 2px;">Entregada por el reloj, a tiempo</div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 60px; gap: 8px 12px; align-items: center;">
+            <span style="font-weight: 700; font-size: 14px;">Tarea 1</span><span style="font-weight: 800; text-align: right;">6/6</span>
+            <span style="font-weight: 700; font-size: 14px;">Tarea 2</span><span style="font-weight: 800; text-align: right;">5/6</span>
+            <span style="font-weight: 700; font-size: 14px;">Tarea 3</span><span style="font-weight: 800; text-align: right;">4/6</span>
+            <span style="font-weight: 700; font-size: 14px;">Tarea 4</span><span style="font-weight: 800; text-align: right;">4/7</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-weight: 700; font-size: 14px;">Pregunta 5 — Tarea 2</div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 14px; background: #fde8e8; color: #b42b2b;"><span style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid #b42b2b; background: #b42b2b;"></span>a) Antes de las ocho <span style="margin-left: auto; font-weight: 800;">✕</span></label>
+          </div>
+          <p style="font-size: 12px; color: #5a7a8c; margin: 0;">En rojo, tu respuesta. No se muestra cuál era la correcta.</p>
+        </div>
+        <span style="align-self: flex-start; background: #eaf7fe; color: #0f567f; font-weight: 700; font-size: 13px; padding: 6px 14px; border-radius: 999px;">Te queda: Comprensión auditiva</span>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: <code>Tarjeta</code>, nota grande, tabla simple para notas por tarea, <code>Aviso</code>-error para marcar «esta era tu respuesta» sin decir la buena, <code>EtiquetaEstado</code> para «te queda». En la escrita el mismo patrón dice «18 de 24», nunca «apto».</p>
+  </section>
+
+</div>
+
+</x-dc>
+</body>
+</html>

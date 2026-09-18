@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #f4f9fc; }
+    a { color: #0f567f; }
+    a:hover { color: #0f6fa8; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 8px 10px; font-size: 13px; border-bottom: 1px solid #eaf7fe; }
+    th { color: #5a7a8c; font-weight: 800; text-transform: uppercase; font-size: 11px; letter-spacing: .03em; }
+    code { background: #eaf7fe; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  </style>
+  <script src="./enye.js"></script>
+</helmet>
+<div style="font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #143a4f; max-width: 900px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 40px;">
+
+  <nav style="display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 15px; font-weight: 700; padding: 14px 18px; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25);">
+    <a href="00-Indice.dc.html">Índice</a>
+    <a href="01-Carcasa.dc.html">Carcasa</a>
+    <a href="02-Pantallas-Estudiante.dc.html">Pantallas · Estudiante</a>
+    <a href="03-Pantallas-Profesor.dc.html">Pantallas · Profesor</a>
+    <a href="04-Kit-de-piezas.dc.html">Kit de piezas</a>
+    <span style="color: #0f567f; text-decoration: underline;">Nota de construcción</span>
+  </nav>
+
+  <header style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #0b8ad1;">05 · Nota de construcción</span>
+    <h1 style="font-size: 28px; margin: 0;">Para Claude Code</h1>
+    <p style="font-size: 15px; line-height: 1.6; color: #5a7a8c; margin: 0;">Next 16, React 19, Tailwind 4. Sin librerías de componentes nuevas.</p>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 style="font-size: 18px; margin: 0;">Orden de construcción</h2>
+    <ol style="font-size: 15px; line-height: 1.9; padding-left: 22px; margin: 0;">
+      <li><code>Boton</code>, <code>Enlace</code>, <code>Tarjeta</code>, <code>Aviso</code>, <code>EtiquetaEstado</code>, <code>Campo</code>, <code>Casilla</code>, <code>Desplegable</code> — el kit no depende de rutas.</li>
+      <li><code>Cabecera</code> (prop <code>papel</code>) + layout raíz de cada grupo de rutas: hoy solo Inicio (estudiante) y Exámenes/Estudiantes/Pendientes (profesor).</li>
+      <li><code>CabeceraExamen</code> + el aviso «antes de empezar», por separado del layout normal — se monta solo dentro de <code>/examen/[id]/[prueba]</code>.</li>
+      <li>Inicio del estudiante con sus 4 estados, después Resultado (comparte <code>EtiquetaEstado</code> y <code>Tarjeta</code> con Inicio).</li>
+      <li>Hacer la lectura (dos columnas + barra móvil) y Hacer la escrita — son las pantallas de mayor riesgo, conviene medir el desplazamiento con contenido real antes de seguir.</li>
+      <li>Pendientes → Corregir una redacción (comparten el modelo de «lo que me espera»).</li>
+      <li>Exámenes (lista + detalle + taller) — el taller es la pieza más grande; el editor de onda de audio y «Rellenar con IA» pueden ir en una iteración aparte del layout.</li>
+      <li>Estudiantes (lista + ficha con opiniones).</li>
+    </ol>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 style="font-size: 18px; margin: 0;">Qué pieza es cada cosa</h2>
+    <table>
+      <tr><th>En la pantalla</th><th>Pieza</th><th>Notas</th></tr>
+      <tr><td>Chip de sección activa en la cabecera</td><td><code>Boton</code> variante «pastilla», o parte de <code>Cabecera</code> misma</td><td>fondo <code>hp-50</code>, texto <code>hp-700</code></td></tr>
+      <tr><td>Contador «Por corregir: 3»</td><td><code>EtiquetaEstado</code> circular</td><td><code>aria-label</code> con el texto completo</td></tr>
+      <tr><td>«Empezar / Seguir / Ver resultado / Practicar»</td><td><code>Boton</code></td><td>primario si abre una prueba nueva, secundario si repasa</td></tr>
+      <tr><td>«Se pasó el plazo el…»</td><td><code>EtiquetaEstado</code> tono aviso</td><td>nunca tono error — llegar tarde no es un fallo del sistema</td></tr>
+      <tr><td>Aviso de confirmación al salir del examen</td><td><code>Aviso</code> + 2×<code>Boton</code>, en modal</td><td>reutilizable: mismo patrón para escrita con «tienes N palabras sin guardar»</td></tr>
+      <tr><td>Casillas de banda (0–3)</td><td>grupo de <code>Boton</code> segmentado</td><td>estado inicial: ninguna seleccionada, no «0»</td></tr>
+      <tr><td>«18 de 24»</td><td>texto llano, no <code>EtiquetaEstado</code></td><td>nunca mapear a apto/no apto</td></tr>
+      <tr><td>Publicar / Retirar bloqueado</td><td><code>Aviso</code>-error + <code>Boton</code> deshabilitado</td><td>el motivo siempre en texto, junto al botón</td></tr>
+      <tr><td>Permiso de una opinión</td><td><code>EtiquetaEstado</code> (dado / sin permiso)</td><td>sin permiso, el botón «Publicar en la portada» no se dibuja, no solo se apaga</td></tr>
+    </table>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 style="font-size: 18px; margin: 0;">Colores del CSS que usa cada cosa</h2>
+    <table>
+      <tr><th>Token</th><th>Uso</th></tr>
+      <tr><td><code>--color-hp-700</code></td><td>fondo de botón primario (no <code>hp-400</code>: letra blanca sobre azul claro dio problemas de contraste)</td></tr>
+      <tr><td><code>--color-hp-300 / hp-600</code></td><td>borde y texto de botón secundario</td></tr>
+      <tr><td><code>--color-hp-50 / hp-700</code></td><td>fondo/texto de sección activa y avisos informativos</td></tr>
+      <tr><td><code>--color-verde-100 / verde-600</code></td><td>estados «hecha», «publicado», «éxito»</td></tr>
+      <tr><td><code>--color-sol-100 / sol-400</code></td><td>estado «sin empezar», avatar de usuario, «Rellenar con IA»</td></tr>
+      <tr><td><code>--color-coral-100 / coral-500 / coral-600</code></td><td>botón de peligro, «se pasó el plazo», «no preparada»</td></tr>
+      <tr><td><code>--color-error-100 / error-500 / error-600</code></td><td>avisos de error de verdad (fallo de red, campo inválido) — distinto de coral</td></tr>
+      <tr><td><code>--color-fondo / tinta / tinta-suave</code></td><td>fondo de página, texto principal, texto de apoyo</td></tr>
+      <tr><td><code>--shadow-tarjeta / --radius-tarjeta</code></td><td>toda <code>Tarjeta</code></td></tr>
+    </table>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">No hizo falta ningún color nuevo — la paleta de <code>03-colores-y-letra.css</code> cubre las diez piezas y las cinco pantallas.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 style="font-size: 18px; margin: 0;">Mapa de rutas de hoy</h2>
+    <table>
+      <tr><th>Ruta</th><th>Pantalla del paquete</th></tr>
+      <tr><td><code>/</code> (estudiante)</td><td>Inicio</td></tr>
+      <tr><td><code>/examen/[id]/[prueba]</code></td><td>Hacer una prueba / Resultado, bajo <code>CabeceraExamen</code></td></tr>
+      <tr><td><code>/</code> (profesor)</td><td>se convierte en resumen — usar el mismo patrón que Pendientes</td></tr>
+      <tr><td><code>/corregir</code></td><td>Pendientes</td></tr>
+      <tr><td><code>/corregir/[intentoId]</code></td><td>Corregir una redacción</td></tr>
+      <tr><td><code>/examenes</code>, <code>/examenes/[id]</code></td><td>Exámenes</td></tr>
+      <tr><td><code>/examenes/[id]/[prueba]/[numero]</code></td><td>El taller</td></tr>
+      <tr><td><code>/personas</code></td><td>Estudiantes — renombrar de «Personas»</td></tr>
+      <tr><td><code>/pruebas/grabar</code>, <code>/pruebas/subir</code></td><td>quitar, no entran en el menú</td></tr>
+    </table>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 10px; background: #eaf7fe; border-radius: 16px; padding: 20px 24px;">
+    <h2 style="font-size: 16px; margin: 0; color: #0f567f;">Recordatorios que no se ven en una captura</h2>
+    <ul style="font-size: 14px; line-height: 1.7; margin: 0; padding-left: 20px;">
+      <li>Una prueba entregada no se reabre — el aviso va antes de empezar, no después.</li>
+      <li>El reloj del examen sigue corriendo aunque el estudiante salga de la pantalla.</li>
+      <li>La respuesta correcta no viaja al navegador en práctica libre.</li>
+      <li>Una tarea que no cumple sus números de ítems no se puede publicar.</li>
+      <li>No se dibuja en ningún menú nada que no funcione todavía.</li>
+    </ul>
+  </section>
+
+</div>
+
+</x-dc>
+</body>
+</html>

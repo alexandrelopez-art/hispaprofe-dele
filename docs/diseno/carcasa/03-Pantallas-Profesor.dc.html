@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #f4f9fc; }
+    a { color: #0f567f; }
+    a:hover { color: #0f6fa8; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+  </style>
+  <script src="./enye.js"></script>
+</helmet>
+<div style="font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #143a4f; max-width: 1160px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 56px;">
+
+  <nav style="display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 15px; font-weight: 700; padding: 14px 18px; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px -12px rgba(4,161,241,0.25);">
+    <a href="00-Indice.dc.html">Índice</a>
+    <a href="01-Carcasa.dc.html">Carcasa</a>
+    <a href="02-Pantallas-Estudiante.dc.html">Pantallas · Estudiante</a>
+    <span style="color: #0f567f; text-decoration: underline;">Pantallas · Profesor</span>
+    <a href="04-Kit-de-piezas.dc.html">Kit de piezas</a>
+    <a href="05-Nota-de-construccion.dc.html">Nota de construcción</a>
+  </nav>
+
+  <header style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #0b8ad1;">03 · Pantallas del profesor</span>
+    <h1 style="font-size: 28px; margin: 0;">Pendientes, corregir, exámenes y estudiantes</h1>
+    <p style="font-size: 15px; line-height: 1.6; color: #5a7a8c; margin: 0; max-width: 720px;">Todos bajo <code>Cabecera</code> (papel profesor). Doce estudiantes: listas simples, sin buscador ni paginación.</p>
+  </header>
+
+  <!-- PENDIENTES -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Pendientes</h2>
+    <p style="font-size: 14px; color: #5a7a8c; margin: 0; max-width: 720px;">Una sola lista por fecha: redacciones, grabaciones y citas orales.</p>
+    <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+      <div style="width: 900px; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+        <div>
+          <div style="font-size: 13px; font-weight: 800; color: #0b8ad1; text-transform: uppercase; margin-bottom: 8px;">Hoy, 18 de septiembre</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18);">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="background: #eaf7fe; color: #0f567f; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 999px;">Redacción</span>
+                <span style="font-weight: 700; font-size: 15px;">Diego Marín — Examen 3, Tarea 1</span>
+              </div>
+              <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px;">Corregir</button>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18);">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="background: #e4f5ef; color: #147a70; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 999px;">Grabación</span>
+                <span style="font-weight: 700; font-size: 15px;">Lucía Vega — Oral, Tarea 3</span>
+              </div>
+              <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px;">Ver</button>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fdeaef; border-radius: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="background: #fff; color: #c53a55; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 999px;">Cita oral · 17:30</span>
+                <span style="font-weight: 700; font-size: 15px;">Pablo Ríos — Tareas 2 y 4</span>
+                <span style="background: #c53a55; color: #fff; font-weight: 800; font-size: 11px; padding: 3px 9px; border-radius: 999px;">No preparada</span>
+              </div>
+              <button style="background: #fff; color: #c53a55; border: 1.5px solid #e0566e; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px;">Ver grabación</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 13px; font-weight: 800; color: #0b8ad1; text-transform: uppercase; margin-bottom: 8px;">Mañana, 19 de septiembre</div>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18);">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="background: #fdeaef; color: #c53a55; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 999px;">Cita oral · 10:00</span>
+              <span style="font-weight: 700; font-size: 15px;">Sara Gil — Tareas 2 y 4</span>
+            </div>
+            <button style="background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px;">Ver ficha</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700;">Vacío</span>
+        <div style="width: 360px; background: #fff; border-radius: 14px; padding: 28px 20px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+          <div style="font-weight: 800; font-size: 15px;">No tienes nada pendiente</div>
+          <div style="font-size: 13px; color: #5a7a8c;">Las próximas entregas y citas aparecerán aquí.</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700;">Móvil, 400 px</span>
+        <div style="width: 400px; padding: 0 16px; box-sizing: border-box;">
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0;">
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18);">
+              <span style="background: #eaf7fe; color: #0f567f; font-weight: 800; font-size: 11px; padding: 3px 9px; border-radius: 999px; align-self: flex-start;">Redacción</span>
+              <span style="font-weight: 700; font-size: 14px;">Diego Marín — Tarea 1</span>
+              <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 8px; align-self: flex-start;">Corregir</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: <code>EncabezadoPagina</code>, <code>Tarjeta</code> de fila, <code>EtiquetaEstado</code> tipo/estado, <code>Boton</code>. «No preparada» usa el color de aviso (coral), no de error.</p>
+  </section>
+
+  <!-- CORREGIR REDACCIÓN -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Corregir una redacción</h2>
+    <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+      <div style="width: 1100px; padding: 28px; box-sizing: border-box; display: flex; gap: 24px;">
+        <div style="flex: 1.2; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-weight: 700; font-size: 14px;">Diego Marín — Tarea 1</div>
+          <div style="background: #f4f9fc; border-radius: 12px; padding: 16px; font-size: 14px; line-height: 1.6; color: #143a4f;">
+            Hola, te escribo para contarte mis planes de verano. Voy a ir con mi familia a la playa
+            durante dos semanas y después voy a visitar a mis abuelos en el pueblo…
+          </div>
+          <div style="font-size: 12px; color: #5a7a8c; display: flex; gap: 14px;">
+            <span>2 veces fuera de la pantalla</span>
+            <span>1 min 40 s fuera en total</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-weight: 700; font-size: 14px;">Tarea 1 — bandas oficiales</div>
+            <div style="display: grid; grid-template-columns: 1fr 120px; gap: 8px 10px; align-items: center; font-size: 13px;">
+              <span>Alcance</span>
+              <div style="display: flex; gap: 4px;"><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;background:#0f567f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;">2</span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span></div>
+              <span>Coherencia</span>
+              <div style="display: flex; gap: 4px;"><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span></div>
+              <span>Corrección</span>
+              <div style="display: flex; gap: 4px;"><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;background:#0f567f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;">1</span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span></div>
+              <span>Cohesión</span>
+              <div style="display: flex; gap: 4px;"><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span><span style="width:26px;height:26px;border-radius:6px;border:1.5px solid #c9ebfc;"></span></div>
+            </div>
+            <textarea rows="2" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #c9ebfc; font-family: inherit; font-size: 13px;" placeholder="Comentario para esta tarea…"></textarea>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid #eaf7fe;">
+            <span style="font-weight: 800; font-size: 16px;">18 de 24</span>
+            <button disabled style="background: #c9ebfc; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 10px 20px; border-radius: 10px; cursor: not-allowed;">Guardar</button>
+          </div>
+          <p style="font-size: 12px; color: #5a7a8c; margin: 0;">«Guardar» se activa solo cuando las 8 casillas tienen un valor — un 0 es una nota legítima y no cuenta como vacía.</p>
+        </div>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: casillas de banda como grupo de <code>Boton</code> tipo segmentado 0–3 (nacen sin selección), <code>Campo</code> textarea por tarea, contador de tiempo fuera de pantalla en texto discreto. Nunca se traduce la suma a «apto» ni a letra.</p>
+  </section>
+
+  <!-- EXÁMENES -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Exámenes</h2>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700;">Lista</span>
+      <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+        <div style="width: 800px; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: flex-end;">
+            <button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 14px; padding: 10px 18px; border-radius: 10px;">Nuevo examen</button>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18);">
+            <span style="font-weight: 700; font-size: 15px;">Examen 3 — Modelo oficial B1</span>
+            <span style="background: #e4f5ef; color: #147a70; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 999px;">Publicado</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px -4px rgba(4,161,241,0.18);">
+            <span style="font-weight: 700; font-size: 15px;">Examen 4 — Modelo oficial A2</span>
+            <span style="background: #fff8d6; color: #143a4f; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 999px;">Borrador</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700;">Un examen — páginas, tareas, publicación y asignación</span>
+      <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+        <div style="width: 1100px; padding: 28px; box-sizing: border-box; display: flex; gap: 24px;">
+          <div style="flex: 1.3; display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-weight: 700; font-size: 14px;">Tareas</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f4f9fc; border-radius: 10px; font-size: 14px;">Lectura · Tarea 1 (6 ítems) <span style="color:#147a70;font-weight:700;">✓ completa</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f4f9fc; border-radius: 10px; font-size: 14px;">Lectura · Tarea 2 (6 ítems) <span style="color:#147a70;font-weight:700;">✓ completa</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #fde8e8; border-radius: 10px; font-size: 14px;">Lectura · Tarea 3 (6 ítems) <span style="color:#b42b2b;font-weight:700;">5 de 6 — falta 1</span></div>
+            </div>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
+            <div style="background: #eaf7fe; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-weight: 800; font-size: 14px; color: #0f567f;">Publicación</div>
+              <p style="font-size: 13px; margin: 0; color: #143a4f;">No se puede publicar: la Tarea 3 de lectura tiene 5 ítems, hacen falta 6.</p>
+              <button disabled style="background: #93d8f9; color: #fff; border: none; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px; align-self: flex-start; cursor: not-allowed;">Publicar</button>
+            </div>
+            <div style="border: 1.5px solid #c9ebfc; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-weight: 800; font-size: 14px;">Quién lo hace</div>
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 14px;">Diego Marín <span style="color:#5a7a8c;">completo · tope 22 sep.</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 14px;">Lucía Vega <span style="color:#5a7a8c;">libre · sin tope</span></div>
+              <button style="background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 10px; align-self: flex-start;">+ Asignar a más estudiantes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: <code>Tarjeta</code>, <code>EtiquetaEstado</code> (Publicado/Borrador), <code>Aviso</code>-error inline para el bloqueo de publicación, <code>Boton</code> deshabilitado con motivo explicado en texto (nunca solo apagado).</p>
+  </section>
+
+  <!-- EL TALLER -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">El taller de una tarea</h2>
+    <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+      <div style="width: 1100px; padding: 28px; box-sizing: border-box; display: flex; gap: 24px;">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-weight: 700; font-size: 14px;">Página del libro</div>
+          <div style="height: 340px; border-radius: 10px; background: repeating-linear-gradient(135deg, #f4f9fc, #f4f9fc 10px, #eaf7fe 10px, #eaf7fe 20px); display: flex; align-items: center; justify-content: center; font-size: 12px; color: #5a7a8c; font-family: monospace;">página escaneada, tarea 3</div>
+        </div>
+        <div style="flex: 1.2; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="font-weight: 700; font-size: 14px;">Formulario de la tarea</div>
+            <button style="background: #f5ce3d; color: #143a4f; border: none; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px;">✨ Rellenar con IA</button>
+          </div>
+          <textarea rows="2" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #c9ebfc; font-family: inherit; font-size: 13px;" placeholder="Enunciado corregido (el original decía «marca en la Hoja de respuestas»)…"></textarea>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><input type="checkbox" checked disabled /> Opción A — correcta</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><input type="checkbox" disabled /> Opción B</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><input type="checkbox" disabled /> Opción C</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-weight: 700; font-size: 13px;">Pista de audio — onda y marcas</div>
+            <div style="height: 56px; border-radius: 8px; background: repeating-linear-gradient(90deg, #93d8f9 0 2px, transparent 2px 6px); position: relative;">
+              <div style="position: absolute; left: 30%; top: 0; bottom: 0; width: 2px; background: #c53a55;"></div>
+              <div style="position: absolute; left: 62%; top: 0; bottom: 0; width: 2px; background: #c53a55;"></div>
+            </div>
+            <span style="font-size: 12px; color: #5a7a8c;">Marcas rojas arrastrables: separan las preguntas dentro del audio.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700;">Botón «Rellenar con IA» — cargando</span>
+      <button style="align-self: flex-start; background: #fff8d6; color: #143a4f; border: none; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px; opacity: .8; display: flex; align-items: center; gap: 8px;">
+        <span style="width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(20,58,79,0.3); border-top-color: #143a4f; display: inline-block; animation: girar 0.8s linear infinite;"></span>
+        Leyendo la página…
+      </button>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: <code>Campo</code> textarea, <code>Casilla</code> de opciones, editor de onda de audio (componente propio, no del kit — construir tras el resto). En auditiva con fotos, las opciones se sustituyen por miniaturas cuadradas, mismo patrón que en la lectura del estudiante.</p>
+  </section>
+
+  <!-- ESTUDIANTES -->
+  <section style="display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="font-size: 22px; margin: 0;">Estudiantes</h2>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700;">Lista de doce, sin buscador</span>
+      <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+        <div style="width: 700px; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: flex-end;"><button style="background: #0f567f; color: #fff; border: none; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 10px;">Dar de alta</button></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;"><div style="width: 30px; height: 30px; border-radius: 50%; background: #fff8d6; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">DM</div><span style="font-weight: 700; font-size: 14px;">Diego Marín</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #eaf7fe;"><div style="width: 30px; height: 30px; border-radius: 50%; background: #e4f5ef; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">LV</div><span style="font-weight: 700; font-size: 14px;">Lucía Vega</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 13px; font-weight: 700;">Ficha de Lucía Vega — resultados y opiniones</span>
+      <div style="border: 1px solid #c9ebfc; border-radius: 14px; overflow-x: auto;">
+        <div style="width: 900px; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: #e4f5ef; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;">LV</div>
+            <div><div style="font-weight: 800; font-size: 18px;">Lucía Vega</div><div style="font-size: 13px; color: #5a7a8c;">lucia.vega@correo.es</div></div>
+            <button style="margin-left: auto; background: #fff; color: #0f567f; border: 1.5px solid #4fbff5; font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 10px;">Pedir opinión</button>
+          </div>
+          <div style="font-weight: 700; font-size: 14px;">Opiniones</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="border: 1.5px solid #c9ebfc; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="font-size: 14px; line-height: 1.5;">«Al principio me daba miedo hablar en el examen oral, pero practicar aquí me ayudó mucho.»</div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 12px; color: #5a7a8c;">12 de septiembre · firma: solo nombre de pila</span>
+                <span style="background: #e4f5ef; color: #147a70; font-weight: 700; font-size: 12px; padding: 3px 10px; border-radius: 999px;">Permiso dado</span>
+                <button style="margin-left: auto; background: #0f567f; color: #fff; border: none; font-weight: 700; font-size: 12px; padding: 6px 14px; border-radius: 8px;">Publicar en la portada</button>
+              </div>
+            </div>
+            <div style="border: 1.5px solid #c9ebfc; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; opacity: .75;">
+              <div style="font-size: 14px; line-height: 1.5;">«La auditiva sigue siendo lo que más me cuesta.»</div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 12px; color: #5a7a8c;">3 de septiembre</span>
+                <span style="background: #fde8e8; color: #b42b2b; font-weight: 700; font-size: 12px; padding: 3px 10px; border-radius: 999px;">Sin permiso</span>
+                <span style="margin-left: auto; font-size: 12px; color: #5a7a8c;">No puede salir a la portada</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #5a7a8c; margin: 0;">Piezas: fila de lista simple (sin <code>Tarjeta</code>, más plana que Pendientes), <code>EtiquetaEstado</code> de permiso, <code>Boton</code> secundario «Pedir opinión» dispara el aviso en el Inicio del estudiante. Sin permiso, «Publicar» ni se dibuja.</p>
+  </section>
+
+</div>
+
+</x-dc>
+</body>
+</html>
