@@ -1469,6 +1469,21 @@ describe("la escrita", () => {
     expect(html).toContain("No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo");
   });
 
+  // La puerta que un chaval prueba primero. El aviso nombraba cambiar de
+  // aplicación, bloquear el móvil y «Volver a Inicio», pero no la salida más
+  // obvia de todas: cerrar la pestaña. Un aviso que se calla la puerta más a
+  // mano no es un aviso completo.
+  //
+  // Mutación que la mata: quitar «cierras esta pestaña» de la frase (o
+  // cualquiera de las otras tres) sin tocar el resto del párrafo.
+  it("el aviso previo nombra cerrar la pestaña, y no solo las otras tres puertas", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("cierras esta pestaña");
+    expect(html).toContain("otra aplicación o a otra pestaña");
+    expect(html).toContain("bloqueas el móvil");
+    expect(html).toContain("vuelves a Inicio");
+  });
+
   // Mutación que la mata: pintar el aviso también en práctica libre (quitarle el
   // `!sinReloj`). En libre no se registra nada: decirle que queda apuntado sería
   // mentirle, y encima le corta la práctica.

@@ -343,6 +343,15 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
     encadenar(salidaEnVuelo, () => salirDeLaEscritaAccion(examenId, tareaDelFolio.current));
   }, [conReloj, examenId]);
 
+  // La versión más reciente, en una ref y no en las dependencias del efecto de
+  // desmontaje de abajo: por la misma razón que `avisar` en `useBorradores` —
+  // así ese efecto puede llamar siempre a la función viva sin tener que volver
+  // a montarse cuando `avisarDeLaSalida` cambie de identidad.
+  const avisarDeLaSalidaRef = useRef(avisarDeLaSalida);
+  useEffect(() => {
+    avisarDeLaSalidaRef.current = avisarDeLaSalida;
+  }, [avisarDeLaSalida]);
+
   useEffect(() => {
     if (!conReloj) return;
     const alCambiarLaVista = () => {
@@ -389,11 +398,25 @@ export function useBorradores(prueba: PruebaParaHacer, tareaAbierta: number, alF
   useEffect(() => {
     if (!conReloj) return;
     window.addEventListener("pagehide", avisarDeLaSalida);
-    return () => {
-      window.removeEventListener("pagehide", avisarDeLaSalida);
-      avisarDeLaSalida();
-    };
+    return () => window.removeEventListener("pagehide", avisarDeLaSalida);
   }, [conReloj, avisarDeLaSalida]);
+
+  // El aviso de «Volver a Inicio», atado al desmontaje DE VERDAD y no a este
+  // efecto: con dependencias vacías, la limpieza de aquí solo corre cuando el
+  // componente se desmonta, nunca cuando el efecto de arriba se rearma por un
+  // cambio de identidad en `avisarDeLaSalida` o `conReloj`. Antes la llamada
+  // vivía en la limpieza de ESE efecto (que sí depende de los dos), y solo no
+  // avisaba de más porque hoy esa identidad es estable entre renders — a una
+  // dependencia nueva de apuntar una salida falsa en cada repintado. En
+  // `next dev`, con StrictMode invocando los efectos dos veces, ese riesgo ya
+  // era real: cada montaje pasaba por un desmontaje simulado que disparaba
+  // esta limpieza y apuntaba una salida de más antes incluso de que el chico
+  // tocara nada. `avisarDeLaSalidaRef` (no `avisarDeLaSalida`) porque un efecto
+  // de desmontaje de verdad no puede llevar como dependencia algo que cambia de
+  // identidad entre renders, o dejaría de ser «solo al desmontar».
+  useEffect(() => {
+    return () => avisarDeLaSalidaRef.current();
+  }, []);
 
   const escribir = useCallback((tarea: number, texto: string) => {
     cambiar(tarea, (b) => conTexto(b, texto));
@@ -453,7 +476,7 @@ function AvisoDeLaEscrita({
       {!sinReloj && (
         <p>
           <strong>No te salgas de esta pantalla mientras escribes.</strong>{" "}
-          <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil o vuelves a Inicio, queda apuntado.</span>{" "}
+          <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil, cierras esta pestaña o vuelves a Inicio, queda apuntado.</span>{" "}
           <span>Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.</span>{" "}
           <span>No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo mientras estás fuera.</span>
         </p>
