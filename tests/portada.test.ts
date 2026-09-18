@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Suspense, isValidElement, type ReactElement } from "react";
 import type { Persona } from "@/lib/generated/prisma";
 
 // Antes de esto, la portada era idéntica antes y después de pulsar el
@@ -56,7 +58,13 @@ const ESTUDIANTE: Persona = {
 };
 
 async function html(): Promise<string> {
-  return renderToStaticMarkup(await Portada());
+  const el = await Portada();
+  if (isValidElement(el) && el.type === Suspense) {
+    const hijo = (el.props as { children: ReactElement<{ persona: Persona }> }).children;
+    const Componente = hijo.type as (p: { persona: Persona }) => Promise<ReactElement>;
+    return renderToStaticMarkup(await Componente(hijo.props));
+  }
+  return renderToStaticMarkup(el);
 }
 
 beforeEach(() => {
@@ -315,5 +323,24 @@ describe("Inicio del estudiante", () => {
     const marcado = await html();
     expect(marcado).toContain("bg-hp-700");
     expect(marcado).not.toContain("bg-hp-400");
+  });
+
+  // Mutación que la mata: devolver el <main> del estudiante sin Suspense, o con
+  // el fallback vacío. Sin el esqueleto, el estudiante mira una pantalla en blanco
+  // mientras llegan sus exámenes.
+  it("el estudiante ve el esqueleto mientras cargan sus exámenes", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+
+    const el = await Portada();
+
+    expect(isValidElement(el) && el.type === Suspense).toBe(true);
+    const fallback = renderToStaticMarkup((el as ReactElement<{ fallback: ReactElement }>).props.fallback);
+    expect(fallback).toContain('aria-label="Cargando tu inicio"');
+  });
+
+  // Mutación que la mata: volver a crear app/(sitio)/(inicio)/loading.tsx.
+  it("no hay loading.tsx que cubra el Inicio entero", () => {
+    expect(existsSync("app/(sitio)/(inicio)/loading.tsx")).toBe(false);
   });
 });

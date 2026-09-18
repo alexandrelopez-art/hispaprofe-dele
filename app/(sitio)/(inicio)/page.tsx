@@ -1,7 +1,13 @@
+// Antes había un loading.tsx cubriendo toda la ruta: ese esqueleto sale antes
+// de saber el papel de la sesión, así que el profesor lo veía un instante
+// antes de la redirección a Pendientes. Aquí el esqueleto solo envuelve la
+// parte que de verdad tarda (asignacionesDe, InicioDelEstudiante), dentro de
+// un Suspense en la rama del estudiante: el profesor nunca llega a montarlo.
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { personaDeLaPeticion } from "@/lib/puerta/sesion-http";
-import { asignacionesDe, type AsignacionDelEstudiante, type EstadoDeUnaPrueba } from "@/lib/examen/asignar";
+import { asignacionesDe, type EstadoDeUnaPrueba } from "@/lib/examen/asignar";
 import { cerrarLasQueSePasaron } from "@/lib/examen/hacer";
 import { PRUEBAS_QUE_SE_HACEN } from "@/lib/examen/paraHacer";
 import { NOMBRE_CORTO, NOMBRE_DE_NIVEL } from "@/lib/dele/estructura";
@@ -13,6 +19,8 @@ import { EtiquetaEstado } from "@/components/ui/etiqueta-estado";
 import { Enlace } from "@/components/ui/enlace";
 import { BloqueVacio } from "@/components/ui/bloque-vacio";
 import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
+import { EsqueletoDelInicio } from "./esqueleto";
+import type { Persona } from "@/lib/generated/prisma";
 
 function textoDelBoton(estado: EstadoDeUnaPrueba | undefined): string {
   if (!estado) return "Practicar"; // modo libre: sin intento, sin estado que mentir.
@@ -26,15 +34,6 @@ export default async function Portada() {
   // El profesor no tiene nada que hacer en el Inicio del estudiante: su
   // pantalla de siempre es la cola de Pendientes.
   if (persona?.papel === "PROFESOR") redirect(inicioDe("PROFESOR"));
-  const ahora = new Date();
-  // Solo se piden si hacen falta: sin persona no hay a quién pedírselas.
-  let asignaciones: AsignacionDelEstudiante[] = [];
-  if (persona) {
-    // Antes de leer: si no, quien cerró el portátil a medio examen se vería
-    // "a medias" para siempre y sin nota.
-    await cerrarLasQueSePasaron({ personaId: persona.id }, ahora);
-    asignaciones = await asignacionesDe(persona.id);
-  }
 
   if (!persona) {
     return (
@@ -50,6 +49,20 @@ export default async function Portada() {
   }
 
   // Aquí solo llega un estudiante: el profesor ya redirigió arriba.
+  return (
+    <Suspense fallback={<EsqueletoDelInicio />}>
+      <InicioDelEstudiante persona={persona} />
+    </Suspense>
+  );
+}
+
+export async function InicioDelEstudiante({ persona }: { persona: Persona }) {
+  const ahora = new Date();
+  // Antes de leer: si no, quien cerró el portátil a medio examen se vería
+  // "a medias" para siempre y sin nota.
+  await cerrarLasQueSePasaron({ personaId: persona.id }, ahora);
+  const asignaciones = await asignacionesDe(persona.id);
+
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-4 sm:p-6">
       <EncabezadoPagina titulo={`Hola, ${persona.nombre}`} subtitulo="¿Qué tienes que hacer hoy?" />

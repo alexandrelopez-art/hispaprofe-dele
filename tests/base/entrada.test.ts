@@ -31,6 +31,9 @@ describe("pedir un enlace", () => {
     expect(buzon[0].a).toBe("ana@ejemplo.com");
     const resultado = await usarEnlace(secretoDelUltimo(), minutos(1));
     expect(resultado).toHaveProperty("cookie");
+    // Mutación que la mata: devolver siempre "ESTUDIANTE" en vez del papel
+    // real de la persona.
+    expect((resultado as { papel: string }).papel).toBe("ESTUDIANTE");
   });
 
   it("con un correo que no existe no manda nada y no deja rastro (en la respuesta)", async () => {

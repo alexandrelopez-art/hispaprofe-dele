@@ -30,7 +30,7 @@ describe("GET /entrar/[secreto]", () => {
   // llamada a ponerCookie. Comprobado a mano con el código de antes del
   // arreglo: la cookie no aparecía en la respuesta.
   it("con un enlace bueno, la respuesta lleva la cookie de sesión puesta", async () => {
-    usarEnlace.mockResolvedValue({ cookie: "cookie-de-verdad" });
+    usarEnlace.mockResolvedValue({ cookie: "cookie-de-verdad", papel: "ESTUDIANTE" });
 
     const respuesta = await peticion("secreto-bueno");
     const cookie = respuesta.cookies.get(NOMBRE_DE_COOKIE);
@@ -59,7 +59,7 @@ describe("GET /entrar/[secreto]", () => {
   // Mutación que mata esta prueba: quitar el sinCache de cualquiera de los
   // dos caminos.
   it("las dos respuestas llevan la cabecera que impide la caché", async () => {
-    usarEnlace.mockResolvedValueOnce({ cookie: "c" });
+    usarEnlace.mockResolvedValueOnce({ cookie: "c", papel: "ESTUDIANTE" });
     const buena = await peticion("secreto-bueno");
     expect(buena.headers.get("Cache-Control")).toBe("no-store");
 
@@ -76,5 +76,15 @@ describe("GET /entrar/[secreto]", () => {
     const respuesta = await peticion("secreto-inventado");
 
     expect(respuesta.headers.get("location")).toBe("http://hispaprofe.com/entrar?fallo=caducado");
+  });
+
+  // Mutación que la mata: redirigir siempre a "/". El profesor daría dos saltos y
+  // vería un instante el esqueleto del Inicio del estudiante.
+  it("el profesor entra directo a Pendientes", async () => {
+    usarEnlace.mockResolvedValue({ cookie: "c", papel: "PROFESOR" });
+
+    const respuesta = await peticion("secreto-de-profesor");
+
+    expect(respuesta.headers.get("location")).toBe("http://hispaprofe.com/pendientes");
   });
 });
