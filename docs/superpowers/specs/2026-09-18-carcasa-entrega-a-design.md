@@ -101,7 +101,9 @@ cabecera: **en pantalla solo puede haber uno.** Como la tarea abierta vive en el
 de la pantalla de la prueba, la cabecera se dibuja dentro de ella y recibe la tarea por
 propiedad.
 
-**«Salir» ya no saca directo: pregunta.**
+**«Salir» ya no saca directo: pregunta**, con la prueba en curso. En el aviso previo
+todavía no corre nada ni hay nada que perder, así que allí «Salir» lleva a Inicio sin
+pregunta.
 
 > **¿Seguro que quieres salir?**
 > El reloj sigue corriendo aunque salgas. Podrás volver a entrar mientras la prueba no
