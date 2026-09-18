@@ -23,7 +23,9 @@ describe("lo que dice la ventana de salir", () => {
     expect(frasesDeSalida({ conReloj: false, escrita: true }).join(" ")).not.toContain(APUNTADO);
   });
 
-  // Mutación que la mata: quitar la frase que tranquiliza.
+  // Mutación que la mata: quitar la frase que tranquiliza. Solo se comprueba
+  // con libre: false porque en libre la frase es diferente (lo marcado no se
+  // guarda) y tiene su propia prueba dedicada.
   it("siempre dice que se puede volver", () => {
     for (const conReloj of [true, false]) {
       for (const escrita of [true, false]) {
@@ -37,7 +39,7 @@ describe("lo que dice la ventana de salir", () => {
   // marcado se pierde (Corregir en libre no escribe nada en la base).
   it("en la práctica libre dice que no se guarda, y nada de entregar", () => {
     const frases = frasesDeSalida({ conReloj: false, escrita: false, libre: true }).join(" ");
-    expect(frases).toContain("Lo que marches en esta práctica no se guarda: al volver empiezas de nuevo.");
+    expect(frases).toContain("Lo que marques en esta práctica no se guarda: al volver empiezas de nuevo.");
     expect(frases).not.toContain("entregada");
   });
 

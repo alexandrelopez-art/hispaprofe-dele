@@ -14,7 +14,7 @@ import { Boton, clasesDeBoton } from "@/components/ui/boton";
  * mentir; la escrita en libre nunca llega aquí porque guarda y se entrega de verdad).
  */
 export function frasesDeSalida({ conReloj, escrita, libre = false }: { conReloj: boolean; escrita: boolean; libre?: boolean }): string[] {
-  if (libre) return ["Lo que marches en esta práctica no se guarda: al volver empiezas de nuevo."];
+  if (libre) return ["Lo que marques en esta práctica no se guarda: al volver empiezas de nuevo."];
   const frases: string[] = [];
   if (conReloj) frases.push("El reloj sigue corriendo aunque salgas.");
   frases.push("Podrás volver a entrar mientras la prueba no esté entregada.");
