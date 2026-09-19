@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
@@ -8,8 +9,9 @@ import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/ex
 import { LETRAS_TOPE, palabras, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
 import { corregirTareaEnLibre, HacerPrueba } from "@/components/examen/hacer-prueba";
-import { PestanasDeTarea } from "@/components/examen/piezas";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { Cinta } from "@/components/examen/cinta";
+import { clasesDeBoton } from "@/components/ui/boton";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
 import { avisoDePalabras, Folio } from "@/components/examen/folio";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
@@ -23,8 +25,8 @@ import {
   hayAlgoSinGuardar,
   hayQueGuardar,
   loQueFalta,
-  PreguntaDeEntrega,
 } from "@/components/examen/hacer-escrita";
+import { PreguntaDeEntrega } from "@/components/examen/pregunta-de-entrega";
 import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
 import type { HojaDeRespuestas } from "@/lib/examen/hoja";
 import { BotonesDeGuardar, CorregirEscrita, SalidasDelEstudiante } from "@/components/examen/corregir-escrita";
@@ -404,6 +406,37 @@ describe("TareaDelEstudiante", () => {
     expect(html).not.toBe("");
     expect(html).toContain('data-fallo="20"');
   });
+
+  // Mutación que la mata: volver a pintar la fallada con border-error-600. Una
+  // respuesta fallada no es un fallo del sistema: va en coral (spec B1 §2).
+  // Mutación que la mata (el fondo): devolver bg-white a la parte fija de
+  // cajaPregunta. Con bg-white y bg-coral-100/40 a la vez gana el que Tailwind
+  // emita después, y el coral podría no verse nunca.
+  it("la fallada va en coral, sin el tono de error", () => {
+    const html = pintar(lecturaDos(), { marcadas: { "8": "B" }, fallos: [8], bloqueada: true });
+    const caja = html.match(/<section[^>]*data-fallo="8"[^>]*>/)?.[0] ?? "";
+    expect(caja).not.toBe(""); // que la caja fallada exista de verdad
+    expect(caja).toContain("border-coral-500");
+    expect(caja).not.toContain("error");
+    expect(caja).not.toContain("bg-white");
+  });
+
+  // Tres tareas porque los tres colores a mano vivían en tres sitios: la
+  // opción marcada (lectura 3, OPCIONES, pregunta 13), «Noticia N» (auditiva
+  // 4) y el número enfocado de la barra (lectura 2, lista común).
+  // Mutación que la mata: dejar bg-hp-400/border-hp-400/text-hp-600 a mano
+  // (cualquiera de los tres).
+  it("sin colores de marca escritos a mano", () => {
+    const pintadas = [
+      pintar(lecturaTres(), { marcadas: { "13": "A" } }),
+      pintar(auditivaCuatro(), {}),
+      pintar(lecturaDos(), { marcadas: { "8": "B" } }),
+    ];
+    for (const html of pintadas) {
+      expect(html).toContain("Pregunta"); // que se pintó de verdad
+      expect(html).not.toMatch(/(bg|border|text)-hp-/);
+    }
+  });
 });
 
 // La pantalla que hace el estudiante: app/examen/[id]/[prueba]/page.tsx con
@@ -763,7 +796,9 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("comprensión de lectura");
     expect(html).toContain("Examen 1");
     expect(html).toContain("Tarea 2");
-    expect(html).toContain("En rojo, las que fallaste");
+    // Era «En rojo»: desde la Entrega B2 la fallada va en coral (el rojo es
+    // solo para fallos del sistema), y la frase dice el color que se ve.
+    expect(html).toContain("Marcadas en coral, las que fallaste");
     expect(html).toContain("vuelve al texto y búscala");
   });
 
@@ -808,7 +843,10 @@ describe("la pantalla que hace el estudiante", () => {
         ],
       }),
     );
-    expect(unaSola).toContain("Te queda expresión escrita.");
+    // Antes era una sola frase («Te queda expresión escrita.»); desde la
+    // Entrega B2 cada prueba pendiente es una EtiquetaEstado aparte, así que
+    // el singular y el nombre se miran por separado, en su orden.
+    expect(unaSola).toMatch(/>Te queda<\/span><span[^>]*>expresión escrita</);
     expect(unaSola).toContain("Ir a hacerla<");
   });
 
@@ -963,6 +1001,75 @@ describe("la pantalla que hace el estudiante", () => {
     );
     expect(html).not.toContain("Entregar");
   });
+
+  // Mutación que la mata: volver a window.confirm en alEntregar. La pregunta
+  // tiene que ser la de la página, con lo que falta.
+  it("la lectura a medias trae la pregunta de entrega de la página, cerrada", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={haciendoLectura()} />);
+    expect(html).toContain('aria-labelledby="titulo-de-entregar"');
+    expect(html).toContain("Seguir con la prueba");
+    expect(html).not.toMatch(/<dialog[^>]*\sopen/);
+  });
+
+  // La pregunta cerrada ya lleva su contenido en el HTML: ahí se ve que la
+  // lista de lo que falta es la de sinResponderPorTarea. Contestadas la 7 y la
+  // 8 de la lectura 2 (7-12), faltan de la 9 a la 12.
+  // Mutación que la mata: pasarle `falta={[]}` a PreguntaDeEntrega.
+  it("la pregunta de entrega dice qué falta, tarea a tarea", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={pruebaDePrueba({ ...haciendoLectura(), respuestas: { "7": "A", "8": "B" } })} />,
+    );
+    expect(html).toContain("<li>en la tarea 2 no has contestado la 9, la 10, la 11 ni la 12</li>");
+  });
+
+  // Mutación que la mata: dejar el window.confirm en alEntregar (aunque la
+  // pregunta de la página también se pinte, el navegador preguntaría dos veces).
+  it("hacer-prueba.tsx ya no pregunta con el confirm del navegador", () => {
+    expect(readFileSync("components/examen/hacer-prueba.tsx", "utf8")).not.toContain("confirm(");
+  });
+
+  // El enlace «Ir a hacerla» es el `Enlace` del kit, que trae SU text-hp-600
+  // (los colores de marca llegan por las piezas del kit): por eso se quitan
+  // las etiquetas <a> antes de buscar colores a mano, y se exige en el enlace
+  // la marca del kit (underline-offset-2) que el Link de antes no tenía.
+  // Mutación que la mata: volver a pintar «Ir a hacerla» como Link con
+  // text-hp-600 o «te queda» como texto suelto.
+  it("el resultado dice lo que queda con etiqueta y enlace del kit", () => {
+    const entregada = { estado: "ENTREGADA" as const, aciertos: 21, total: 25, porTiempo: false };
+    const html = renderToStaticMarkup(
+      <HacerPrueba
+        prueba={entregadaCon19De25({
+          otras: [
+            { prueba: "CO", estado: entregada },
+            { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+          ],
+        })}
+      />,
+    );
+    expect(html).toContain("Te queda");
+    expect(html).toMatch(/<span[^>]*rounded-full[^>]*>[^<]*expresión escrita/); // EtiquetaEstado
+    const enlace = html.match(/<a [^>]*>Ir a hacerla<\/a>/)?.[0] ?? "";
+    expect(enlace).toContain("underline-offset-2");
+    expect(html.replace(/<a [^>]*>/g, "<a>")).not.toMatch(/(bg|border|text)-hp-/);
+  });
+
+  // `Aviso` envuelve a sus hijos en un <div class="text-sm">, de ahí el
+  // `(p|div)` de la expresión: lo que se exige es que la frase quede DENTRO de
+  // la caja border-hp-200 (tono info), no suelta.
+  // Mutación que la mata: dejar «Se entregó sola» como texto gris suelto.
+  it("la entrega por tiempo va en un aviso informativo", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={entregadaCon19De25({ estado: { estado: "ENTREGADA", aciertos: 12, total: 25, porTiempo: true } })} />,
+    );
+    expect(html).toMatch(/border-hp-200[^"]*"[^>]*>(<(p|div)[^>]*>)?[^<]*Se entregó sola: se acabó el tiempo\./);
+  });
+
+  // Mutación que la mata: no pasar `libre` a la CabeceraExamen de PruebaLibre.
+  it("la práctica libre avisa al salir de que no se guarda", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={enLibre()} />);
+    expect(html).toContain("no se guarda");
+    expect(html).not.toContain("mientras la prueba no esté entregada");
+  });
 });
 
 describe("«Corregir» en modo libre corrige la prueba entera pero solo cuenta y pinta la tarea abierta", () => {
@@ -1046,6 +1153,16 @@ describe("la cinta", () => {
     expect(html).not.toContain("Este audio ya ha sonado.");
   });
 
+  // Mutación que la mata: volver a la constante `BOTON` local (bg-hp-400 a
+  // mano) en vez del botón principal del kit.
+  it("el botón de escuchar es el principal del kit", () => {
+    const html = pintarCinta();
+    const boton = html.match(/<button[^>]*>Escuchar el audio<\/button>/)?.[0] ?? "";
+    expect(boton).not.toBe("");
+    expect(boton).toContain(`class="${clasesDeBoton("principal")}`);
+    expect(html).not.toContain("bg-hp-400");
+  });
+
   // Mutación que la mata: quitar el `siguienteTrozo(oidos, trozos) === null`
   // del estado inicial y nacer siempre «listo». Al recargar la página con la
   // pista ya oída entera volvería a salir el botón, y pulsarlo marcaría otra
@@ -1105,6 +1222,15 @@ describe("las pestañas de las tareas", () => {
     // «disabled» dentro y un `not.toContain("disabled")` a secas no podría
     // ponerse verde nunca.
     expect(vivas).not.toContain('disabled=""');
+  });
+
+  // Mutación que la mata: volver a pintar la abierta con bg-hp-400 (el coral
+  // de marca sobre blanco no pasa contraste, y es un color a mano fuera del kit).
+  it("la abierta se marca con aria-current y sin colores a mano", () => {
+    const html = renderToStaticMarkup(<PestanasDeTarea tareas={TAREAS} abierta={2} alElegir={() => {}} />);
+    const abierta = html.match(/<button[^>]*aria-current="true"[^>]*>/)?.[0] ?? "";
+    expect(abierta).toContain("bg-tinta");
+    expect(html).not.toMatch(/(bg|border|text)-hp-/);
   });
 });
 
@@ -1193,6 +1319,16 @@ describe("el folio", () => {
     );
     const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
     expect(textarea).toContain(`maxLength="${LETRAS_TOPE}"`);
+  });
+
+  // Mutación que la mata: volver al rojo de error para las palabras pasadas.
+  // Pasarse de palabras no es un fallo del sistema: es un aviso (coral).
+  it("el aviso de palabras pasadas va en coral", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto={"palabra ".repeat(200)} rango={{ min: 80, max: 100 }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    expect(html).toContain("text-coral-600");
+    expect(html).not.toContain("text-error-600");
   });
 });
 
@@ -1450,21 +1586,19 @@ describe("la escrita", () => {
     expect(hayAlgoSinGuardar({}, { 1: { texto: "Algo", opcion: null } })).toBe(true);
   });
 
-  // Mutación que la mata: volver a «Te falta {falta.join(" y ")}», que con las
-  // cadenas de `loQueFalta` sale «Te falta la tarea 1 está en blanco.». Lo lee un
-  // chaval de catorce años justo antes de entregar. La pieza se pinta sola
-  // porque dentro de la pantalla solo aparece tras un clic, y aquí no hay jsdom.
-  it("la pregunta de entrega está escrita en castellano", () => {
+  // Mutación que la mata: volver a «Te falta {falta.join(" y ")}», o pintar la
+  // lista sin el «Ojo:». Lo lee un chaval de catorce años justo antes de entregar.
+  // Cambiada por el vestido: la escrita ya no tiene pregunta propia; usa la
+  // pieza común (<dialog>), que pinta lo que falta como lista y no como frase.
+  it("la pregunta de entrega de la escrita dice lo que falta, en castellano", () => {
     const html = renderToStaticMarkup(
-      <PreguntaDeEntrega
-        falta={["la tarea 1 está en blanco", "no has elegido opción en la tarea 2"]}
-        enviando={false}
-        alSi={() => {}}
-        alNo={() => {}}
-      />,
+      <PreguntaDeEntrega abierta falta={["la tarea 1 está en blanco", "no has elegido opción en la tarea 2"]}
+        enviando={false} textoSeguir="Seguir escribiendo" alSi={() => {}} alNo={() => {}} />,
     );
-    expect(html).toContain("Ojo: la tarea 1 está en blanco y no has elegido opción en la tarea 2. ¿Entregar de todas formas?");
-    expect(html).toContain("Sí, entregar");
+    expect(html).toContain("Ojo:");
+    expect(html).toContain("<li>la tarea 1 está en blanco</li>");
+    expect(html).toContain("<li>no has elegido opción en la tarea 2</li>");
+    expect(html).toContain("¿Entregar de todas formas?");
     expect(html).toContain("Seguir escribiendo");
   });
 
@@ -1568,12 +1702,47 @@ describe("la escrita", () => {
   // Mutación que la mata: enseñar la lista de lo que falta aunque esté vacía
   // («Ojo: . ¿Entregar de todas formas?»), o callarse el «no se puede deshacer»
   // cuando está todo hecho, que es cuando más de verdad va la entrega.
+  // Cambiada por el vestido: ahora es la pieza común, que dice «Entregar no se
+  // puede deshacer.» siempre (su pregunta va en el título «¿Entregar ya?»), así
+  // que se deja de esperar el «¿Entregar?» de la frase vieja.
   it("con todo hecho, la pregunta avisa de que no se puede deshacer", () => {
     const html = renderToStaticMarkup(
-      <PreguntaDeEntrega falta={[]} enviando={false} alSi={() => {}} alNo={() => {}} />,
+      <PreguntaDeEntrega abierta falta={[]} enviando={false} textoSeguir="Seguir escribiendo" alSi={() => {}} alNo={() => {}} />,
     );
-    expect(html).toContain("Entregar no se puede deshacer. ¿Entregar?");
+    expect(html).toContain("Entregar no se puede deshacer.");
     expect(html).not.toContain("Ojo:");
+  });
+
+  // Mutación que la mata: dibujar un botón «Guardar» (se guarda sola: A §6).
+  it("escribiendo no hay botón Guardar, y Entregar abre la pregunta común", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).not.toMatch(/<button[^>]*>Guardar/);
+    expect(html).toContain('aria-labelledby="titulo-de-entregar"');
+    expect(html).toContain("Seguir escribiendo");
+  });
+
+  // Mutación que la mata: el comentario del profesor otra vez en bg-hp-50 a
+  // mano (o como texto suelto).
+  // La ventana va hasta 300 letras porque el Aviso con título pone antes su
+  // <p> «Tu profesor dice» y el <div> del cuerpo; pero entre el borde del aviso
+  // informativo y el comentario no puede cerrarse ningún </div>: el comentario
+  // tiene que estar DENTRO de la caja.
+  it("corregida: el comentario va en un aviso informativo y los criterios son los de CRITERIOS_EE", () => {
+    const corregida = escritaCorregida();
+    const html = renderToStaticMarkup(
+      <HacerPrueba
+        prueba={{
+          ...corregida,
+          escritos: [
+            escritoDe(1, CARTA, null, { bandas: [3, 2, 2, 1], comentario: "Bien hecho." }),
+            escritoDe(2, FIN_DE_SEMANA, 2, { bandas: [3, 3, 2, 2], comentario: "Cuida los acentos" }),
+          ],
+        }}
+      />,
+    );
+    expect(html).toMatch(/border-hp-200[^>]*>(?:(?!<\/div>)[\s\S]){0,300}Bien hecho\./);
+    for (const c of CRITERIOS_EE) expect(html).toContain(c.nombre);
+    expect(html).not.toContain("Cohesión");
   });
 
   // Mutación que la mata: no pintar `entregadaEn` en la cara de espera. Un chico

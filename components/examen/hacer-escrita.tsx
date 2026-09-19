@@ -14,7 +14,11 @@ import {
 } from "@/app/examen/acciones";
 import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
 import { Folio, type Rango } from "@/components/examen/folio";
-import { AVISO_DE_ERROR, BOTON, BOTON_SUAVE, CAJA, enLista, PestanasDeTarea } from "@/components/examen/piezas";
+import { PreguntaDeEntrega } from "@/components/examen/pregunta-de-entrega";
+import { Tarjeta } from "@/components/ui/tarjeta";
+import { Boton } from "@/components/ui/boton";
+import { Aviso } from "@/components/ui/aviso";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { Reloj } from "@/components/examen/reloj";
 import { CabeceraExamen } from "@/components/carcasa/cabecera-examen";
 import { fechaHoraEnPalabras } from "@/lib/tiempo/madrid";
@@ -459,7 +463,7 @@ function AvisoDeLaEscrita({
     <>
       {/* Antes de empezar no hay nada en juego: Salir es un enlace, sin pregunta. */}
       <CabeceraExamen prueba={prueba.prueba} tarea={null} reloj={null} preguntar={false} />
-      <section className={CAJA}>
+      <Tarjeta as="section" className="flex flex-col gap-4">
         <h1 className="text-xl font-bold">
           {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
         </h1>
@@ -476,20 +480,23 @@ function AvisoDeLaEscrita({
             no se apunta nada. Se dice ANTES de «Empezar» porque la disuasión ES
             saberlo: un registro que nadie sabe que existe no disuade de nada, solo
             delata. Y se dice sin miedo — no se borra nada, no se pierde nada: es
-            una regla, no un castigo. */}
+            una regla, no un castigo. Va en un aviso coral: no es un fallo, pero
+            hay que verlo. */}
         {!sinReloj && (
-          <p>
-            <strong>No te salgas de esta pantalla mientras escribes.</strong>{" "}
-            <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil, cierras esta pestaña o vuelves a Inicio, queda apuntado.</span>{" "}
-            <span>Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.</span>{" "}
-            <span>No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo mientras estás fuera.</span>
-          </p>
+          <Aviso tono="aviso">
+            <p>
+              <strong>No te salgas de esta pantalla mientras escribes.</strong>{" "}
+              <span>Si te vas a otra aplicación o a otra pestaña, bloqueas el móvil, cierras esta pestaña o vuelves a Inicio, queda apuntado.</span>{" "}
+              <span>Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.</span>{" "}
+              <span>No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo mientras estás fuera.</span>
+            </p>
+          </Aviso>
         )}
-        {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
-        <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
+        {error && <Aviso tono="error">{error}</Aviso>}
+        <Boton onClick={alEmpezar} enviando={enviando} textoEnviando="Empezando…" className="self-start">
           Empezar
-        </button>
-      </section>
+        </Boton>
+      </Tarjeta>
     </>
   );
 }
@@ -525,7 +532,7 @@ function TareaDeEscrita({
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <details open className="min-w-0">
-        <summary className="cursor-pointer py-2 font-bold text-hp-600 md:hidden">Enunciado</summary>
+        <summary className="cursor-pointer py-2 font-bold text-tinta md:hidden">Enunciado</summary>
         <EnunciadoDeEscrita
           formulario={tarea.formulario}
           opcionElegida={borrador.opcion}
@@ -540,42 +547,6 @@ function TareaDeEscrita({
         alEscribir={alEscribir ?? (() => {})}
       />
     </div>
-  );
-}
-
-/**
- * La pregunta de antes de entregar. Va en la pantalla y no en un `confirm` del
- * navegador: en el móvil ese cartel sale sin decir qué falta y con dos botones
- * del sistema, y aquí hace falta leer una lista.
- *
- * Pieza aparte y exportada para poder pintarla sin tocar nada: es la única
- * forma de probar lo que dice, porque dentro de la pantalla solo aparece
- * después de un clic y aquí no hay jsdom.
- */
-export function PreguntaDeEntrega({
-  falta, enviando, alSi, alNo,
-}: {
-  falta: string[];
-  enviando: boolean;
-  alSi: () => void;
-  alNo: () => void;
-}) {
-  return (
-    <section className={CAJA}>
-      {falta.length > 0 ? (
-        <p>Ojo: {enLista(falta)}. ¿Entregar de todas formas?</p>
-      ) : (
-        <p>Entregar no se puede deshacer. ¿Entregar?</p>
-      )}
-      <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={enviando} onClick={alSi} className={BOTON}>
-          Sí, entregar
-        </button>
-        <button type="button" disabled={enviando} onClick={alNo} className={BOTON_SUAVE}>
-          Seguir escribiendo
-        </button>
-      </div>
-    </section>
   );
 }
 
@@ -660,7 +631,12 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
         return;
       }
       const r = await entregarPruebaAccion(examenId, prueba.prueba);
-      if (r.error) setError(r.error);
+      // Si el servidor rechaza la entrega, se cierra también la pregunta (como
+      // en entregarYa de hacer-prueba.tsx): el diálogo es un <dialog> abierto
+      // con showModal(), que deja el resto de la página inerte, así que el
+      // aviso de error quedaría detrás del telón de fondo sin que nadie
+      // pudiera verlo.
+      if (r.error) { setError(r.error); setConfirmando(false); }
       router.refresh();
     });
   }
@@ -677,34 +653,41 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
         preguntar
         escrita
       />
-      {/* El cartelito del guardado, justo bajo la cabecera del reloj: es lo que
-          le dice al chico si puede irse tranquilo. Callado hasta que toca algo. */}
-      {cartel && <p className="text-sm text-tinta-suave">{cartel}</p>}
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
+      {error && <Aviso tono="error">{error}</Aviso>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={alCambiarDeTarea} />
       {tarea && (
-        <TareaDeEscrita
-          tarea={tarea}
-          borrador={abierto}
-          bloqueado={bloqueadaPorError}
-          alEscribir={(texto) => escribir(tareaAbierta, texto)}
-          alElegir={(opcion) => elegir(tareaAbierta, opcion)}
-        />
+        <div className="flex flex-col gap-2">
+          {/* El cartelito del guardado, justo encima del folio: es lo que le dice
+              al chico si puede irse tranquilo, y ahí lo ve sin levantar la vista
+              de lo que escribe. Callado hasta que toca algo. No es un botón: se
+              guarda sola. */}
+          {cartel && (
+            <p aria-live="polite" className="self-end rounded-full bg-fondo px-3 py-1 text-xs font-bold text-tinta-suave">
+              {cartel}
+            </p>
+          )}
+          <TareaDeEscrita
+            tarea={tarea}
+            borrador={abierto}
+            bloqueado={bloqueadaPorError}
+            alEscribir={(texto) => escribir(tareaAbierta, texto)}
+            alElegir={(opcion) => elegir(tareaAbierta, opcion)}
+          />
+        </div>
       )}
-      {confirmando ? (
-        <PreguntaDeEntrega
-          falta={loQueFalta(prueba, borradores)}
-          enviando={procesando}
-          alSi={alEntregar}
-          alNo={() => setConfirmando(false)}
-        />
-      ) : (
-        // Sin `bloqueadaPorError`, igual que en la lectura: un fallo al guardar
-        // apaga los folios, no la salida.
-        <button type="button" disabled={procesando} onClick={() => setConfirmando(true)} className={BOTON}>
-          Entregar
-        </button>
-      )}
+      {/* Sin `bloqueadaPorError`, igual que en la lectura: un fallo al guardar
+          apaga los folios, no la salida. */}
+      <Boton onClick={() => setConfirmando(true)} disabled={procesando} className="self-start">
+        Entregar
+      </Boton>
+      <PreguntaDeEntrega
+        abierta={confirmando}
+        falta={loQueFalta(prueba, borradores)}
+        enviando={procesando}
+        textoSeguir="Seguir escribiendo"
+        alSi={alEntregar}
+        alNo={() => setConfirmando(false)}
+      />
     </div>
   );
 }
@@ -717,7 +700,7 @@ function EscritaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
 function EscritaEsperando({ prueba }: { prueba: PruebaParaHacer }) {
   return (
     <div className="flex flex-col gap-6">
-      <section className={CAJA}>
+      <Tarjeta as="section" className="flex flex-col gap-4">
         <p className="text-tinta-suave">
           {NOMBRE_DE_PRUEBA[prueba.prueba]} · {prueba.examen.titulo}
         </p>
@@ -726,21 +709,21 @@ function EscritaEsperando({ prueba }: { prueba: PruebaParaHacer }) {
             viendo «esperando corrección» sin fecha no sabe si su redacción
             llegó o si se perdió por el camino. */}
         {prueba.entregadaEn && <p>La mandaste el {fechaHoraEnPalabras(prueba.entregadaEn)}.</p>}
-        {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
+        {prueba.estado.porTiempo && <Aviso tono="info">Se entregó sola: se acabó el tiempo.</Aviso>}
         <p>
           La corrige tu profesor, a mano: no hay nota automática. Cuando la firme, verás aquí las cuatro notas de cada
           tarea y lo que te diga.
         </p>
-      </section>
+      </Tarjeta>
       {prueba.tareas.map((t) => (
-        <section key={t.numero} className={CAJA}>
+        <Tarjeta key={t.numero} as="section" className="flex flex-col gap-4">
           <h2 className="font-bold">Tarea {t.numero}</h2>
           <TareaDeEscrita
             tarea={t}
             borrador={{ texto: escritoDe(prueba, t.numero)?.texto ?? "", opcion: escritoDe(prueba, t.numero)?.opcion ?? null }}
             bloqueado
           />
-        </section>
+        </Tarjeta>
       ))}
     </div>
   );
@@ -773,7 +756,7 @@ function BandasDeLaTarea({ bandas }: { bandas: number[] }) {
 function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
   return (
     <div className="flex flex-col gap-6">
-      <section className={CAJA}>
+      <Tarjeta as="section" className="flex flex-col gap-4">
         <p className="text-tinta-suave">
           {NOMBRE_DE_PRUEBA[prueba.prueba]} · {prueba.examen.titulo}
         </p>
@@ -783,18 +766,18 @@ function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
         {prueba.corregidaEn && (
           <p className="text-tinta-suave">Corregida el {fechaHoraEnPalabras(prueba.corregidaEn)}.</p>
         )}
-        {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
+        {prueba.estado.porTiempo && <Aviso tono="info">Se entregó sola: se acabó el tiempo.</Aviso>}
         <p className="text-tinta-suave">
           Cada tarea se mira con cuatro criterios, de 0 a {BANDA_MAXIMA} cada uno.
         </p>
-      </section>
+      </Tarjeta>
       {prueba.tareas.map((t) => {
         const escrito = escritoDe(prueba, t.numero);
         return (
-          <section key={t.numero} className={CAJA}>
+          <Tarjeta key={t.numero} as="section" className="flex flex-col gap-4">
             <h2 className="font-bold">Tarea {t.numero}</h2>
             <div className="grid gap-6 md:grid-cols-2">
-              <p className="min-w-0 rounded-2xl border border-tinta-suave/20 bg-tinta-suave/5 p-4 whitespace-pre-line">
+              <p className="min-w-0 rounded-2xl border border-tinta-suave/20 bg-fondo p-4 whitespace-pre-line">
                 {escrito?.texto ?? ""}
               </p>
               {/* Sin `correccion` no se pinta banda ninguna: la fila puede estar
@@ -803,14 +786,16 @@ function EscritaCorregida({ prueba }: { prueba: PruebaParaHacer }) {
                 <div className="flex min-w-0 flex-col gap-3">
                   <BandasDeLaTarea bandas={escrito.correccion.bandas} />
                   {escrito.correccion.comentario !== "" && (
-                    <p className="rounded-2xl bg-hp-50 p-4 whitespace-pre-line">{escrito.correccion.comentario}</p>
+                    <Aviso tono="info" titulo="Tu profesor dice">
+                      <p className="whitespace-pre-line">{escrito.correccion.comentario}</p>
+                    </Aviso>
                   )}
                 </div>
               ) : (
                 <p className="text-tinta-suave">Esta tarea todavía no tiene notas.</p>
               )}
             </div>
-          </section>
+          </Tarjeta>
         );
       })}
     </div>

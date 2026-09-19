@@ -1,7 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { motivoParaNoGuardar, sumaDeNotas } from "@/components/examen/notas";
+import { enLista } from "@/lib/examen/en-lista";
 
 const vacia = () => [null, null, null, null];
+
+describe("enLista", () => {
+  // Mutación que la mata: ignorar la conjunción y pegar siempre «y». La
+  // pregunta de entrega dice «no has contestado la 8 ni la 9»: con «y» se lee
+  // como que sí contestó una.
+  it("junta con «y» por defecto y con «ni» cuando se pide", () => {
+    expect(enLista([])).toBe("");
+    expect(enLista(["a"])).toBe("a");
+    expect(enLista(["a", "b", "c"])).toBe("a, b y c");
+    expect(enLista(["la 8", "la 9"], "ni")).toBe("la 8 ni la 9");
+  });
+});
 
 describe("la suma de las notas", () => {
   // Mutación que la mata: contar un null como 0 en el máximo, o calcular el

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Enlace } from "@/components/ui/enlace";
 
 export default function Enviado() {
   return (
@@ -8,9 +8,7 @@ export default function Enviado() {
         Si esa dirección está dada de alta, te hemos mandado un enlace para entrar. Vale
         quince minutos y una sola vez.
       </p>
-      <Link href="/entrar" className="font-bold text-hp-600">
-        Pedir otro enlace
-      </Link>
+      <Enlace href="/entrar">Pedir otro enlace</Enlace>
     </main>
   );
 }
