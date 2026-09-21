@@ -13,6 +13,25 @@ export function hayClaveDeIA(): boolean {
 }
 
 /**
+ * Con `IA_PROVEEDOR=ocr` el taller lee las hojas en la propia máquina y no
+ * llama a nadie. Sin la variable se sigue usando Claude, que es lo que
+ * había: un despliegue que ya funciona no cambia de comportamiento solo por
+ * desplegar esto.
+ *
+ * Vive aquí y no junto al lector local porque la pantalla de la tarea la
+ * necesita, y ese módulo arrastra los lectores de forma y, tras ellos, la
+ * base de datos: la pantalla no puede pagar eso solo para encender un botón.
+ */
+export function usaLectorLocal(): boolean {
+  return process.env.IA_PROVEEDOR === "ocr";
+}
+
+/** El lector local no necesita clave: para encender el botón basta con que haya uno de los dos. */
+export function hayLector(): boolean {
+  return usaLectorLocal() || hayClaveDeIA();
+}
+
+/**
  * Una tarea, una llamada. Razonamiento adaptativo encendido y salida con
  * esquema obligatorio: Opus 5 con el razonamiento apagado a veces escribe la
  * llamada en el texto en vez de devolverla. En flujo, para que no la corte un
