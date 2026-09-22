@@ -22,6 +22,7 @@ const dobles = vi.hoisted(() => ({
   guardarCuadernillo: vi.fn(),
   elegirCuadernillo: vi.fn(),
   rellenarTarea: vi.fn(),
+  etiquetarPaginasAutomaticamente: vi.fn(),
   asignarExamen: vi.fn(),
   quitarAsignacion: vi.fn(),
   archivarExamen: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock("@/lib/taller/cuadernillos", () => ({
   elegirCuadernillo: dobles.elegirCuadernillo,
 }));
 vi.mock("@/lib/taller/ia/rellenar", () => ({ rellenarTarea: dobles.rellenarTarea }));
+vi.mock("@/lib/taller/ocr/etiquetar-solo", () => ({ etiquetarPaginasAutomaticamente: dobles.etiquetarPaginasAutomaticamente }));
 vi.mock("@/lib/examen/asignar", () => ({ asignarExamen: dobles.asignarExamen, quitarAsignacion: dobles.quitarAsignacion }));
 vi.mock("@/lib/correo/transporte", () => ({ mandarPorSmtp: vi.fn() }));
 
@@ -64,6 +66,7 @@ import {
   crearExamenAccion,
   elegirCuadernilloAccion,
   etiquetarPaginaAccion,
+  etiquetarPaginasAutomaticamenteAccion,
   guardarCuadernilloAccion,
   guardarTareaAccion,
   publicarExamenAccion,
@@ -102,6 +105,7 @@ const ACCIONES = [
   { nombre: "sustituirPaginasAccion", llamar: () => sustituirPaginasAccion("x1", ["f1"]), tocan: [dobles.sustituirPaginas] },
   { nombre: "borrarPaginasAccion", llamar: () => borrarPaginasAccion("x1"), tocan: [dobles.borrarPaginas] },
   { nombre: "etiquetarPaginaAccion", llamar: () => etiquetarPaginaAccion("x1", "p1", ["CE-1"]), tocan: [dobles.etiquetarPagina] },
+  { nombre: "etiquetarPaginasAutomaticamenteAccion", llamar: () => etiquetarPaginasAutomaticamenteAccion("x1"), tocan: [dobles.etiquetarPaginasAutomaticamente] },
   { nombre: "guardarCuadernilloAccion", llamar: () => guardarCuadernilloAccion("x1", "Libro", []), tocan: [dobles.guardarCuadernillo, dobles.elegirCuadernillo] },
   { nombre: "elegirCuadernilloAccion", llamar: () => elegirCuadernilloAccion("x1", formulario({ cuadernilloId: "c1", numero: "1" })), tocan: [dobles.elegirCuadernillo] },
   { nombre: "guardarTareaAccion", llamar: () => guardarTareaAccion("x1", "CE", 3, {}), tocan: [dobles.guardarTarea] },
@@ -230,6 +234,18 @@ describe("lo que hace cada acción con el profesor", () => {
     await registrarPaginasAccion("x1", ["f2", "f1"]);
     expect(dobles.etiquetarPagina).toHaveBeenCalledWith("x1", "p1", ["CE-2", "CE-3"]);
     expect(dobles.registrarPaginas).toHaveBeenCalledWith("x1", ["f2", "f1"]);
+  });
+
+  // Mutación que la mata: no revalidar la pantalla tras escribir etiquetas en la base, o perder el resultado de la capa de OCR.
+  it("etiquetar automáticamente devuelve lo que diga el lector y revalida la pantalla del examen", async () => {
+    dobles.etiquetarPaginasAutomaticamente.mockResolvedValue({ paginas: 3, etiquetadas: 2, inciertas: [{ id: "p3", orden: 3, etiquetas: [] }] });
+    expect(await etiquetarPaginasAutomaticamenteAccion("x1")).toEqual({
+      paginas: 3,
+      etiquetadas: 2,
+      inciertas: [{ id: "p3", orden: 3, etiquetas: [] }],
+    });
+    expect(dobles.etiquetarPaginasAutomaticamente).toHaveBeenCalledWith("x1");
+    expect(dobles.revalidatePath).toHaveBeenCalledWith("/examenes/x1");
   });
 
   // Mutación que la mata: pasar `ficheroIds.slice().reverse()` a
