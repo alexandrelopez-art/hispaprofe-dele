@@ -8,7 +8,8 @@ import { encargoDeTarea, esquemaDeRespuesta, type Hoja } from "./encargo";
 import { mensajeDeError } from "./errores";
 import { imponerEstructura } from "./estructura";
 import { descargarHoja } from "./hojas";
-import { MODELO, hayClaveDeIA, leerConClaude, type LeerHojas, type RespuestaDeLaIA } from "./llamar";
+import { MODELO, hayLector, leerConClaude, usaLectorLocal, type LeerHojas, type RespuestaDeLaIA } from "./llamar";
+import { MODELO_LOCAL, crearLectorLocal } from "@/lib/taller/ocr/proveedor";
 import { apuntarLlamada } from "./registro";
 import { MENSAJE_ARCHIVADO, MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 
@@ -23,9 +24,9 @@ export type Dependencias = {
 };
 
 const REALES: Dependencias = {
-  leer: leerConClaude,
+  leer: (encargo) => (usaLectorLocal() ? crearLectorLocal() : leerConClaude)(encargo),
   descargar: (ruta, tipoMime) => descargarHoja(ruta, tipoMime),
-  hayClave: hayClaveDeIA,
+  hayClave: hayLector,
   reloj: () => Date.now(),
   apuntar: apuntarLlamada,
 };
@@ -124,7 +125,7 @@ export async function rellenarTarea(examenId: string, prueba: Prueba, numero: nu
       examenId,
       prueba,
       numero,
-      modelo: MODELO,
+      modelo: usaLectorLocal() ? MODELO_LOCAL : MODELO,
       uso: SIN_USO,
       milisegundos: deps.reloj() - inicio,
       error: `${error} — ${detalle}`,

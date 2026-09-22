@@ -5,7 +5,12 @@ import { ESQUEMA_PARA_LA_IA, formularioVacio, type Formulario } from "@/lib/tall
 
 export type TipoDeHoja = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 export type Hoja = { datos: string; tipo: TipoDeHoja };
-export type Encargo = { system: string; hojas: Hoja[]; texto: string; forma: Forma };
+/**
+ * `forma` va aparte de `regla` porque el esquema de la respuesta solo depende
+ * de ella; `regla` la necesita el lector local, que rellena el formulario él
+ * mismo y para eso tiene que saber cuántos ítems y cuántas letras lleva.
+ */
+export type Encargo = { system: string; hojas: Hoja[]; texto: string; forma: Forma; regla: ReglaTarea };
 
 /**
  * Igual en todas las llamadas, letra a letra: es el bloque que la API
@@ -102,5 +107,5 @@ export function encargoDeTarea(nivel: Nivel, prueba: Prueba, regla: ReglaTarea, 
     "Formulario vacío:",
     JSON.stringify(sinMedios(formularioVacio(regla)), null, 2),
   ].join("\n");
-  return { system: INSTRUCCIONES, hojas, texto, forma: regla.forma };
+  return { system: INSTRUCCIONES, hojas, texto, forma: regla.forma, regla };
 }

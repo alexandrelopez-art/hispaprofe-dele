@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { exigirProfesor } from "@/lib/puerta/sesion-http";
 import { esPrueba, nombreCortoDeTarea } from "@/lib/dele/estructura";
 import { tareaParaElTaller } from "@/lib/taller/examenes";
-import { hayClaveDeIA } from "@/lib/taller/ia/llamar";
+import { hayLector } from "@/lib/taller/ia/llamar";
 import { Aviso } from "@/components/ui/aviso";
 import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
 import { Enlace } from "@/components/ui/enlace";
@@ -44,7 +44,7 @@ export default async function PantallaDeTarea({ params }: { params: Promise<{ id
           respuestas={tarea.respuestas}
           temasDeLaHermana={tarea.temasDeLaHermana}
           estadoInicial={tarea.estado}
-          hayClave={hayClaveDeIA()}
+          hayClave={hayLector()}
           hayHojas={tarea.paginas.length > 0}
           bloqueo={tarea.bloqueo}
         />
