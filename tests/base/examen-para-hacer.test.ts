@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 import type { Examen, Persona } from "@/lib/generated/prisma";
 import { pruebaParaHacer } from "@/lib/examen/paraHacer";
+import { empezarPrueba, guardarEscrito, entregarPrueba } from "@/lib/examen/hacer";
 import { crearExamenDePruebas } from "../ayudas/examen-de-pruebas";
 
 const AHORA = new Date("2026-09-20T09:00:00Z");
@@ -55,10 +56,10 @@ describe("leer una prueba para hacerla", () => {
     expect(await pruebaParaHacer(examen.id, "CE", ana.id, AHORA)).toBeNull();
   });
 
-  // Mutación que la mata: aceptar cualquier prueba. La escrita y la oral no
-  // tienen pantalla hasta la 3d y la 3e.
-  it("la escrita y la oral todavía no", async () => {
-    expect(await pruebaParaHacer(examen.id, "EE", ana.id, AHORA)).toBeNull();
+  // Mutación que la mata: aceptar cualquier prueba. La oral todavía no tiene
+  // pantalla hasta la 3e (la escrita ya la tiene desde la 3d: ver "la escrita
+  // para hacer" más abajo).
+  it("la oral todavía no", async () => {
     expect(await pruebaParaHacer(examen.id, "EO", ana.id, AHORA)).toBeNull();
   });
 
@@ -109,5 +110,94 @@ describe("leer una prueba para hacerla", () => {
   it("no trae tareas de otra prueba", async () => {
     const leido = (await pruebaParaHacer(examen.id, "CE", ana.id, AHORA))!;
     expect(leido.tareas.map((t) => t.numero)).toEqual([2]);
+  });
+});
+
+describe("la escrita para hacer", () => {
+  // LA PRUEBA IMPORTANTE DE LA ENTREGA. Mutación que la mata: devolver la fila
+  // entera de EscritoDeIntento (con `bandas` y `comentario`) en vez de
+  // construir el objeto campo a campo. El estudiante recibiría su corrección en
+  // el HTML antes de que el profesor la hubiera firmado, y ni siquiera haría
+  // falta mirar: está en la fuente de la página.
+  it("no enseña las bandas antes de que el profesor firme", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await guardarEscrito(examen.id, ana.id, 1, "Hola, qué tal", null, AHORA);
+    await entregarPrueba(examen.id, "EE", ana.id, AHORA);
+    const intento = await prisma.intento.findFirstOrThrow({ where: { prueba: "EE" } });
+    // El profesor escribe la corrección pero NO la firma (corregidaEn sigue null).
+    await prisma.escritoDeIntento.updateMany({
+      where: { intentoId: intento.id, tarea: 1 },
+      data: { bandas: [3, 2, 2, 1], comentario: "Muy bien" },
+    });
+
+    const sinFirmar = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
+    expect(sinFirmar!.estado.estado).toBe("ESPERANDO");
+    // Mutación que mata esto solo: devolver `entregadaEn: null` (o la fecha de
+    // la firma). La cara de espera de la escrita dice «la mandaste el …», y sin
+    // esta fecha un chico que lleva días esperando no sabe si su redacción
+    // llegó. El estado no lo cubre: ESPERANDO sale igual con fecha o sin ella.
+    expect(sinFirmar!.entregadaEn).toEqual(AHORA);
+    expect(sinFirmar!.escritos[0]!.correccion).toBeNull();
+    // Mutación que mata esto solo: cambiar `corregidaEn: firmada` por
+    // `corregidaEn: null` en paraHacer.ts. El resto de la prueba seguiría en
+    // verde (el estado se deduce de `aciertos`, no de este campo), así que
+    // `corregidaEn` necesita su propia aserción a los dos lados de la firma.
+    expect(sinFirmar!.corregidaEn).toBeNull();
+    expect(JSON.stringify(sinFirmar)).not.toContain("Muy bien");
+
+    await prisma.intento.update({
+      where: { id: intento.id },
+      data: { corregidaEn: AHORA, aciertos: 8, total: 24 },
+    });
+    const firmada = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
+    expect(firmada!.escritos[0]!.correccion).toEqual({ bandas: [3, 2, 2, 1], comentario: "Muy bien" });
+    expect(firmada!.estado).toEqual({ estado: "ENTREGADA", aciertos: 8, total: 24, porTiempo: false });
+    expect(firmada!.corregidaEn).toEqual(AHORA);
+  });
+
+  // Mutación que la mata: no devolver los escritos. Al volver de un corte, el
+  // estudiante encontraría el folio en blanco y el reloj corriendo.
+  it("devuelve el borrador tal como se guardó", async () => {
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+    await guardarEscrito(examen.id, ana.id, 2, "Elijo la dos", 2, AHORA);
+    const leida = await pruebaParaHacer(examen.id, "EE", ana.id, AHORA);
+    expect(leida!.escritos).toEqual([{ tarea: 2, opcion: 2, texto: "Elijo la dos", palabras: 3, correccion: null }]);
+    // El otro lado de la fecha: empezada y sin entregar, no hay fecha que dar.
+    expect(leida!.entregadaEn).toBeNull();
+    expect(leida!.minutos).toBe(50);
+    expect(leida!.tareas.map((t) => t.numero)).toEqual([1, 2]);
+  });
+
+  // Mutación que la mata: volver a `minutosDePrueba(nivel, prueba)` a secas,
+  // sin el modo. Los cincuenta minutos del nivel viajarían al navegador de una
+  // práctica libre que no se cierra nunca, y cada pantalla tendría que volver
+  // a mirar el `modo` por su cuenta para no pintar un reloj falso. Se afirma
+  // también el modo COMPLETO al lado: una mutación que devolviera null siempre
+  // pasaría con solo la mitad.
+  it("en práctica libre no manda minutos ni cuenta atrás", async () => {
+    await prisma.asignacion.update({
+      where: { examenId_personaId: { examenId: examen.id, personaId: ana.id } },
+      data: { modo: "LIBRE" },
+    });
+    await empezarPrueba(examen.id, "EE", ana.id, AHORA);
+
+    const libre = (await pruebaParaHacer(examen.id, "EE", ana.id, AHORA))!;
+    expect(libre.modo).toBe("LIBRE");
+    expect(libre.minutos).toBeNull();
+    expect(libre.segundosQueQuedan).toBeNull();
+
+    await prisma.asignacion.update({
+      where: { examenId_personaId: { examenId: examen.id, personaId: ana.id } },
+      data: { modo: "COMPLETO" },
+    });
+    const completo = (await pruebaParaHacer(examen.id, "EE", ana.id, AHORA))!;
+    expect(completo.minutos).toBe(50);
+    expect(completo.segundosQueQuedan).toBe(50 * 60);
+  });
+
+  // Mutación que la mata: dejar "EO" dentro de PRUEBAS_QUE_SE_HACEN. La oral no
+  // tiene pantalla hasta la 3e, y media pantalla es peor que ninguna.
+  it("la oral sigue sin poderse hacer", async () => {
+    expect(await pruebaParaHacer(examen.id, "EO", ana.id, AHORA)).toBeNull();
   });
 });

@@ -31,6 +31,22 @@ describe("pedir un enlace", () => {
     expect(buzon[0].a).toBe("ana@ejemplo.com");
     const resultado = await usarEnlace(secretoDelUltimo(), minutos(1));
     expect(resultado).toHaveProperty("cookie");
+    // Esta prueba sola no basta contra "devolver siempre ESTUDIANTE": Ana ya
+    // es estudiante. La prueba de abajo, con un profesor, es la que mata esa
+    // mutación de verdad.
+    expect((resultado as { papel: string }).papel).toBe("ESTUDIANTE");
+  });
+
+  // Mutación que la mata: devolver siempre "ESTUDIANTE" en vez del papel real
+  // de la persona del enlace. Con Marta (profesora) la mutación se nota: la
+  // prueba de arriba sola no la habría cazado, porque Ana ya es estudiante.
+  it("el enlace de un profesor trae su papel, no ESTUDIANTE a secas", async () => {
+    await prisma.persona.create({
+      data: { correo: "marta@ejemplo.com", nombre: "Marta", papel: "PROFESOR" },
+    });
+    await pedirEnlace("marta@ejemplo.com", AHORA, mandar, BASE);
+    const resultado = await usarEnlace(secretoDelUltimo(), minutos(1));
+    expect((resultado as { papel: string }).papel).toBe("PROFESOR");
   });
 
   it("con un correo que no existe no manda nada y no deja rastro (en la respuesta)", async () => {

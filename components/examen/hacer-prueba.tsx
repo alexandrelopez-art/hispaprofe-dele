@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Prueba } from "@/lib/generated/prisma";
 import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
 import { NOMBRE_DE_PRUEBA } from "@/lib/dele/estructura";
-import { textoDelEstado } from "@/lib/examen/motor";
+import { estaEntregada, textoDelEstado } from "@/lib/examen/motor";
 import { itemsDelFormulario } from "@/lib/taller/estado";
 import {
   corregirEnLibreAccion,
@@ -16,19 +15,21 @@ import {
   marcarTrozoAccion,
 } from "@/app/examen/acciones";
 import { Cinta } from "@/components/examen/cinta";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
+import { PreguntaDeEntrega } from "@/components/examen/pregunta-de-entrega";
+import { sinResponderPorTarea } from "@/lib/examen/sin-responder";
+import { HacerEscrita } from "@/components/examen/hacer-escrita";
 import { Reloj } from "@/components/examen/reloj";
+import { CabeceraExamen } from "@/components/carcasa/cabecera-examen";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
+import { Tarjeta } from "@/components/ui/tarjeta";
+import { Boton } from "@/components/ui/boton";
+import { Aviso } from "@/components/ui/aviso";
+import { Enlace } from "@/components/ui/enlace";
+import { EtiquetaEstado } from "@/components/ui/etiqueta-estado";
 
 type Marcadas = Record<string, string>;
 type NotaDeTarea = { aciertos: number; total: number; fallos: number[] };
-
-const CAJA = "flex min-w-0 flex-col gap-4 rounded-2xl border border-tinta-suave/20 bg-white p-5";
-const BOTON = "self-start rounded-2xl bg-hp-400 px-6 py-3 font-bold text-white disabled:opacity-50";
-const AVISO_DE_ERROR = "rounded-2xl bg-error-100 p-4 text-error-600";
-
-function totalDePreguntas(tareas: TareaParaHacer[]): number {
-  return tareas.reduce((n, t) => n + (t.regla.items ?? 0), 0);
-}
 
 /**
  * La cinta de una tarea, colgada por encima de la actividad cuando la tarea
@@ -73,11 +74,6 @@ function CintaDeLaTarea({
       avisarSiSuena={avisarSiSuena}
     />
   );
-}
-
-/** Cuántas de las marcadas tienen de verdad una letra (una cadena vacía guardada no cuenta como contestada). */
-function contarContestadas(marcadas: Marcadas): number {
-  return Object.values(marcadas).filter((letra) => letra.trim() !== "").length;
 }
 
 /**
@@ -126,59 +122,24 @@ function AvisoPrevio({
   // pregunta «¿tiene reloj?».
   const esLectura = prueba.prueba === "CE";
   return (
-    <section className={CAJA}>
-      <h1 className="text-xl font-bold">
-        {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
-      </h1>
-      {esLectura ? (
-        <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
-      ) : (
-        <p>Cada audio suena una sola vez. Si se corta la red, ese trozo se pierde para siempre: no vuelve a sonar.</p>
-      )}
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
-      <button type="button" disabled={enviando} onClick={alEmpezar} className={BOTON}>
-        Empezar
-      </button>
-    </section>
-  );
-}
-
-/**
- * Las pestañas de las cuatro tareas. Cambiar de pestaña es solo estado local:
- * no va al servidor.
- *
- * `bloqueadas` las apaga mientras suena un trozo racionado. Cambiar de tarea
- * con el audio sonando desmonta la cinta (le cambia la `key`), y ese trozo ya
- * está apuntado como oído en el servidor: se perdería sin haber sonado entero
- * y sin ningún aviso. No se pregunta con un `confirm` a propósito: un cartel a
- * mitad de una audición es justo lo que no puede pasar mientras se escucha.
- *
- * Exportada para poder pintarla sola en las pruebas: `renderToStaticMarkup`
- * solo ve el estado inicial de `PruebaHaciendo`, donde nada suena todavía.
- */
-export function PestanasDeTarea({
-  tareas, abierta, alElegir, bloqueadas = false,
-}: {
-  tareas: TareaParaHacer[];
-  abierta: number;
-  alElegir: (numero: number) => void;
-  bloqueadas?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {tareas.map((t) => (
-        <button
-          key={t.numero}
-          type="button"
-          aria-current={t.numero === abierta ? "true" : undefined}
-          disabled={bloqueadas}
-          onClick={() => alElegir(t.numero)}
-          className={`rounded-full px-4 py-2 font-bold disabled:opacity-50 ${t.numero === abierta ? "bg-hp-400 text-white" : "border border-tinta-suave/30"}`}
-        >
-          Tarea {t.numero}
-        </button>
-      ))}
-    </div>
+    <>
+      {/* Antes de empezar no hay nada en juego: Salir es un enlace, sin pregunta. */}
+      <CabeceraExamen prueba={prueba.prueba} tarea={null} reloj={null} preguntar={false} />
+      <Tarjeta as="section" className="flex flex-col gap-4">
+        <h1 className="text-xl font-bold">
+          {prueba.examen.titulo} · {NOMBRE_DE_PRUEBA[prueba.prueba]}
+        </h1>
+        {esLectura ? (
+          <p>Tienes {prueba.minutos} minutos. Cuando se acaben, la prueba se entrega ella sola: no se puede repetir.</p>
+        ) : (
+          <p>Cada audio suena una sola vez. Si se corta la red, ese trozo se pierde para siempre: no vuelve a sonar.</p>
+        )}
+        {error && <Aviso tono="error">{error}</Aviso>}
+        <Boton onClick={alEmpezar} enviando={enviando} textoEnviando="Empezando…" className="self-start">
+          Empezar
+        </Boton>
+      </Tarjeta>
+    </>
   );
 }
 
@@ -193,6 +154,8 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   // Lo dice la cinta de la tarea abierta (ver PestanasDeTarea): mientras un
   // trozo racionado suena, no se cambia de tarea.
   const [cintaSonando, setCintaSonando] = useState(false);
+  // La pregunta de antes de entregar (PreguntaDeEntrega), abierta o cerrada.
+  const [preguntando, setPreguntando] = useState(false);
   const [procesando, empezarTransicion] = useTransition();
   // Una sola entrega automática: sin esto, cada re-render (uno por cada
   // guardarRespuestaAccion en curso) le pasa a <Reloj> una alAcabarse con
@@ -203,7 +166,7 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
   function alMarcar(numero: number, letra: string) {
     // Se pinta en el acto; la llamada al servidor va detrás, y solo si falla
     // deja de aceptar respuestas (bloqueadaPorError). «Entregar» se deja
-    // encendido a propósito (ver alEntregar): lo guardado hasta el fallo no
+    // encendido a propósito (ver entregarYa): lo guardado hasta el fallo no
     // se pierde, y la auditiva no tiene reloj que la rescate sola.
     setMarcadas((m) => ({ ...m, [String(numero)]: letra }));
     empezarTransicion(async () => {
@@ -241,19 +204,20 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
     });
   }, [examenId, prueba.prueba, empezarTransicion, router]);
 
-  function alEntregar() {
-    const total = totalDePreguntas(prueba.tareas);
-    const sinMarcar = total - contarContestadas(marcadas);
-    const pregunta = sinMarcar > 0
-      ? `Te quedan ${sinMarcar} sin contestar. Entregar no se puede deshacer. ¿Entregar de todos modos?`
-      : "Entregar no se puede deshacer. ¿Entregar?";
-    if (!window.confirm(pregunta)) return;
+  // La entrega de verdad, cuando el estudiante dice «Sí, entregar» en la
+  // PreguntaDeEntrega. El reloj (alAcabarse) no pasa por aquí ni abre la
+  // pregunta: entrega solo, y si la pregunta estaba abierta da igual, el
+  // refresco lleva al resultado.
+  function entregarYa() {
     empezarTransicion(async () => {
       const r = await entregarPruebaAccion(examenId, prueba.prueba);
       // Igual que en alAcabarse: el error que llega aquí ya lleva la prueba
       // entregada por detrás, así que refrescar es lo que lleva a la pantalla
       // del resultado en vez de a un callejón.
-      if (r.error) setError(r.error);
+      if (r.error) {
+        setError(r.error);
+        setPreguntando(false);
+      }
       router.refresh();
     });
   }
@@ -262,10 +226,17 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {prueba.minutos !== null && prueba.segundosQueQuedan !== null && (
-        <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
-      )}
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
+      <CabeceraExamen
+        prueba={prueba.prueba}
+        tarea={tarea ? { actual: tarea.numero, total: prueba.tareas.length } : null}
+        reloj={
+          prueba.minutos !== null && prueba.segundosQueQuedan !== null ? (
+            <Reloj segundos={prueba.segundosQueQuedan} alAcabarse={alAcabarse} />
+          ) : null
+        }
+        preguntar
+      />
+      {error && <Aviso tono="error">{error}</Aviso>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} bloqueadas={cintaSonando} />
       {tarea && (
         <>
@@ -286,9 +257,17 @@ function PruebaHaciendo({ prueba }: { prueba: PruebaParaHacer }) {
           respuesta bloquea las respuestas, no la salida. Sin esto, la
           auditiva (sin reloj que la cierre sola) se quedaría «HACIENDO»
           para siempre. */}
-      <button type="button" disabled={procesando} onClick={alEntregar} className={BOTON}>
+      <Boton onClick={() => setPreguntando(true)} disabled={procesando} className="self-start">
         Entregar
-      </button>
+      </Boton>
+      <PreguntaDeEntrega
+        abierta={preguntando}
+        falta={sinResponderPorTarea(prueba.tareas, marcadas)}
+        enviando={procesando}
+        textoSeguir="Seguir con la prueba"
+        alSi={entregarYa}
+        alNo={() => setPreguntando(false)}
+      />
     </div>
   );
 }
@@ -311,16 +290,16 @@ function notaDeCadaTarea(prueba: PruebaParaHacer): { numero: number; aciertos: n
  */
 function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
   const porTarea = notaDeCadaTarea(prueba);
-  const queda = prueba.otras.filter((o) => o.estado.estado !== "ENTREGADA");
+  const queda = prueba.otras.filter((o) => !estaEntregada(o.estado));
   return (
-    <section className={CAJA}>
+    <Tarjeta as="section" className="flex flex-col gap-4">
       <p className="text-tinta-suave">
         {NOMBRE_DE_PRUEBA[prueba.prueba]} · {prueba.examen.titulo}
       </p>
       <p className="text-3xl font-extrabold">
         {prueba.estado.aciertos} de {prueba.estado.total}
       </p>
-      {prueba.estado.porTiempo && <p className="text-tinta-suave">Se entregó sola: se acabó el tiempo.</p>}
+      {prueba.estado.porTiempo && <Aviso tono="info">Se entregó sola: se acabó el tiempo.</Aviso>}
 
       <ul className="grid grid-cols-2 gap-x-6 gap-y-1">
         {porTarea.map((t) => (
@@ -334,20 +313,26 @@ function Resultado({ prueba }: { prueba: PruebaParaHacer }) {
       </ul>
 
       <p className="text-tinta-suave">
-        En rojo, las que fallaste. No se dice cuál era la buena: vuelve al texto y búscala.
+        Marcadas en coral, las que fallaste. No se dice cuál era la buena: vuelve al texto y búscala.
       </p>
 
+      {/* Ni el número de pruebas ni el singular se escriben a mano: `otras` son
+          dos desde que la escrita tiene pantalla (antes una), y serán tres con
+          la oral. «Ya has terminado las dos pruebas» ya era falso. */}
       {queda.length > 0 ? (
-        <p>
-          Te queda {queda.map((o) => NOMBRE_DE_PRUEBA[o.prueba]).join(" y ")}.{" "}
-          <Link href="/" className="text-hp-600 underline">
-            Ir a hacerla
-          </Link>
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span>{queda.length === 1 ? "Te queda" : "Te quedan"}</span>
+          {queda.map((o) => (
+            <EtiquetaEstado key={o.prueba} tono="aviso">
+              {NOMBRE_DE_PRUEBA[o.prueba]}
+            </EtiquetaEstado>
+          ))}
+          <Enlace href="/">{queda.length === 1 ? "Ir a hacerla" : "Ir a hacerlas"}</Enlace>
+        </div>
       ) : (
-        <p className="font-bold">Ya has terminado las dos pruebas.</p>
+        <p className="font-bold">Ya has terminado el examen.</p>
       )}
-    </section>
+    </Tarjeta>
   );
 }
 
@@ -415,9 +400,17 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <CabeceraExamen prueba={prueba.prueba} tarea={tarea ? { actual: tarea.numero, total: prueba.tareas.length } : null} reloj={null} preguntar libre />
       <p className="text-sm text-tinta-suave">Práctica libre: puedes corregir cada tarea tantas veces como quieras.</p>
-      {notaDeLaTarea && <p className="text-xl font-bold">{notaDeLaTarea.aciertos} de {notaDeLaTarea.total}</p>}
-      {error && <p role="alert" className={AVISO_DE_ERROR}>{error}</p>}
+      {notaDeLaTarea && (
+        // Misma letra que la nota grande del resultado (spec §4.3: Resultado
+        // más abajo usa text-3xl font-extrabold): es el mismo dato — cuántas
+        // acertó de cuántas hay — y no una nota menor solo por vivir en libre.
+        <Tarjeta className="text-3xl font-extrabold">
+          {notaDeLaTarea.aciertos} de {notaDeLaTarea.total}
+        </Tarjeta>
+      )}
+      {error && <Aviso tono="error">{error}</Aviso>}
       <PestanasDeTarea tareas={prueba.tareas} abierta={tareaAbierta} alElegir={setTareaAbierta} />
       {tarea && (
         <>
@@ -431,9 +424,9 @@ function PruebaLibre({ prueba }: { prueba: PruebaParaHacer }) {
             bloqueada={false}
             alMarcar={alMarcar}
           />
-          <button type="button" disabled={procesando} onClick={() => alCorregir(tarea)} className={BOTON}>
+          <Boton onClick={() => alCorregir(tarea)} enviando={procesando} textoEnviando="Corrigiendo…" className="self-start">
             Corregir
-          </button>
+          </Boton>
         </>
       )}
     </div>
@@ -454,42 +447,22 @@ export function HacerPrueba({ prueba }: { prueba: PruebaParaHacer }) {
     });
   }
 
+  // La escrita tiene sus propias caras: un folio no se parece en nada a
+  // veinticinco letras marcadas, y meterla en PruebaHaciendo obligaría a que
+  // cada rama de allí preguntara de qué prueba se trata. Como aquí, cada cara
+  // de la escrita pinta su propia CabeceraExamen.
+  if (prueba.prueba === "EE") return <HacerEscrita prueba={prueba} />;
+
   // El modo libre no tiene intento que abrir ni que cerrar: se corrige al
   // vuelo desde el primer momento, así que no pasa por el aviso previo.
   const cara =
     prueba.modo === "LIBRE" ? <PruebaLibre prueba={prueba} />
     : prueba.estado.estado === "SIN_EMPEZAR" ? <AvisoPrevio prueba={prueba} alEmpezar={alEmpezar} enviando={procesando} error={error} />
-    : prueba.estado.estado === "ENTREGADA" ? <PruebaEntregada prueba={prueba} />
+    : estaEntregada(prueba.estado) ? <PruebaEntregada prueba={prueba} />
     : <PruebaHaciendo prueba={prueba} />;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <VolverAInicio haciendoConReloj={prueba.estado.estado === "HACIENDO" && prueba.minutos !== null} />
-      {cara}
-    </div>
-  );
-}
-
-/**
- * La salida. Sin esto la pantalla del examen es un callejón: no hay cabecera
- * común en el sitio, así que al terminar la lectura no había forma de volver
- * a Inicio para empezar la auditiva más que con el botón de atrás del
- * navegador. Lo cazó el profesor en la aceptación, no las pruebas.
- *
- * Va en las cuatro caras, también mientras se hace una prueba con reloj: lo
- * que NO se puede hacer es irse creyendo que el reloj se para, y por eso ahí
- * lo dice. Es un enlace y no un formulario porque no cambia nada: las
- * respuestas ya están guardadas en el servidor según se marcan.
- */
-function VolverAInicio({ haciendoConReloj }: { haciendoConReloj: boolean }) {
-  return (
-    <p>
-      <Link href="/" className="text-hp-600 underline">
-        ← Volver a Inicio
-      </Link>
-      {haciendoConReloj && (
-        <span className="ml-2 text-sm text-tinta-suave">El reloj sigue corriendo.</span>
-      )}
-    </p>
-  );
+  // Sin salida aquí: cada cara sin entregar pinta su CabeceraExamen (la tarea
+  // abierta es estado de la cara), y la entregada lleva la cabecera del sitio,
+  // que pinta la página.
+  return <div className="flex flex-col gap-4">{cara}</div>;
 }

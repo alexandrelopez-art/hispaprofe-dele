@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { guardarCuadernilloAccion } from "@/app/examenes/acciones";
+import { guardarCuadernilloAccion } from "@/app/(sitio)/examenes/acciones";
+import { Aviso } from "@/components/ui/aviso";
+import { Campo } from "@/components/ui/campo";
 import { trozosDePdf } from "@/lib/taller/pdf-en-navegador";
 
 export function SubirCuadernillo({ examenId }: { examenId: string }) {
@@ -35,10 +37,13 @@ export function SubirCuadernillo({ examenId }: { examenId: string }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1">
-        <span className="font-bold">Título del cuadernillo</span>
-        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Libro de preparación, soluciones" className="rounded-2xl border border-tinta-suave/30 bg-white p-3" />
-      </label>
+      <Campo
+        id="cuadernillo-titulo"
+        etiqueta="Título del cuadernillo"
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        placeholder="Libro de preparación, soluciones"
+      />
       <label className="flex flex-col gap-1">
         <span className="font-bold">PDF del cuadernillo (con texto, no escaneado)</span>
         <input
@@ -53,7 +58,11 @@ export function SubirCuadernillo({ examenId }: { examenId: string }) {
           className="rounded-2xl border border-tinta-suave/30 bg-white p-3"
         />
       </label>
-      {aviso && <p role="status" className="rounded-2xl bg-hp-50 p-4">{aviso}</p>}
+      {aviso && (
+        <div role="status">
+          <Aviso tono="info">{aviso}</Aviso>
+        </div>
+      )}
     </div>
   );
 }

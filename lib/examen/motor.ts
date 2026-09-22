@@ -8,17 +8,45 @@
 /** Lo que se le perdona a la red para que la última respuesta no se pierda por el viaje. */
 export const SEGUNDOS_DE_GRACIA = 10;
 
+/**
+ * El único mensaje del servidor que una pantalla compara por texto: es lo que
+ * separa «esta prueba ya la cerró el servidor» —y entonces no queda nada que
+ * escribir— de un rechazo que el estudiante todavía puede arreglar tecleando.
+ * Vive aquí, con los demás literales de `lib/examen/hacer.ts` (spec §9), porque
+ * ese módulo importa Prisma y un componente de cliente no puede importarlo.
+ */
+export const SE_ACABO_EL_TIEMPO = "Se acabó el tiempo.";
+
+/**
+ * El tope de letras de un folio: unas 1.500 palabras, siete veces lo más largo
+ * que pide el examen. Lo comprueba `guardarEscrito` (una dirección pública no
+ * puede meter un libro en una columna) y lo lleva puesto el propio `<textarea>`
+ * como `maxLength`: sin eso, un pegado largo solo se entera del tope cuando el
+ * servidor lo rechaza, y el texto de más ya no cabe para poder recortarlo.
+ */
+export const LETRAS_TOPE = 10_000;
+
 export type Fallo = { numero: number; marcada: string | null };
 export type Nota = { aciertos: number; total: number; fallos: Fallo[] };
 
 export type EstadoDePrueba = {
-  estado: "SIN_EMPEZAR" | "HACIENDO" | "ENTREGADA";
+  /** ESPERANDO: entregada y sin nota. Hoy solo le pasa a la escrita, pero se
+   *  deduce de la fila, no de qué prueba sea: una lectura entregada SIEMPRE
+   *  tiene nota, porque se congela en la misma llamada que la entrega. */
+  estado: "SIN_EMPEZAR" | "HACIENDO" | "ESPERANDO" | "ENTREGADA";
   aciertos: number | null;
   total: number | null;
   porTiempo: boolean;
 };
 
-const limpia = (letra: string | undefined): string | null => {
+/**
+ * Cómo se compara una letra marcada contra la clave: sin espacios y en
+ * mayúscula, `null` si queda vacía. Exportada porque `lib/examen/hoja.ts`
+ * tiene que comparar con esta MISMA regla — si comparara crudo, una «b»
+ * minúscula contaría como acierto aquí y como fallo en la ficha del
+ * profesor, y las dos pantallas se contradirían sobre la misma respuesta.
+ */
+export const limpia = (letra: string | undefined): string | null => {
   const s = (letra ?? "").trim().toUpperCase();
   return s === "" ? null : s;
 };
@@ -52,6 +80,7 @@ export function seAcaboElTiempo(empezadaEn: Date, minutos: number | null, ahora:
   return pasados > minutos * 60 + SEGUNDOS_DE_GRACIA;
 }
 
+
 /** El menor trozo que todavía no ha sonado. Con huecos también: no vale contar cuántos van. */
 export function siguienteTrozo(oidos: readonly number[], trozos: number): number | null {
   for (let n = 1; n <= trozos; n++) if (!oidos.includes(n)) return n;
@@ -75,7 +104,7 @@ export function estadoDePrueba(
 ): EstadoDePrueba {
   if (!intento) return { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false };
   return {
-    estado: intento.entregadaEn ? "ENTREGADA" : "HACIENDO",
+    estado: !intento.entregadaEn ? "HACIENDO" : intento.aciertos === null ? "ESPERANDO" : "ENTREGADA",
     aciertos: intento.aciertos,
     total: intento.total,
     porTiempo: intento.porTiempo,
@@ -85,6 +114,73 @@ export function estadoDePrueba(
 export function textoDelEstado(e: EstadoDePrueba): string {
   if (e.estado === "SIN_EMPEZAR") return "Sin empezar";
   if (e.estado === "HACIENDO") return "A medias";
+  const entregada = e.porTiempo ? "Entregada por tiempo" : "Entregada";
+  if (e.estado === "ESPERANDO") return `${entregada}, esperando corrección`;
   const nota = e.total === null ? "" : `, ${e.aciertos} de ${e.total}`;
-  return `${e.porTiempo ? "Entregada por tiempo" : "Entregada"}${nota}`;
+  return `${entregada}${nota}`;
+}
+
+/**
+ * Las palabras que contaría una persona: trozos separados por cualquier hueco
+ * (espacios, tabuladores, saltos de línea), sin contar los huecos de los
+ * extremos. Un texto vacío o solo de espacios son cero palabras.
+ */
+export function palabras(texto: string): number {
+  const limpio = texto.trim();
+  return limpio === "" ? 0 : limpio.split(/\s+/u).length;
+}
+
+/** La nota de la escrita: todas las bandas de todas sus tareas. */
+export function sumaDeBandas(escritos: readonly { bandas: readonly number[] }[]): number {
+  return escritos.reduce((total, e) => total + e.bandas.reduce((s, b) => s + b, 0), 0);
+}
+
+/** Entregada, esté corregida o no. Las pantallas casi siempre quieren esto. */
+export function estaEntregada(e: EstadoDePrueba): boolean {
+  return e.estado === "ENTREGADA" || e.estado === "ESPERANDO";
+}
+
+/**
+ * Lo que el registro de salidas cuenta de una escrita. Lo lee el profesor al
+ * corregirla, y nadie más: no sale hacia el navegador del estudiante.
+ */
+export type ResumenDeSalidas = {
+  salidas: number;
+  segundosFuera: number;
+  ultimaSalidaEn: Date | null;
+  ultimaSalidaDeTarea: number | null;
+  /** Si de la última salida ya no volvió: la prueba se cerró con él fuera. */
+  ultimaSalidaSinVuelta: boolean;
+};
+
+/**
+ * ¿Hay algo que contarle al profesor? Si no se salió NUNCA, no se pinta nada:
+ * una línea diciendo «salió 0 veces» es ruido en una pantalla donde lo que
+ * importa es la redacción.
+ *
+ * Mira `salidas`, no los segundos: una salida de tres segundos es una salida, y
+ * redondeada a minutos daría cero.
+ */
+export function huboSalidas(resumen: ResumenDeSalidas): boolean {
+  return resumen.salidas > 0;
+}
+
+/**
+ * Cuánto tiempo estuvo fuera, en palabras de persona. Redondea a minutos en
+ * cuanto pasa del minuto: al profesor le sirve «4 minutos», no «263 segundos»,
+ * y fingir esa precisión daría a entender que el número es más fino de lo que
+ * es (lo marcan dos peticiones de un navegador, no un cronómetro).
+ *
+ * Por debajo del minuto sí van los segundos: la diferencia entre «5 segundos» y
+ * «55 segundos» es justo la que le dice si fue una notificación o una consulta.
+ */
+export function tiempoFueraEnPalabras(segundos: number): string {
+  if (segundos < 60) return `${segundos} ${segundos === 1 ? "segundo" : "segundos"}`;
+  const minutos = Math.round(segundos / 60);
+  return `${minutos} ${minutos === 1 ? "minuto" : "minutos"}`;
+}
+
+/** «3 veces» / «1 vez». */
+export function vecesEnPalabras(veces: number): string {
+  return `${veces} ${veces === 1 ? "vez" : "veces"}`;
 }

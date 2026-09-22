@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { crearPersona } from "@/app/personas/acciones";
+import { crearPersona } from "@/app/(sitio)/estudiantes/acciones";
 import type { Persona } from "@/lib/generated/prisma";
 
 // La pantalla de personas ya llama a exigirProfesor() antes de enseñar el
@@ -53,8 +53,8 @@ function formularioDeAlta(): FormData {
   return formulario;
 }
 
-// toThrow(cadena) compara por subcadena: "REDIRECT:/personas" también lo
-// cumple "REDIRECT:/personas?error=loquesea", así que no basta para
+// toThrow(cadena) compara por subcadena: "REDIRECT:/estudiantes" también lo
+// cumple "REDIRECT:/estudiantes?error=loquesea", así que no basta para
 // distinguir el éxito del error. Esta ayuda captura el mensaje exacto para
 // compararlo con toBe.
 async function mensajeDelRechazo(promesa: Promise<unknown>): Promise<string> {
@@ -104,16 +104,16 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
 
   // Mutación que mata esta prueba: no leer alguno de los tres campos del
   // formulario, o invertir el `if ("error" in resultado)` (el alta acabaría
-  // en /personas?error=undefined en vez de en /personas a secas — y con
-  // toThrow por subcadena esa mutación no se pillaba: "REDIRECT:/personas"
-  // es subcadena de "REDIRECT:/personas?error=undefined". Por eso la
+  // en /estudiantes?error=undefined en vez de en /estudiantes a secas — y con
+  // toThrow por subcadena esa mutación no se pillaba: "REDIRECT:/estudiantes"
+  // es subcadena de "REDIRECT:/estudiantes?error=undefined". Por eso la
   // comparación de abajo es exacta, con toBe).
   it("el profesor sí puede, con los tres campos del formulario", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
     darDeAlta.mockResolvedValue({ persona: ESTUDIANTE });
 
-    expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe("REDIRECT:/personas");
+    expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe("REDIRECT:/estudiantes");
     expect(darDeAlta).toHaveBeenCalledWith(PROFESOR, {
       correo: "nuevo@ejemplo.com",
       nombre: "Nuevo",
@@ -122,14 +122,14 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
   });
 
   // Mutación que mata esta prueba: mandar un texto fijo en vez del error
-  // real de darDeAlta, o no meterlo en la query de /personas.
-  it("si darDeAlta falla, el error llega tal cual a la query de /personas", async () => {
+  // real de darDeAlta, o no meterlo en la query de /estudiantes.
+  it("si darDeAlta falla, el error llega tal cual a la query de /estudiantes", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
     darDeAlta.mockResolvedValue({ error: "Ese correo ya está dado de alta." });
 
     expect(await mensajeDelRechazo(crearPersona(formularioDeAlta()))).toBe(
-      `REDIRECT:/personas?error=${encodeURIComponent("Ese correo ya está dado de alta.")}`,
+      `REDIRECT:/estudiantes?error=${encodeURIComponent("Ese correo ya está dado de alta.")}`,
     );
   });
 
@@ -143,7 +143,7 @@ describe("la acción de dar de alta vuelve a exigir profesor", () => {
     formulario.set("papel", "ADMIN");
 
     expect(await mensajeDelRechazo(crearPersona(formulario))).toBe(
-      `REDIRECT:/personas?error=${encodeURIComponent("Ese papel no existe.")}`,
+      `REDIRECT:/estudiantes?error=${encodeURIComponent("Ese papel no existe.")}`,
     );
     expect(darDeAlta).not.toHaveBeenCalled();
   });

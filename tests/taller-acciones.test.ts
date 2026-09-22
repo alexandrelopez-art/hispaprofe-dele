@@ -73,7 +73,7 @@ import {
   rellenarTareaConIAAccion,
   retirarExamenAccion,
   sustituirPaginasAccion,
-} from "@/app/examenes/acciones";
+} from "@/app/(sitio)/examenes/acciones";
 
 const PROFESOR: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };

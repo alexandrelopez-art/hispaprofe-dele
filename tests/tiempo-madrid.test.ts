@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { diasDeRetraso, estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
+import { diasDeRetraso, diasEntre, estaFueraDePlazo, fechaEnPalabras, finDelDiaEnMadrid } from "@/lib/tiempo/madrid";
 
 describe("el fin del día en Madrid", () => {
   // Mutación que la mata: calcular en UTC (devolver Date.UTC(...23:59:59.999) sin
@@ -47,6 +47,20 @@ describe("fuera de plazo", () => {
     const tope = finDelDiaEnMadrid("2026-10-20")!;
     expect(estaFueraDePlazo(tope, new Date(tope.getTime()))).toBe(false);
     expect(estaFueraDePlazo(tope, new Date(tope.getTime() + 1))).toBe(true);
+  });
+});
+
+describe("días entre dos instantes", () => {
+  // Mutación que la mata: dividir milisegundos entre 86.400.000 (redondeando
+  // hacia arriba) en vez de contar días de calendario de Madrid. El último
+  // domingo de octubre tiene 25 horas: de las 22:00 UTC del 23 (00:00 del 24 en
+  // Madrid, CEST) a las 08:00 UTC del 26 (09:00 del 26 en Madrid, ya CET) pasan
+  // 58 horas de reloj — Math.ceil(58/24) diría «3 días»; en calendario de
+  // Madrid son 2 (del 24 al 26).
+  it("los días de espera se cuentan por calendario, no por horas de reloj", () => {
+    expect(diasEntre(new Date("2026-10-23T22:00:00Z"), new Date("2026-10-26T08:00:00Z"))).toBe(2);
+    // Mismo día de calendario en Madrid (20 de septiembre): 0 días.
+    expect(diasEntre(new Date("2026-09-20T10:00:00Z"), new Date("2026-09-20T20:00:00Z"))).toBe(0);
   });
 });
 

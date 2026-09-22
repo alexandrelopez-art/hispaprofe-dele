@@ -2,12 +2,18 @@ import { describe, it, expect } from "vitest";
 import { minutosDePrueba } from "@/lib/dele/estructura";
 import {
   estadoDePrueba,
+  estaEntregada,
   limitesDelTrozo,
   notaDePrueba,
+  palabras,
   seAcaboElTiempo,
   segundosQueQuedan,
   siguienteTrozo,
+  huboSalidas,
+  sumaDeBandas,
   textoDelEstado,
+  tiempoFueraEnPalabras,
+  vecesEnPalabras,
 } from "@/lib/examen/motor";
 
 // Clave inventada de seis preguntas: el cuadernillo real no entra en el repo.
@@ -78,6 +84,48 @@ describe("el reloj", () => {
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 11))).toBe(true);
     // Justo en el límite: con >= esto daría true, y por eso la mutación muere aquí.
     expect(seAcaboElTiempo(EMPEZO, 50, en(50, 10))).toBe(false);
+  });
+});
+
+describe("el registro de salidas, en palabras", () => {
+  const sinSalidas = {
+    salidas: 0,
+    segundosFuera: 0,
+    ultimaSalidaEn: null,
+    ultimaSalidaDeTarea: null,
+    ultimaSalidaSinVuelta: false,
+  };
+
+  // Mutación que la mata: mirar `segundosFuera > 0` en vez de `salidas > 0`.
+  // Tres salidas de un segundo cada una son tres salidas y el profesor tiene que
+  // verlas; con los segundos redondeados podrían dar cero y desaparecería la
+  // línea entera.
+  it("solo hay algo que contar si hubo salidas, no si hubo segundos", () => {
+    expect(huboSalidas(sinSalidas)).toBe(false);
+    expect(huboSalidas({ ...sinSalidas, salidas: 1, segundosFuera: 0 })).toBe(true);
+    expect(huboSalidas({ ...sinSalidas, salidas: 3, segundosFuera: 240 })).toBe(true);
+  });
+
+  // Mutación que la mata: dar siempre los segundos en crudo, o redondear también
+  // por debajo del minuto (5 segundos saldrían «0 minutos»). La diferencia entre
+  // «5 segundos» y «55 segundos» es justo la que le dice al profesor si fue una
+  // notificación o una consulta.
+  it("por debajo del minuto van segundos; por encima, minutos redondeados", () => {
+    expect(tiempoFueraEnPalabras(0)).toBe("0 segundos");
+    expect(tiempoFueraEnPalabras(5)).toBe("5 segundos");
+    expect(tiempoFueraEnPalabras(59)).toBe("59 segundos");
+    expect(tiempoFueraEnPalabras(60)).toBe("1 minuto");
+    expect(tiempoFueraEnPalabras(95)).toBe("2 minutos");
+    expect(tiempoFueraEnPalabras(240)).toBe("4 minutos");
+  });
+
+  // Mutación que la mata: plural fijo. «1 segundos» y «1 veces» en la pantalla
+  // del profesor, y la línea la lee él cada vez que corrige.
+  it("el singular es singular", () => {
+    expect(tiempoFueraEnPalabras(1)).toBe("1 segundo");
+    expect(vecesEnPalabras(1)).toBe("1 vez");
+    expect(vecesEnPalabras(2)).toBe("2 veces");
+    expect(vecesEnPalabras(0)).toBe("0 veces");
   });
 });
 
@@ -158,5 +206,60 @@ describe("los minutos de cada prueba", () => {
   // Mutación que la mata: devolver 50 por defecto para cualquier nivel: un examen de B2 saldría con reloj sin que nadie lo haya decidido.
   it("un nivel sin números no inventa minutos", () => {
     expect(minutosDePrueba("B2", "CE")).toBeNull();
+  });
+});
+
+describe("contar palabras", () => {
+  // Mutación que la mata: `texto.split(" ").length`. Con dos espacios seguidos,
+  // con un salto de línea o con el texto vacío, esa cuenta miente — y es el
+  // número que el estudiante ve mientras escribe y el que se guarda.
+  it("cuenta lo que cuenta una persona", () => {
+    expect(palabras("")).toBe(0);
+    expect(palabras("   ")).toBe(0);
+    expect(palabras("Hola")).toBe(1);
+    expect(palabras("Hola,  qué   tal")).toBe(3);
+    expect(palabras("Hola\nqué tal\n\nadiós")).toBe(4);
+    expect(palabras("  Hola qué tal  ")).toBe(3);
+    // Una palabra con guion es una palabra, y un signo pegado no suma.
+    expect(palabras("teórico-práctico ¿sí?")).toBe(2);
+  });
+});
+
+describe("la suma de las bandas", () => {
+  // Mutación que la mata: sumar solo el primer escrito, o dar por hecho que
+  // siempre hay cuatro bandas. La escrita son DOS tareas: sumar una sola
+  // dejaría a todo el mundo con la mitad de su nota.
+  it("suma las bandas de todas las tareas", () => {
+    expect(sumaDeBandas([{ bandas: [3, 2, 1, 0] }, { bandas: [3, 3, 2, 2] }])).toBe(16);
+    expect(sumaDeBandas([])).toBe(0);
+    expect(sumaDeBandas([{ bandas: [] }, { bandas: [1, 1, 1, 1] }])).toBe(4);
+  });
+});
+
+describe("el estado de una escrita", () => {
+  // Mutación que la mata: devolver "ENTREGADA" cuando no hay nota. Entonces la
+  // pantalla del profesor diría «Entregada,» a secas y la del estudiante
+  // intentaría pintarle una nota que todavía no existe.
+  it("entregada y sin nota es esperando corrección", () => {
+    const e = estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: null, total: null, porTiempo: false });
+    expect(e.estado).toBe("ESPERANDO");
+    expect(textoDelEstado(e)).toBe("Entregada, esperando corrección");
+    expect(estaEntregada(e)).toBe(true);
+  });
+
+  // Mutación que la mata: quitar `porTiempo` del texto de ESPERANDO. Es la
+  // única señal que tiene el profesor de a quién se le acabó el tiempo, y en la
+  // escrita importa más que en ninguna: explica un texto a medias.
+  it("dice si la entregó el reloj", () => {
+    const e = estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: null, total: null, porTiempo: true });
+    expect(textoDelEstado(e)).toBe("Entregada por tiempo, esperando corrección");
+  });
+
+  // Mutación que la mata: dejar ESPERANDO cuando ya hay nota. Una escrita
+  // corregida se quedaría para siempre en la cola.
+  it("corregida ya tiene nota y sale de la espera", () => {
+    const e = estadoDePrueba({ entregadaEn: ENTREGADA, aciertos: 18, total: 24, porTiempo: false });
+    expect(e.estado).toBe("ENTREGADA");
+    expect(textoDelEstado(e)).toBe("Entregada, 18 de 24");
   });
 });

@@ -39,6 +39,16 @@ export function fechaEnPalabras(instante: Date): string {
   return new Intl.DateTimeFormat("es-ES", { timeZone: HUSO, dateStyle: "full" }).format(instante);
 }
 
+const FORMATO_FECHA_Y_HORA = new Intl.DateTimeFormat("es-ES", { timeZone: HUSO, dateStyle: "long", timeStyle: "short" });
+
+/** «15 de septiembre de 2026, 11:30». Para lo que se entrega o se firma, donde
+ *  la hora importa además del día. `lib/tiempo/madrid.ts` es el dueño del
+ *  huso: antes de esta función había tres copias sueltas del mismo
+ *  `Intl.DateTimeFormat` con `"Europe/Madrid"` escrito a mano. */
+export function fechaHoraEnPalabras(instante: Date): string {
+  return FORMATO_FECHA_Y_HORA.format(instante);
+}
+
 /** El «ahora» se recibe: si se leyera aquí dentro, la prueba cambiaría de color según la hora. */
 export function estaFueraDePlazo(fechaTope: Date, ahora: Date): boolean {
   return ahora.getTime() > fechaTope.getTime();
@@ -54,20 +64,25 @@ function diaEnMadrid(instante: Date): { anio: number; mes: number; dia: number }
 }
 
 /**
- * Días enteros de retraso entre el tope y la entrega, contados como días del
- * CALENDARIO de Madrid, no como milisegundos transcurridos divididos entre
- * 24 horas. El último domingo de octubre el reloj se atrasa: ese día tiene 25 horas
- * reales, y una entrega que cae un solo día de calendario después del tope
- * (pero cruzando ese domingo) tarda 25 horas de reloj en pasar, no 24. Dividir
- * milisegundos entre 86 400 000 y redondear hacia arriba contaría esa hora de
- * más como un día entero, y cada año, en octubre, diría «2 días tarde» de un
- * retraso de uno. Al menos 1: el tope ya es el final del día.
+ * Días de calendario de Madrid entre dos instantes, no milisegundos
+ * transcurridos divididos entre 24 horas. El último domingo de octubre el
+ * reloj se atrasa: ese día tiene 25 horas reales, y dos instantes que caen un
+ * solo día de calendario aparte (pero cruzando ese domingo) están separados
+ * por 25 horas de reloj, no 24. Dividir milisegundos entre 86 400 000 y
+ * redondear contaría esa hora de más como un día entero. Ver diasDeRetraso.
+ */
+export function diasEntre(desde: Date, hasta: Date): number {
+  const a = diaEnMadrid(desde);
+  const b = diaEnMadrid(hasta);
+  return Math.round((Date.UTC(b.anio, b.mes - 1, b.dia) - Date.UTC(a.anio, a.mes - 1, a.dia)) / 86_400_000);
+}
+
+/**
+ * Días enteros de retraso entre el tope y la entrega, contados por calendario
+ * de Madrid (ver diasEntre). Al menos 1: el tope ya es el final del día, así
+ * que cualquier entrega posterior cuenta como un día de retraso como mínimo,
+ * aunque las dos fechas cayeran el mismo día de calendario.
  */
 export function diasDeRetraso(fechaTope: Date, entregadaEn: Date): number {
-  const tope = diaEnMadrid(fechaTope);
-  const entrega = diaEnMadrid(entregadaEn);
-  const dias = Math.round(
-    (Date.UTC(entrega.anio, entrega.mes - 1, entrega.dia) - Date.UTC(tope.anio, tope.mes - 1, tope.dia)) / 86_400_000,
-  );
-  return Math.max(1, dias);
+  return Math.max(1, diasEntre(fechaTope, entregadaEn));
 }

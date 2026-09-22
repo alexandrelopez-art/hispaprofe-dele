@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Suspense, isValidElement, type ReactElement } from "react";
 import type { Persona } from "@/lib/generated/prisma";
 
 // Antes de esto, la portada era idéntica antes y después de pulsar el
@@ -7,28 +9,36 @@ import type { Persona } from "@/lib/generated/prisma";
 // funcionado. Mismos dobles que en tests/puerta-sesion-http.test.ts, porque
 // Portada llama a personaDeLaPeticion(), que vive sobre cookies() y
 // personaDeLaCookie.
-const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron } = vi.hoisted(() => ({
+const { cookiesGet, personaDeLaCookie, asignacionesDe, cerrarLasQueSePasaron, escritosPorCorregir, redirect } = vi.hoisted(() => ({
   cookiesGet: vi.fn(),
   personaDeLaCookie: vi.fn(),
   asignacionesDe: vi.fn(),
   cerrarLasQueSePasaron: vi.fn(),
+  escritosPorCorregir: vi.fn(),
+  redirect: vi.fn((ruta: string) => {
+    throw new Error(`REDIRECT:${ruta}`);
+  }),
 }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: cookiesGet }),
 }));
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie }));
 // Doblado para que la suite normal nunca arrastre el cliente de Prisma que
 // hay detrás de asignacionesDe: sin este doble, `npm test` pediría DATABASE_URL.
 vi.mock("@/lib/examen/asignar", () => ({ asignacionesDe }));
 // Mismo motivo: cerrarLasQueSePasaron vive sobre prisma.intento.
 vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron }));
+// Mismo motivo: escritosPorCorregir (la cola de «Por corregir») también vive
+// sobre prisma.intento.
+vi.mock("@/lib/examen/corregir", () => ({ escritosPorCorregir }));
 // La portada también importa PRUEBAS_QUE_SE_HACEN de lib/examen/paraHacer.ts,
 // que a su vez importa lib/db (prisma) al cargarse. Con este doble se deja
 // pasar el resto del módulo real (PRUEBAS_QUE_SE_HACEN, la lista de verdad)
 // sin arrastrar el cliente de Prisma.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
-import Portada from "@/app/page";
+import Portada from "@/app/(sitio)/(inicio)/page";
 
 const PROFESOR: Persona = {
   id: "p1",
@@ -48,12 +58,19 @@ const ESTUDIANTE: Persona = {
 };
 
 async function html(): Promise<string> {
-  return renderToStaticMarkup(await Portada());
+  const el = await Portada();
+  if (isValidElement(el) && el.type === Suspense) {
+    const hijo = (el.props as { children: ReactElement<{ persona: Persona }> }).children;
+    const Componente = hijo.type as (p: { persona: Persona }) => Promise<ReactElement>;
+    return renderToStaticMarkup(await Componente(hijo.props));
+  }
+  return renderToStaticMarkup(el);
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
   asignacionesDe.mockResolvedValue([]);
+  escritosPorCorregir.mockResolvedValue([]);
 });
 
 describe("la portada", () => {
@@ -69,22 +86,16 @@ describe("la portada", () => {
     expect(marcado).not.toContain('href="/salir"');
   });
 
-  // Mutación que mata esta prueba: no interpolar persona.nombre, o quitar
-  // el enlace de salir.
-  it("con sesión, saluda por su nombre y ofrece salir", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
+  // Mutación que mata esta prueba: no interpolar persona.nombre. Ya no se
+  // afirma el "/salir": Salir vive en la cabecera del grupo (sitio), no en
+  // esta pantalla.
+  it("con sesión, saluda por su nombre", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
 
     const marcado = await html();
 
-    expect(marcado).toContain("Hola, Pablo");
-    // Salir es un formulario POST, no un enlace: con un enlace, la precarga
-    // de Next lo visitaba sola y cerraba la sesión recién abierta. Mutación
-    // que mata esta prueba: volver a poner <Link href="/salir">.
-    expect(marcado).toContain('action="/salir" method="post"');
-    expect(marcado).not.toContain('href="/salir"');
-    expect(marcado).toContain('href="/pruebas/grabar"');
-    expect(marcado).toContain('href="/pruebas/subir"');
+    expect(marcado).toContain("Hola, Ana");
   });
 
   // Mutación que mata esta prueba: quitar el `persona.papel === "PROFESOR"`
@@ -97,32 +108,18 @@ describe("la portada", () => {
     const marcado = await html();
 
     expect(marcado).toContain("Hola, Ana"); // que no esté vacío antes de creerse una ausencia
-    expect(marcado).not.toContain('href="/personas"');
+    expect(marcado).not.toContain('href="/estudiantes"');
   });
 
-  // Mutación que mata esta prueba: invertir la comparación de papel, o
-  // quitarla del todo (el caso de arriba ya la mata si se quita, pero aquí
-  // se comprueba el sentido correcto: el profesor SÍ lo ve).
-  it("el profesor sí ve el enlace a personas", async () => {
+  // Mutación que la mata: quitar el redirect del profesor (vería un Inicio
+  // vacío, sin nada suyo).
+  it("el profesor en / va a Pendientes, sin pedir nada", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
     personaDeLaCookie.mockResolvedValue(PROFESOR);
 
-    const marcado = await html();
-
-    expect(marcado).toContain('href="/personas"');
-  });
-
-  // Mutación que la mata: enseñar «Exámenes» sin mirar el papel.
-  it("solo el profesor ve el enlace al taller", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
-    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    const deAna = await html();
-    expect(deAna).toContain("Hola, Ana"); // que no esté vacío antes de creerse una ausencia
-    expect(deAna).not.toContain('href="/examenes"');
-
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-    expect(await html()).toContain('href="/examenes"');
+    await expect(Portada()).rejects.toThrow("REDIRECT:/pendientes");
+    expect(asignacionesDe).not.toHaveBeenCalled();
+    expect(cerrarLasQueSePasaron).not.toHaveBeenCalled();
   });
 });
 
@@ -235,18 +232,38 @@ describe("Inicio del estudiante", () => {
     expect(marcado).toContain("Seguir");
   });
 
-  // Mutación que la mata: pintar también el estado en modo libre (ahí no hay
-  // intento nunca, así que un estado sería mentira), o no ofrecer «Practicar».
-  it("en modo libre, las dos filas sin estado y con Practicar", async () => {
+  // Esta prueba pedía TRES «Practicar» en libre, y con eso defendía un fallo:
+  // en práctica libre la escrita sí crea intento y se entrega (spec §9), así
+  // que su fila tiene estado y botón propios. `asignacionesDe` ya se lo manda
+  // (ver tests/base/asignaciones.test.ts); la portada solo tiene que pintar lo
+  // que le llega.
+  //
+  // Mutación que la mata: ignorar el estado que viene y pintar «Practicar» en
+  // las tres filas por el hecho de ser modo libre — que era exactamente lo de
+  // antes: el chaval veía «Practicar» sobre una redacción ya corregida.
+  it("en modo libre, la lectura y la auditiva sin estado; la escrita, con el suyo", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    asignacionesDe.mockResolvedValue([{ ...ASIGNADO, modo: "LIBRE" as const, pruebas: [] }]);
+    asignacionesDe.mockResolvedValue([
+      {
+        ...ASIGNADO,
+        modo: "LIBRE" as const,
+        pruebas: [
+          { prueba: "EE" as const, estado: { estado: "ENTREGADA" as const, aciertos: 18, total: 24, porTiempo: false }, texto: "Entregada, 18 de 24" },
+        ],
+      },
+    ]);
 
     const marcado = await html();
 
     expect(marcado).toContain("Lectura");
     expect(marcado).toContain("Auditiva");
+    expect(marcado).toContain("Escrita");
+    // Dos «Practicar» (lectura y auditiva, que no dejan rastro) y la escrita
+    // con su estado y su «Ver resultado».
     expect(marcado.match(/Practicar/g) ?? []).toHaveLength(2);
+    expect(marcado).toContain("Entregada, 18 de 24");
+    expect(marcado).toContain("Ver resultado");
     expect(marcado).not.toContain("Sin empezar");
   });
 
@@ -272,29 +289,58 @@ describe("Inicio del estudiante", () => {
     expect(await html()).toContain("Se pasó el plazo");
   });
 
-  // Mutación que la mata: dejar de mirar el papel para las pantallas de prueba.
-  // Un estudiante no tiene nada que hacer en ellas.
-  it("un estudiante no ve las pantallas de prueba y el profesor sí", async () => {
+  // Mutación que la mata: pedir escritosPorCorregir también al estudiante
+  // (contraparte del "solo el profesor" de arriba: aquí lo que se comprueba
+  // es que ni siquiera se llama).
+  it("al estudiante no se le pide la cola de corrección", async () => {
     cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
     personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
-    const deAna = await html();
-    expect(deAna.length).toBeGreaterThan(200); // que no esté vacío antes de creerse una ausencia
-    expect(deAna).not.toContain('href="/pruebas/subir"');
-
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
-    expect(await html()).toContain('href="/pruebas/subir"');
-  });
-
-  // Mutación que la mata: pedir las asignaciones también para el profesor y
-  // pintarle tarjetas vacías en su portada, o barrer sus pruebas (no tiene).
-  it("al profesor no se le piden asignaciones", async () => {
-    cookiesGet.mockReturnValue({ value: "cookie-de-pablo" });
-    personaDeLaCookie.mockResolvedValue(PROFESOR);
 
     await html();
 
-    expect(asignacionesDe).not.toHaveBeenCalled();
-    expect(cerrarLasQueSePasaron).not.toHaveBeenCalled();
+    expect(escritosPorCorregir).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: pintar el plazo pasado con el tono de error. La
+  // fecha es blanda: llegar tarde no es un fallo del sistema.
+  it("el plazo pasado sale en coral, no en rojo de error", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([{ ...ASIGNADO, fechaTope: new Date("2020-01-01T00:00:00Z") }]);
+
+    const marcado = await html();
+    const trozo = marcado.slice(Math.max(0, marcado.indexOf("Se pasó el plazo") - 300), marcado.indexOf("Se pasó el plazo"));
+    expect(trozo).toContain("coral");
+    expect(trozo).not.toContain("error-");
+  });
+
+  // Mutación que la mata: volver al bg-hp-400 de antes en los botones.
+  it("los botones de las pruebas son del kit, azul oscuro", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+    asignacionesDe.mockResolvedValue([ASIGNADO]);
+
+    const marcado = await html();
+    expect(marcado).toContain("bg-hp-700");
+    expect(marcado).not.toContain("bg-hp-400");
+  });
+
+  // Mutación que la mata: devolver el <main> del estudiante sin Suspense, o con
+  // el fallback vacío. Sin el esqueleto, el estudiante mira una pantalla en blanco
+  // mientras llegan sus exámenes.
+  it("el estudiante ve el esqueleto mientras cargan sus exámenes", async () => {
+    cookiesGet.mockReturnValue({ value: "cookie-de-ana" });
+    personaDeLaCookie.mockResolvedValue(ESTUDIANTE);
+
+    const el = await Portada();
+
+    expect(isValidElement(el) && el.type === Suspense).toBe(true);
+    const fallback = renderToStaticMarkup((el as ReactElement<{ fallback: ReactElement }>).props.fallback);
+    expect(fallback).toContain('aria-label="Cargando tu inicio"');
+  });
+
+  // Mutación que la mata: volver a crear app/(sitio)/(inicio)/loading.tsx.
+  it("no hay loading.tsx que cubra el Inicio entero", () => {
+    expect(existsSync("app/(sitio)/(inicio)/loading.tsx")).toBe(false);
   });
 });

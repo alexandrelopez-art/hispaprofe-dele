@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { usarEnlace } from "@/lib/puerta/entrada";
 import { ponerCookie } from "@/lib/puerta/sesion-http";
+import { inicioDe } from "@/lib/carcasa/menu";
 
 // El secreto va en la propia dirección y la respuesta trae una cookie de
 // sesión: ninguna caché intermedia debe guardar ninguna de las dos.
@@ -26,7 +27,10 @@ export async function GET(
   // almacén de next/headers aparte: ver el comentario de ponerCookie en
   // lib/puerta/sesion-http.ts. Primero se construye la respuesta, luego se
   // le pone la cookie encima.
-  const respuesta = sinCache(NextResponse.redirect(new URL("/", request.url), 307));
+  // El destino depende del papel: antes todo el mundo iba a "/" y el
+  // profesor de ahí saltaba a /pendientes (dos saltos, y en el primero veía
+  // un instante el esqueleto del Inicio del estudiante).
+  const respuesta = sinCache(NextResponse.redirect(new URL(inicioDe(resultado.papel), request.url), 307));
   ponerCookie(respuesta, resultado.cookie);
   return respuesta;
 }

@@ -1,14 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Persona } from "@/lib/generated/prisma";
-import { reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
+import { BANDA_MAXIMA, CRITERIOS_EE, reglaDe, type ReglaTarea } from "@/lib/dele/estructura";
 import { formularioVacio, type Formulario } from "@/lib/taller/formas";
-import type { PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
+import type { EscritoParaHacer, PruebaParaHacer, TareaParaHacer } from "@/lib/examen/paraHacer";
+import { LETRAS_TOPE, palabras, SE_ACABO_EL_TIEMPO } from "@/lib/examen/motor";
 import { TareaDelEstudiante } from "@/components/examen/tarea-del-estudiante";
-import { corregirTareaEnLibre, PestanasDeTarea } from "@/components/examen/hacer-prueba";
+import { corregirTareaEnLibre, HacerPrueba } from "@/components/examen/hacer-prueba";
+import { PestanasDeTarea } from "@/components/examen/pestanas-de-tarea";
 import { Cinta } from "@/components/examen/cinta";
+import { clasesDeBoton } from "@/components/ui/boton";
 import { Reloj, segundosHasta } from "@/components/examen/reloj";
+import { avisoDePalabras, Folio } from "@/components/examen/folio";
+import { EnunciadoDeEscrita } from "@/components/examen/enunciado-de-escrita";
+import {
+  apagaLosFolios,
+  borradoresDe,
+  encadenar,
+  conOpcion,
+  conTexto,
+  estaCorregida,
+  hayAlgoSinGuardar,
+  hayQueGuardar,
+  loQueFalta,
+} from "@/components/examen/hacer-escrita";
+import { PreguntaDeEntrega } from "@/components/examen/pregunta-de-entrega";
+import type { ParaCorregir, TareaParaCorregir } from "@/lib/examen/corregir";
+import type { HojaDeRespuestas } from "@/lib/examen/hoja";
+import { BotonesDeGuardar, CorregirEscrita, SalidasDelEstudiante } from "@/components/examen/corregir-escrita";
 
 // Igual que tests/taller-pantallas.test.ts: la pantalla se importa tal cual
 // (no un resumen de su lógica), doblando lo que toca la base y la sesión.
@@ -19,6 +40,10 @@ const dobles = vi.hoisted(() => ({
   notFound: vi.fn(),
   pruebaParaHacer: vi.fn(),
   cerrarLasQueSePasaron: vi.fn(),
+  registrarLasVueltas: vi.fn(),
+  escritosPorCorregir: vi.fn(),
+  escritoParaCorregir: vi.fn(),
+  hojaDeRespuestas: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: dobles.cookiesGet }) }));
@@ -26,7 +51,13 @@ vi.mock("@/lib/puerta/entrada", () => ({ personaDeLaCookie: dobles.personaDeLaCo
 vi.mock("next/navigation", () => ({
   redirect: dobles.redirect,
   notFound: dobles.notFound,
-  useRouter: () => ({ refresh: vi.fn() }),
+  // `CorregirEscrita` también llama a `router.push` (Guardar y seguir): sin
+  // él en el doble, un render que llegara a dispararlo reventaría por
+  // `push is not a function` en vez de fallar por lo que la prueba mira.
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  // La cabecera del sitio (la que vuelve con la prueba entregada) marca su
+  // enlace activo mirando la ruta.
+  usePathname: () => "/examen/x1/CE",
 }));
 // lib/examen/paraHacer.ts importa lib/db (prisma) al cargarse; sin este
 // doble, cargar el módulo real revienta por falta de DATABASE_URL (no hay
@@ -38,7 +69,10 @@ vi.mock("@/lib/examen/paraHacer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/examen/paraHacer")>()),
   pruebaParaHacer: dobles.pruebaParaHacer,
 }));
-vi.mock("@/lib/examen/hacer", () => ({ cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron }));
+vi.mock("@/lib/examen/hacer", () => ({
+  cerrarLasQueSePasaron: dobles.cerrarLasQueSePasaron,
+  registrarLasVueltas: dobles.registrarLasVueltas,
+}));
 // Las cinco acciones: la pantalla las importa a través de HacerPrueba, y
 // Vitest revienta al leer una exportación que el doble no define.
 vi.mock("@/app/examen/acciones", () => ({
@@ -47,9 +81,25 @@ vi.mock("@/app/examen/acciones", () => ({
   marcarTrozoAccion: vi.fn(),
   entregarPruebaAccion: vi.fn(),
   corregirEnLibreAccion: vi.fn(),
+  // La sexta, la de la escrita: sin ella en el doble, importar
+  // hacer-escrita.tsx revienta al leer una exportación que no existe.
+  guardarEscritoAccion: vi.fn(),
 }));
+// Las dos pantallas del profesor (app/(sitio)/pendientes/...) solo leen: escribir es
+// cosa de guardarCorreccionAccion, doblada aparte para no arrastrar
+// lib/examen/corregir.ts entero (que sí toca prisma) dentro de acciones.ts.
+vi.mock("@/lib/examen/corregir", () => ({
+  escritosPorCorregir: dobles.escritosPorCorregir,
+  escritoParaCorregir: dobles.escritoParaCorregir,
+}));
+// La ficha (app/(sitio)/examenes/[id]/hoja/...) también solo lee: dobla su única
+// lectura, igual que las dos de arriba, para no arrastrar prisma aquí.
+vi.mock("@/lib/examen/hoja", () => ({ hojaDeRespuestas: dobles.hojaDeRespuestas }));
+vi.mock("@/app/(sitio)/pendientes/acciones", () => ({ guardarCorreccionAccion: vi.fn() }));
 
 import PantallaDelExamen from "@/app/examen/[id]/[prueba]/page";
+import Cola from "@/app/(sitio)/pendientes/page";
+import PantallaDeCorregir from "@/app/(sitio)/pendientes/[intentoId]/page";
 
 const ESTUDIANTE: Persona = { id: "e1", correo: "ana@ejemplo.com", nombre: "Ana", papel: "ESTUDIANTE", activa: true, createdAt: new Date("2026-01-01") };
 
@@ -63,6 +113,7 @@ beforeEach(() => {
   dobles.redirect.mockImplementation((ruta: string) => { throw new Error(`REDIRECT:${ruta}`); });
   dobles.notFound.mockImplementation(() => { throw new Error("NOT_FOUND"); });
   dobles.cerrarLasQueSePasaron.mockResolvedValue(undefined);
+  dobles.registrarLasVueltas.mockResolvedValue({ cerradas: 0 });
   como(ESTUDIANTE);
 });
 
@@ -198,6 +249,30 @@ function lecturaCuatro(): TareaParaHacer {
   });
 }
 
+// EE-1: REDACCION_UNA, la situación y el correo al que hay que contestar.
+function escritaUna(): Formulario {
+  const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "EE", 1)!);
+  if (f.forma !== "REDACCION_UNA") throw new Error("regla equivocada");
+  f.consigna = "Lee el correo y contesta.";
+  f.actividad.situacion = "Un amigo te escribe un correo. Contéstale.";
+  f.actividad.textoRecibido = "Hola, ¿qué tal? ¿Vienes el sábado?";
+  f.actividad.pautas = ["Salúdale", "Dile si puedes venir"];
+  return f;
+}
+
+// EE-2: REDACCION_DOS, dos opciones entre las que elegir para redactar.
+function escritaDos(): Formulario {
+  const f = formularioVacio(reglaDe("A2_B1_ESCOLAR", "EE", 2)!);
+  if (f.forma !== "REDACCION_DOS") throw new Error("regla equivocada");
+  f.consigna = "Elige una de las dos opciones y escribe tu texto.";
+  f.actividad.opciones = f.actividad.opciones.map((o, i) => ({
+    ...o,
+    contexto: `Contexto de la opción ${i + 1}`,
+    pautas: [`Pauta de la opción ${i + 1}`],
+  }));
+  return f;
+}
+
 /** Extrae el `<input>` de una letra en una pregunta, sin depender de en qué
  * orden React sirva sus atributos (`checked` sale siempre antes que `value`,
  * pero eso es un detalle de serialización, no algo que la prueba deba fijar). */
@@ -331,6 +406,37 @@ describe("TareaDelEstudiante", () => {
     expect(html).not.toBe("");
     expect(html).toContain('data-fallo="20"');
   });
+
+  // Mutación que la mata: volver a pintar la fallada con border-error-600. Una
+  // respuesta fallada no es un fallo del sistema: va en coral (spec B1 §2).
+  // Mutación que la mata (el fondo): devolver bg-white a la parte fija de
+  // cajaPregunta. Con bg-white y bg-coral-100/40 a la vez gana el que Tailwind
+  // emita después, y el coral podría no verse nunca.
+  it("la fallada va en coral, sin el tono de error", () => {
+    const html = pintar(lecturaDos(), { marcadas: { "8": "B" }, fallos: [8], bloqueada: true });
+    const caja = html.match(/<section[^>]*data-fallo="8"[^>]*>/)?.[0] ?? "";
+    expect(caja).not.toBe(""); // que la caja fallada exista de verdad
+    expect(caja).toContain("border-coral-500");
+    expect(caja).not.toContain("error");
+    expect(caja).not.toContain("bg-white");
+  });
+
+  // Tres tareas porque los tres colores a mano vivían en tres sitios: la
+  // opción marcada (lectura 3, OPCIONES, pregunta 13), «Noticia N» (auditiva
+  // 4) y el número enfocado de la barra (lectura 2, lista común).
+  // Mutación que la mata: dejar bg-hp-400/border-hp-400/text-hp-600 a mano
+  // (cualquiera de los tres).
+  it("sin colores de marca escritos a mano", () => {
+    const pintadas = [
+      pintar(lecturaTres(), { marcadas: { "13": "A" } }),
+      pintar(auditivaCuatro(), {}),
+      pintar(lecturaDos(), { marcadas: { "8": "B" } }),
+    ];
+    for (const html of pintadas) {
+      expect(html).toContain("Pregunta"); // que se pintó de verdad
+      expect(html).not.toMatch(/(bg|border|text)-hp-/);
+    }
+  });
 });
 
 // La pantalla que hace el estudiante: app/examen/[id]/[prueba]/page.tsx con
@@ -348,8 +454,17 @@ function pruebaDePrueba(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
     segundosQueQuedan: null,
     respuestas: {},
     fallos: [],
-    // Por defecto, la otra prueba sin empezar: es lo normal al terminar la primera.
-    otras: [{ prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } }],
+    escritos: [],
+    entregadaEn: null,
+    corregidaEn: null,
+    // Las OTRAS DOS sin empezar, que es lo normal al terminar la primera. Dos y
+    // no una: desde que la escrita tiene pantalla, `pruebaParaHacer` manda
+    // siempre las otras dos de PRUEBAS_QUE_SE_HACEN, y una fixture con una sola
+    // escondía que la pantalla dijera «las dos pruebas» cuando son tres.
+    otras: [
+      { prueba: "CO", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+      { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+    ],
     ...extra,
   };
 }
@@ -438,6 +553,100 @@ function enLibre(): PruebaParaHacer {
     segundosQueQuedan: 1800,
     tareas: [lecturaDos()],
   });
+}
+
+// ── La escrita (EE) ─────────────────────────────────────────────────────────
+// Las dos tareas de la escrita con su regla de verdad: la 1 es REDACCION_UNA
+// (el correo al que hay que contestar) y la 2 REDACCION_DOS (elegir tema).
+function tareaDeEscrita(numero: 1 | 2): TareaParaHacer {
+  const regla = reglaDe("A2_B1_ESCOLAR", "EE", numero)!;
+  return { numero, regla, formulario: numero === 1 ? escritaUna() : escritaDos(), trozos: 0, oidos: [] };
+}
+
+function escritoDe(
+  tarea: number,
+  texto: string,
+  opcion: number | null,
+  correccion: EscritoParaHacer["correccion"] = null,
+): EscritoParaHacer {
+  return { tarea, opcion, texto, palabras: palabras(texto), correccion };
+}
+
+const CARTA = "Hola Juan, el sábado no puedo.";
+const FIN_DE_SEMANA = "Mi fin de semana ideal es un sábado en el río.";
+
+// EE a medias: reloj de 50 minutos corriendo, la tarea 1 ya empezada y la 2
+// todavía en blanco (por eso `escritos` trae una sola fila: la siembra de
+// borradores tiene que inventar la que falta).
+function escritaParaHacer(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
+  return pruebaDePrueba({
+    prueba: "EE",
+    minutos: 50,
+    segundosQueQuedan: 1800,
+    estado: { estado: "HACIENDO", aciertos: null, total: null, porTiempo: false },
+    tareas: [tareaDeEscrita(1), tareaDeEscrita(2)],
+    escritos: [escritoDe(1, CARTA, null)],
+    otras: [{ prueba: "CE", estado: { estado: "ENTREGADA", aciertos: 19, total: 25, porTiempo: false } }],
+    ...extra,
+  });
+}
+
+function escritaSinEmpezar(): PruebaParaHacer {
+  return escritaParaHacer({
+    estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    escritos: [],
+  });
+}
+
+// Entregada y sin firmar: ESPERANDO es el estado que la lectura no tiene nunca
+// —una lectura entregada ya trae su nota—, y es donde vive la escrita hasta que
+// el profesor la corrige.
+function escritaEsperando(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
+  return escritaParaHacer({
+    estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    entregadaEn: new Date("2026-09-15T09:30:00.000Z"),
+    escritos: [escritoDe(1, CARTA, null), escritoDe(2, FIN_DE_SEMANA, 2)],
+    ...extra,
+  });
+}
+
+// Firmada: 8 + 10 = 18 de 24 (dos tareas × cuatro criterios × banda 3).
+function escritaCorregida(extra: Partial<PruebaParaHacer> = {}): PruebaParaHacer {
+  return escritaParaHacer({
+    estado: { estado: "ENTREGADA", aciertos: 18, total: 24, porTiempo: false },
+    segundosQueQuedan: null,
+    entregadaEn: new Date("2026-09-15T09:30:00.000Z"),
+    escritos: [
+      escritoDe(1, CARTA, null, { bandas: [3, 2, 2, 1], comentario: "Muy bien el saludo" }),
+      escritoDe(2, FIN_DE_SEMANA, 2, { bandas: [3, 3, 2, 2], comentario: "Cuida los acentos" }),
+    ],
+    corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+    ...extra,
+  });
+}
+
+// Práctica libre de la escrita, antes de empezar: el aviso es otro —dice
+// «sin reloj», no «Tienes 50 minutos»—. `minutos: null` y `segundosQueQuedan:
+// null` no son adorno de la fixture: es lo que `pruebaParaHacer` manda de
+// verdad en libre (ver tests/base/examen-para-hacer.test.ts). Antes llegaban
+// los del nivel y cada pantalla tenía que volver a mirar el `modo` para no
+// pintar un reloj que no corre.
+function escritaLibre(): PruebaParaHacer {
+  return escritaParaHacer({
+    modo: "LIBRE",
+    minutos: null,
+    estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false },
+    segundosQueQuedan: null,
+    escritos: [],
+  });
+}
+
+// La misma, ya empezada: `estado: HACIENDO` sin minutos, que es justo donde un
+// reloj de más se notaría.
+function escritaLibreHaciendo(): PruebaParaHacer {
+  return escritaParaHacer({ modo: "LIBRE", minutos: null, segundosQueQuedan: null });
 }
 
 async function pintarPagina(prueba: PruebaParaHacer): Promise<string> {
@@ -587,7 +796,9 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("comprensión de lectura");
     expect(html).toContain("Examen 1");
     expect(html).toContain("Tarea 2");
-    expect(html).toContain("En rojo, las que fallaste");
+    // Era «En rojo»: desde la Entrega B2 la fallada va en coral (el rojo es
+    // solo para fallos del sistema), y la frase dice el color que se ve.
+    expect(html).toContain("Marcadas en coral, las que fallaste");
     expect(html).toContain("vuelve al texto y búscala");
   });
 
@@ -599,21 +810,60 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("4 de 6");
   });
 
-  // Mutación que la mata: enseñar siempre «te queda la otra» aunque esté
-  // entregada, o no enseñarlo nunca. Es lo que dice al estudiante que aún no ha
+  // Mutación que la mata: enseñar siempre «te quedan las otras» aunque estén
+  // entregadas, o no enseñarlo nunca. Es lo que dice al estudiante que aún no ha
   // terminado.
-  it("dice si queda otra prueba por hacer, y si no, que ya está", async () => {
-    const queda = await pintarPagina(entregadaCon19De25());
-    expect(queda).toContain("Te queda");
-    expect(queda).toContain("comprensión auditiva");
+  //
+  // La otra mutación, la del recuento: escribir el número a mano («las dos
+  // pruebas», que es lo que decía, o el singular «Te queda» con dos pendientes).
+  // Son tres pruebas desde que la escrita tiene pantalla, así que el texto no
+  // puede llevar el número dentro.
+  it("dice qué pruebas quedan por hacer, y si no queda ninguna, que ya está", async () => {
+    const quedan = await pintarPagina(entregadaCon19De25());
+    expect(quedan).toContain("Te quedan");
+    expect(quedan).toContain("comprensión auditiva");
+    expect(quedan).toContain("expresión escrita");
 
+    const entregada = { estado: "ENTREGADA" as const, aciertos: 21, total: 25, porTiempo: false };
     const terminadas = await pintarPagina(
       entregadaCon19De25({
-        otras: [{ prueba: "CO", estado: { estado: "ENTREGADA", aciertos: 21, total: 25, porTiempo: false } }],
+        otras: [{ prueba: "CO", estado: entregada }, { prueba: "EE", estado: entregada }],
       }),
     );
-    expect(terminadas).toContain("Ya has terminado las dos pruebas");
+    expect(terminadas).toContain("Ya has terminado el examen");
+    expect(terminadas).not.toContain("las dos pruebas");
     expect(terminadas).not.toContain("Te queda");
+
+    // Una sola pendiente: el singular, y el enlace en singular con ella.
+    const unaSola = await pintarPagina(
+      entregadaCon19De25({
+        otras: [
+          { prueba: "CO", estado: entregada },
+          { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+        ],
+      }),
+    );
+    // Antes era una sola frase («Te queda expresión escrita.»); desde la
+    // Entrega B2 cada prueba pendiente es una EtiquetaEstado aparte, así que
+    // el singular y el nombre se miran por separado, en su orden.
+    expect(unaSola).toMatch(/>Te queda<\/span><span[^>]*>expresión escrita</);
+    expect(unaSola).toContain("Ir a hacerla<");
+  });
+
+  // Mutación que la mata: volver la línea del filtro de `Resultado` a
+  // `o.estado.estado !== "ENTREGADA"`. Una escrita ESPERANDO (entregada, sin
+  // nota todavía) no es "ENTREGADA" con esa comparación vieja, así que
+  // reaparecería como pendiente aunque el estudiante ya la haya mandado.
+  it("una escrita entregada y sin corregir no cuenta como pendiente", async () => {
+    const html = await pintarPagina(
+      entregadaCon19De25({
+        otras: [
+          { prueba: "CO", estado: { estado: "ENTREGADA", aciertos: 21, total: 25, porTiempo: false } },
+          { prueba: "EE", estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } },
+        ],
+      }),
+    );
+    expect(html).not.toContain("Te queda");
   });
 
   // Mutación que la mata: no decir que la entregó el reloj. Para el estudiante
@@ -625,28 +875,50 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).toContain("Se entregó sola");
   });
 
-  // Mutación que la mata: quitar <VolverAInicio> del armazón, que es como salió
-  // la entrega: el sitio no tiene cabecera común, así que sin este enlace la
-  // pantalla del examen es un callejón y al terminar la lectura no hay forma de
-  // llegar a la auditiva salvo el botón de atrás. Lo cazó el profesor haciendo
-  // la aceptación, con la lectura ya entregada y sin saber cómo seguir.
-  it("las cuatro caras tienen salida a Inicio", async () => {
-    for (const cara of [sinEmpezar(), haciendoAuditiva(), entregadaCon19De25(), enLibre()]) {
+  // Mutación que la mata: quitar la CabeceraExamen de una cara, o no pintar
+  // la cabecera del sitio en la entregada. Ninguna cara puede quedarse sin
+  // salida: es el fallo que cazó el profesor en la aceptación de la 3c.
+  // Mutación que la mata (la escrita): decidir la cabecera del sitio con
+  // `estado === "ENTREGADA"` en vez de estaEntregada (ESPERANDO se queda fuera).
+  it("ninguna cara se queda sin salida", async () => {
+    for (const cara of [sinEmpezar(), haciendoAuditiva(), enLibre()]) {
+      expect(await pintarPagina(cara)).toContain(">Salir<");
+    }
+    const entregada = await pintarPagina(entregadaCon19De25());
+    expect(entregada).toContain("data-menu");
+    expect(entregada).toContain('href="/"');
+    // La escrita entregada y sin firmar vive en otra cara (ESPERANDO), que
+    // también tiene que devolver la cabecera del sitio.
+    expect(await pintarPagina(escritaEsperando())).toContain("data-menu");
+  });
+
+  // Mutación que la mata: quitar el reloj de la cabecera, o pintar un segundo
+  // reloj en el cuerpo. En pantalla solo puede haber uno.
+  it("con reloj, hay uno y solo uno; sin reloj, ninguno", async () => {
+    expect((await pintarPagina(haciendoLectura())).match(/data-reloj=/g) ?? []).toHaveLength(1);
+    expect(await pintarPagina(haciendoAuditiva())).not.toContain("data-reloj=");
+    expect(await pintarPagina(sinEmpezar())).not.toContain("data-reloj=");
+  });
+
+  // Mutación que la mata: `preguntar={false}` en PruebaHaciendo (o en
+  // EscritaHaciendo, o en PruebaLibre). Con la prueba en curso Salir pregunta
+  // siempre: un enlace directo a Inicio se saltaría la ventana.
+  it("con la prueba en curso, Salir pregunta y no es un enlace a Inicio", async () => {
+    for (const cara of [haciendoLectura(), haciendoAuditiva(), enLibre(), escritaParaHacer(), escritaLibreHaciendo()]) {
       const html = await pintarPagina(cara);
-      expect(html).not.toBe("");
-      expect(html).toContain('href="/"');
-      expect(html).toContain("Volver a Inicio");
+      expect(html).not.toContain('href="/"');
+      expect(html).toContain("¿Seguro que quieres salir?");
     }
   });
 
-  // Mutación que la mata: enseñar el aviso del reloj siempre, o no enseñarlo
-  // nunca. Irse a Inicio a media lectura es legal —las respuestas ya están
-  // guardadas—, pero irse creyendo que el reloj se para, no.
-  it("solo avisa de que el reloj sigue cuando hay reloj y está empezada", async () => {
-    expect(await pintarPagina(haciendoLectura())).toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(haciendoAuditiva())).not.toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(sinEmpezar())).not.toContain("El reloj sigue corriendo.");
-    expect(await pintarPagina(entregadaCon19De25())).not.toContain("El reloj sigue corriendo.");
+  // Mutación que la mata: pintar la cabecera del sitio mientras se hace la
+  // prueba (el menú distrae y el Inicio queda a un clic sin pregunta).
+  // Mutación que la mata (la escrita): `|| leida.prueba === "EE"` al decidir
+  // la cabecera del sitio en la página.
+  it("sin entregar no hay menú del sitio", async () => {
+    for (const cara of [sinEmpezar(), haciendoLectura(), enLibre(), escritaParaHacer()]) {
+      expect(await pintarPagina(cara)).not.toContain("data-menu");
+    }
   });
 
   // Mutación que la mata: dejar el reloj en la pantalla del modo libre.
@@ -658,14 +930,17 @@ describe("la pantalla que hace el estudiante", () => {
     expect(html).not.toContain("Entregar");
   });
 
-  // Antes se llamaba «la escrita y la oral contestan 404», pero eso no es lo
-  // que prueba: "EE" ya pasa la guarda `esPrueba` (es una prueba real del
-  // DELE, solo que sin pantalla propia todavía), así que la 404 de aquí sale
-  // de `pruebaParaHacer` devolviendo null — doblado más abajo — no de
-  // `esPrueba`. Esa guarda tiene su propia prueba justo debajo.
+  // "EE" ya pasa la guarda `esPrueba` (es una prueba real del DELE), y desde
+  // la Task 5 también pasa `PRUEBAS_QUE_SE_HACEN` de verdad: `pruebaParaHacer`
+  // ya no devuelve null para ella sola por estar excluida. Aquí `pruebaParaHacer`
+  // está DOBLADO y se hace devolver null a propósito — no es la función real
+  // filtrando por la lista —, así que esta prueba no comprueba que "EE" esté
+  // excluida (ya no lo está): comprueba que la página trata «sin datos», venga
+  // de donde venga, como 404. "EE" queda como ejemplo porque la pantalla
+  // (`HacerPrueba`) todavía no sabe pintar una redacción, no por su guarda.
   // Mutación que la mata: quitar el `if (!leida) notFound();` de la página.
   // Sería una pantalla a medias, con `prueba={null}`.
-  it("si pruebaParaHacer no encuentra nada (aquí, EE, que aún no tiene pantalla propia) la pantalla contesta 404", async () => {
+  it("si pruebaParaHacer no encuentra nada la pantalla contesta 404", async () => {
     dobles.pruebaParaHacer.mockResolvedValue(null);
     await expect(pintarPaginaDe("EE")).rejects.toThrow("NOT_FOUND");
   });
@@ -692,6 +967,108 @@ describe("la pantalla que hace el estudiante", () => {
   it("al abrir la pantalla se cierran las que se pasaron de hora", async () => {
     await pintarPagina(sinEmpezar());
     expect(dobles.cerrarLasQueSePasaron).toHaveBeenCalled();
+  });
+
+  // Cargar esta pantalla YA es volver: por eso el rastro de la salida vive en el
+  // servidor. Sin esta llamada, cerrar la pestaña dejaría la ausencia abierta
+  // para siempre y el registro no contaría nada.
+  //
+  // Mutación que la mata: quitar `registrarLasVueltas` de la página, llamarla
+  // DESPUÉS de leer con `pruebaParaHacer`, o pasarle solo la persona sin el
+  // examen (entrar en la lectura del examen B cerraría la ausencia de la escrita
+  // del examen A). El orden se afirma con `invocationCallOrder`, no mirando solo
+  // que se llamó.
+  it("al abrir la pantalla se cierra la ausencia, acotada al examen y antes de leer", async () => {
+    await pintarPagina(sinEmpezar());
+    expect(dobles.registrarLasVueltas).toHaveBeenCalledWith(
+      { personaId: ESTUDIANTE.id, examenId: "x1" },
+      expect.any(Date),
+    );
+    const registrar = dobles.registrarLasVueltas.mock.invocationCallOrder[0]!;
+    expect(registrar).toBeLessThan(dobles.pruebaParaHacer.mock.invocationCallOrder[0]!);
+    // Y el reloj va PRIMERO: si se le acabó el tiempo estando fuera, la entrega
+    // cierra la ausencia sin contarla.
+    expect(dobles.cerrarLasQueSePasaron.mock.invocationCallOrder[0]!).toBeLessThan(registrar);
+  });
+
+  // Mutación que la mata: volver a `prueba.estado.estado === "ENTREGADA"` en el
+  // encaminado de HacerPrueba. Con el estado ESPERANDO, la prueba entregada
+  // caería en la cara de «haciendo»: el estudiante vería otra vez sus preguntas
+  // abiertas y un botón de entregar que ya no puede funcionar.
+  it("una prueba entregada y sin corregir no se reabre", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={entregadaCon19De25({ estado: { estado: "ESPERANDO", aciertos: null, total: null, porTiempo: false } })} />,
+    );
+    expect(html).not.toContain("Entregar");
+  });
+
+  // Mutación que la mata: volver a window.confirm en alEntregar. La pregunta
+  // tiene que ser la de la página, con lo que falta.
+  it("la lectura a medias trae la pregunta de entrega de la página, cerrada", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={haciendoLectura()} />);
+    expect(html).toContain('aria-labelledby="titulo-de-entregar"');
+    expect(html).toContain("Seguir con la prueba");
+    expect(html).not.toMatch(/<dialog[^>]*\sopen/);
+  });
+
+  // La pregunta cerrada ya lleva su contenido en el HTML: ahí se ve que la
+  // lista de lo que falta es la de sinResponderPorTarea. Contestadas la 7 y la
+  // 8 de la lectura 2 (7-12), faltan de la 9 a la 12.
+  // Mutación que la mata: pasarle `falta={[]}` a PreguntaDeEntrega.
+  it("la pregunta de entrega dice qué falta, tarea a tarea", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={pruebaDePrueba({ ...haciendoLectura(), respuestas: { "7": "A", "8": "B" } })} />,
+    );
+    expect(html).toContain("<li>en la tarea 2 no has contestado la 9, la 10, la 11 ni la 12</li>");
+  });
+
+  // Mutación que la mata: dejar el window.confirm en alEntregar (aunque la
+  // pregunta de la página también se pinte, el navegador preguntaría dos veces).
+  it("hacer-prueba.tsx ya no pregunta con el confirm del navegador", () => {
+    expect(readFileSync("components/examen/hacer-prueba.tsx", "utf8")).not.toContain("confirm(");
+  });
+
+  // El enlace «Ir a hacerla» es el `Enlace` del kit, que trae SU text-hp-600
+  // (los colores de marca llegan por las piezas del kit): por eso se quitan
+  // las etiquetas <a> antes de buscar colores a mano, y se exige en el enlace
+  // la marca del kit (underline-offset-2) que el Link de antes no tenía.
+  // Mutación que la mata: volver a pintar «Ir a hacerla» como Link con
+  // text-hp-600 o «te queda» como texto suelto.
+  it("el resultado dice lo que queda con etiqueta y enlace del kit", () => {
+    const entregada = { estado: "ENTREGADA" as const, aciertos: 21, total: 25, porTiempo: false };
+    const html = renderToStaticMarkup(
+      <HacerPrueba
+        prueba={entregadaCon19De25({
+          otras: [
+            { prueba: "CO", estado: entregada },
+            { prueba: "EE", estado: { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false } },
+          ],
+        })}
+      />,
+    );
+    expect(html).toContain("Te queda");
+    expect(html).toMatch(/<span[^>]*rounded-full[^>]*>[^<]*expresión escrita/); // EtiquetaEstado
+    const enlace = html.match(/<a [^>]*>Ir a hacerla<\/a>/)?.[0] ?? "";
+    expect(enlace).toContain("underline-offset-2");
+    expect(html.replace(/<a [^>]*>/g, "<a>")).not.toMatch(/(bg|border|text)-hp-/);
+  });
+
+  // `Aviso` envuelve a sus hijos en un <div class="text-sm">, de ahí el
+  // `(p|div)` de la expresión: lo que se exige es que la frase quede DENTRO de
+  // la caja border-hp-200 (tono info), no suelta.
+  // Mutación que la mata: dejar «Se entregó sola» como texto gris suelto.
+  it("la entrega por tiempo va en un aviso informativo", () => {
+    const html = renderToStaticMarkup(
+      <HacerPrueba prueba={entregadaCon19De25({ estado: { estado: "ENTREGADA", aciertos: 12, total: 25, porTiempo: true } })} />,
+    );
+    expect(html).toMatch(/border-hp-200[^"]*"[^>]*>(<(p|div)[^>]*>)?[^<]*Se entregó sola: se acabó el tiempo\./);
+  });
+
+  // Mutación que la mata: no pasar `libre` a la CabeceraExamen de PruebaLibre.
+  it("la práctica libre avisa al salir de que no se guarda", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={enLibre()} />);
+    expect(html).toContain("no se guarda");
+    expect(html).not.toContain("mientras la prueba no esté entregada");
   });
 });
 
@@ -776,6 +1153,16 @@ describe("la cinta", () => {
     expect(html).not.toContain("Este audio ya ha sonado.");
   });
 
+  // Mutación que la mata: volver a la constante `BOTON` local (bg-hp-400 a
+  // mano) en vez del botón principal del kit.
+  it("el botón de escuchar es el principal del kit", () => {
+    const html = pintarCinta();
+    const boton = html.match(/<button[^>]*>Escuchar el audio<\/button>/)?.[0] ?? "";
+    expect(boton).not.toBe("");
+    expect(boton).toContain(`class="${clasesDeBoton("principal")}`);
+    expect(html).not.toContain("bg-hp-400");
+  });
+
   // Mutación que la mata: quitar el `siguienteTrozo(oidos, trozos) === null`
   // del estado inicial y nacer siempre «listo». Al recargar la página con la
   // pista ya oída entera volvería a salir el botón, y pulsarlo marcaría otra
@@ -836,6 +1223,15 @@ describe("las pestañas de las tareas", () => {
     // ponerse verde nunca.
     expect(vivas).not.toContain('disabled=""');
   });
+
+  // Mutación que la mata: volver a pintar la abierta con bg-hp-400 (el coral
+  // de marca sobre blanco no pasa contraste, y es un color a mano fuera del kit).
+  it("la abierta se marca con aria-current y sin colores a mano", () => {
+    const html = renderToStaticMarkup(<PestanasDeTarea tareas={TAREAS} abierta={2} alElegir={() => {}} />);
+    const abierta = html.match(/<button[^>]*aria-current="true"[^>]*>/)?.[0] ?? "";
+    expect(abierta).toContain("bg-tinta");
+    expect(html).not.toMatch(/(bg|border|text)-hp-/);
+  });
 });
 
 describe("el reloj", () => {
@@ -873,5 +1269,1092 @@ describe("el reloj", () => {
     expect(cinco).toContain("text-error-600");
     expect(seis).toContain("Te quedan 5:01"); // que se pintó de verdad
     expect(seis).not.toContain("text-error-600");
+  });
+});
+
+describe("el aviso de palabras", () => {
+  // Mutación que la mata: comparar solo con el máximo. Quedarse corto también
+  // es un fallo del examen, y es el más común.
+  it("avisa por arriba y por abajo, y calla si no hay rango", () => {
+    expect(avisoDePalabras(90, { min: 80, max: 100 })).toEqual({ texto: "90 palabras (te piden entre 80 y 100)", pasada: false });
+    expect(avisoDePalabras(120, { min: 80, max: 100 }).pasada).toBe(true);
+    expect(avisoDePalabras(12, { min: 80, max: 100 }).pasada).toBe(true);
+    expect(avisoDePalabras(1, { min: null, max: null })).toEqual({ texto: "1 palabra", pasada: false });
+  });
+});
+
+describe("el folio", () => {
+  // Mutación que la mata: pintar el textarea sin `defaultValue`/`value`. Al
+  // volver de un corte, el folio saldría en blanco con el reloj corriendo.
+  it("trae lo ya escrito y su cuenta", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto="Hola qué tal" rango={{ min: 80, max: 100 }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    expect(html).toContain("Hola qué tal");
+    expect(html).toContain("3 palabras (te piden entre 80 y 100)");
+  });
+
+  // Mutación que la mata: ignorar `bloqueado`. En la prueba entregada el folio
+  // tiene que estar apagado de verdad, no solo parecerlo. Ojo: la propia
+  // clase `disabled:bg-tinta-suave/5` contiene la palabra «disabled», así
+  // que un `toContain("disabled")` a secas pasaría aunque se borrara el
+  // atributo. Hay que mirar el `<textarea>` y su atributo real.
+  it("bloqueado no se puede escribir", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto="Ya está" rango={{ min: null, max: null }} bloqueado alEscribir={() => {}} />,
+    );
+    const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
+    expect(textarea).toContain('disabled=""');
+  });
+
+  // Mutación que la mata: quitar `maxLength={LETRAS_TOPE}` del <textarea>. Sin
+  // él, un pegado largo entra en el folio, el servidor lo rechaza con «Ese
+  // texto es demasiado largo.» y el estudiante se queda con un texto que no se
+  // guarda. El tope es el MISMO que comprueba `guardarEscrito`: se afirma
+  // contra la constante, no contra un número escrito a mano, para que no pueda
+  // quedarse desparejado.
+  it("no deja pegar más letras de las que el servidor acepta", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto="Hola" rango={{ min: null, max: null }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
+    expect(textarea).toContain(`maxLength="${LETRAS_TOPE}"`);
+  });
+
+  // Mutación que la mata: volver al rojo de error para las palabras pasadas.
+  // Pasarse de palabras no es un fallo del sistema: es un aviso (coral).
+  it("el aviso de palabras pasadas va en coral", () => {
+    const html = renderToStaticMarkup(
+      <Folio texto={"palabra ".repeat(200)} rango={{ min: 80, max: 100 }} bloqueado={false} alEscribir={() => {}} />,
+    );
+    expect(html).toContain("text-coral-600");
+    expect(html).not.toContain("text-error-600");
+  });
+});
+
+describe("el enunciado de la escrita", () => {
+  // Mutación que la mata: pintar todas las opciones como si estuvieran
+  // elegidas, o no marcar la elegida. El estudiante no sabría sobre cuál
+  // escribe, y es lo único que distingue su tarea 2 de la del de al lado.
+  // Cuenta las apariciones de `checked=""`, no solo si hay alguna: con
+  // `checked={true}` fijo, las DOS opciones saldrían marcadas y una prueba
+  // que solo mirase "hay al menos una" no lo vería.
+  it("la tarea 2 marca la opción elegida", () => {
+    const html = renderToStaticMarkup(
+      <EnunciadoDeEscrita formulario={escritaDos()} opcionElegida={2} alElegir={() => {}} />,
+    );
+    expect(html).toContain("Opción 1");
+    expect(html).toContain("Opción 2");
+    expect(html.match(/checked=""/g) ?? []).toHaveLength(1);
+  });
+
+  // Mutación que la mata: dejar el `disabled={bloqueado || !alElegir}` solo
+  // con `!alElegir` (o quitarlo). Con la escrita bloqueada, el estudiante no
+  // debe poder cambiar de opción aunque llegue `alElegir`. Se mira el
+  // atributo de cada `<input>`, no una clase que se llame parecido.
+  it("bloqueado no se puede elegir otra opción", () => {
+    const html = renderToStaticMarkup(
+      <EnunciadoDeEscrita formulario={escritaDos()} opcionElegida={1} alElegir={() => {}} bloqueado />,
+    );
+    const inputs = html.match(/<input[^>]*>/g) ?? [];
+    expect(inputs).toHaveLength(2);
+    expect(inputs.every((tag) => tag.includes('disabled=""'))).toBe(true);
+  });
+
+  // Mutación que la mata: no pintar el texto recibido. En la tarea 1 es el
+  // correo al que hay que contestar: sin él no hay tarea.
+  it("la tarea 1 pinta la situación, el correo y las pautas", () => {
+    const html = renderToStaticMarkup(<EnunciadoDeEscrita formulario={escritaUna()} opcionElegida={null} />);
+    expect(html).toContain("Un amigo te escribe");
+    expect(html).toContain("¿Vienes el sábado?");
+    expect(html).toContain("Salúdale");
+  });
+});
+
+describe("la escrita", () => {
+  // Mutación que la mata: guardar siempre que salte el temporizador, haya
+  // cambiado algo o no. Serían cientos de escrituras por redacción, y cada una
+  // reescribiendo la misma fila con lo mismo.
+  it("solo guarda lo que ha cambiado", () => {
+    expect(hayQueGuardar({ texto: "Hola", opcion: null }, { texto: "Hola", opcion: null })).toBe(false);
+    expect(hayQueGuardar({ texto: "Hola", opcion: null }, { texto: "Hola ", opcion: null })).toBe(true);
+    expect(hayQueGuardar({ texto: "Hola", opcion: null }, { texto: "Hola", opcion: 2 })).toBe(true);
+  });
+
+  // Mutación que la mata: avisar solo del folio vacío y olvidar la opción sin
+  // elegir. Se puede entregar una tarea 2 escrita sobre ninguna opción.
+  it("dice lo que falta antes de entregar", () => {
+    expect(loQueFalta(escritaParaHacer(), { 1: { texto: "", opcion: null }, 2: { texto: "Algo", opcion: 1 } })).toEqual([
+      "la tarea 1 está en blanco",
+    ]);
+    expect(loQueFalta(escritaParaHacer(), { 1: { texto: "Algo", opcion: null }, 2: { texto: "Algo", opcion: null } })).toEqual([
+      "no has elegido opción en la tarea 2",
+    ]);
+    expect(loQueFalta(escritaParaHacer(), { 1: { texto: "A", opcion: null }, 2: { texto: "B", opcion: 1 } })).toEqual([]);
+  });
+
+  // Mutación que la mata: sembrar los borradores recorriendo `escritos` en vez
+  // de `tareas`. La tarea que todavía no se ha tocado no tendría borrador, y el
+  // folio de la 2 nacería `undefined`: la pantalla revienta al abrirla.
+  it("siembra un borrador por tarea, con lo ya escrito", () => {
+    expect(borradoresDe(escritaEsperando())).toEqual({
+      1: { texto: CARTA, opcion: null },
+      2: { texto: FIN_DE_SEMANA, opcion: 2 },
+    });
+    expect(borradoresDe(escritaSinEmpezar())).toEqual({
+      1: { texto: "", opcion: null },
+      2: { texto: "", opcion: null },
+    });
+  });
+
+  // Mutación que la mata: devolver `true` para cualquier mensaje (que es como
+  // estaba: un pestillo de un solo sentido que apagaba los folios con el primer
+  // error, fuera el que fuera, y no los volvía a abrir nunca). El caso agudo es
+  // «Ese texto es demasiado largo.»: el folio apagado con el texto largo dentro
+  // deja al estudiante sin poder ni seguir ni recortar.
+  //
+  // Se afirma contra la constante compartida, no contra el literal escrito otra
+  // vez aquí: si el mensaje del servidor cambiara, esta prueba tiene que seguir
+  // hablando del mismo error, no de una cadena que ya no existe.
+  it("solo el error del tiempo apaga los folios", () => {
+    expect(apagaLosFolios(SE_ACABO_EL_TIEMPO)).toBe(true);
+    expect(apagaLosFolios("Ese texto es demasiado largo.")).toBe(false);
+    expect(apagaLosFolios("Esa tarea no existe.")).toBe(false);
+    expect(apagaLosFolios("Esa opción no existe.")).toBe(false);
+    expect(apagaLosFolios("Este examen ya no está disponible.")).toBe(false);
+    expect(apagaLosFolios("Este examen no es tuyo.")).toBe(false);
+  });
+
+  // Mutación que la mata: al elegir otra opción, devolver un borrador nuevo
+  // (`{ texto: "", opcion }`) en vez de conservar el folio. El chico que
+  // empieza, se arrepiente y cambia de tema perdería lo escrito.
+  it("cambiar de opción no borra el folio, ni escribir borra la opción", () => {
+    expect(conOpcion({ texto: "Mi carta", opcion: 1 }, 2)).toEqual({ texto: "Mi carta", opcion: 2 });
+    expect(conTexto({ texto: "Mi carta", opcion: 1 }, "Mi carta más larga")).toEqual({ texto: "Mi carta más larga", opcion: 1 });
+  });
+
+  // Mutación que la mata: quitar el encaminado de "EE" y dejar que la escrita
+  // caiga en PruebaHaciendo. Pediría letras sobre preguntas que no existen y no
+  // pintaría folio ninguno.
+  it("a medias trae el reloj, el enunciado y el folio abierto", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).toContain("Te quedan");
+    expect(html).toContain("Lee el correo y contesta.");
+    expect(html).toContain(CARTA);
+    expect(html).toContain("Entregar");
+    // El folio de la tarea abierta se puede escribir: se mira el atributo del
+    // `<textarea>`, no la palabra «disabled» suelta (la clase de Tailwind
+    // `disabled:bg-tinta-suave/5` la lleva dentro).
+    const textarea = html.match(/<textarea[^>]*>/)?.[0] ?? "";
+    expect(textarea).not.toBe("");
+    expect(textarea).not.toContain('disabled=""');
+  });
+
+  // Mutación que la mata: enseñar el folio antes del aviso. El «se entrega ella
+  // sola» hay que decirlo ANTES de que el reloj empiece a correr.
+  it("sin empezar avisa de los minutos y no enseña folio", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("50 minutos");
+    expect(html).toContain("no se puede repetir");
+    expect(html).toContain("Empezar");
+    expect(html).not.toContain("<textarea");
+  });
+
+  // Mutación que la mata: sacar el enunciado del <details> y dejarlo suelto
+  // como antes (o quitarle el `open`, que lo dejaría plegado de entrada: lo
+  // primero que hay que hacer con un enunciado es leerlo).
+  //
+  // Se mira el ATRIBUTO del <details>, no una subcadena suelta: «open» aparece
+  // dentro de cualquier palabra, y hasta una clase de Tailwind podría llevarla.
+  // Lo que NO se puede probar aquí es plegarlo: eso es un clic, no hay jsdom, y
+  // el plegado lo hace el navegador. Tampoco que el resumen desaparezca en el
+  // ordenador: eso es `md:hidden`, o sea CSS.
+  it("en el móvil el enunciado se puede plegar, y nace abierto", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    const details = html.match(/<details[^>]*>/)?.[0] ?? "";
+    expect(details).toContain('open=""');
+    expect(html).toContain("<summary");
+    // Y el enunciado sigue DENTRO: un <details> vacío al lado del enunciado de
+    // siempre pasaría las dos líneas de arriba sin plegar nada.
+    expect(html.indexOf("<summary")).toBeLessThan(html.indexOf("¿Vienes el sábado?"));
+    expect(html.indexOf("¿Vienes el sábado?")).toBeLessThan(html.indexOf("</details>"));
+  });
+
+  // Mutación que la mata: usar la cara de la lectura para la escrita. La
+  // pantalla pediría letras sobre preguntas que no existen.
+  it("la escrita entregada y sin corregir dice que espera", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
+    expect(html).toContain("Esperando corrección");
+    expect(html).not.toContain("Entregar");
+  });
+
+  // Mutación que la mata: pasar `bloqueado={false}` a los folios de la
+  // entregada. Se podría reescribir encima de lo entregado y hasta creer que
+  // eso cambia algo, cuando ya no se guarda nada.
+  it("la entregada enseña sus dos folios apagados, con lo que mandó", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
+    expect(html).toContain(FIN_DE_SEMANA);
+    const folios = html.match(/<textarea[^>]*>/g) ?? [];
+    expect(folios).toHaveLength(2);
+    expect(folios.every((t) => t.includes('disabled=""'))).toBe(true);
+    // Y la opción que eligió sigue marcada, sin poder cambiarla.
+    const opciones = html.match(/<input[^>]*>/g) ?? [];
+    expect(opciones).toHaveLength(2);
+    expect(opciones.every((t) => t.includes('disabled=""'))).toBe(true);
+    expect(html.match(/checked=""/g) ?? []).toHaveLength(1);
+  });
+
+  // Mutación que la mata: pintar la nota sin mirar `correccion`. Diría «null de
+  // 24» a quien todavía no ha sido corregido.
+  it("la escrita corregida enseña las bandas, los comentarios y la suma", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaCorregida()} />);
+    expect(html).toContain("18 de 24");
+    expect(html).toContain("Adecuación al género discursivo");
+    expect(html).toContain("Muy bien el saludo");
+  });
+
+  // Mutación que la mata: pintar la `ayuda` del criterio esté vacía o no. Hoy
+  // las cuatro están vacías a propósito (las dicta el profesor), y saldrían
+  // cuatro renglones en blanco bajo cada criterio.
+  it("la corregida no pinta la ayuda vacía, ni deja entregar otra vez", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaCorregida()} />);
+    expect(html).not.toContain("data-ayuda");
+    expect(html).not.toContain("Entregar");
+    // Las dos tareas, no solo la primera: el comentario de la 2 también es suyo.
+    expect(html).toContain("Cuida los acentos");
+  });
+
+  // Mutación que la mata: dejar que la práctica libre pase por una cara aparte
+  // que no guarda ni entrega. La decisión es la contraria (spec §9): en libre
+  // la escrita se guarda y se entrega IGUAL que en un examen de verdad, sin
+  // reloj y nada más.
+  it("en libre se escribe y se puede entregar, igual que en un examen de verdad", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibreHaciendo()} />);
+    expect(html).toContain("<textarea");
+    expect(html).not.toContain("Te quedan");
+    expect(html).toContain("Entregar");
+  });
+
+  // Mutación que la mata: pintar el reloj también en libre. Le pondría una cuenta
+  // atrás de cincuenta minutos a algo que no se cierra nunca: pura mentira.
+  it("la escrita libre no enseña reloj y lo dice en el aviso", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibre()} />);
+    expect(html).not.toContain("50 minutos");
+    expect(html).toContain("sin reloj");
+  });
+
+  // Mutación que la mata: quitar la CabeceraExamen de una cara de la escrita.
+  it("las caras sin entregar de la escrita tienen su Salir", () => {
+    for (const cara of [escritaSinEmpezar(), escritaParaHacer(), escritaLibreHaciendo()]) {
+      expect(renderToStaticMarkup(<HacerPrueba prueba={cara} />)).toContain(">Salir<");
+    }
+  });
+
+  // Mutación que la mata: no pasar `escrita` a la cabecera, o pasárselo en libre.
+  it("solo la escrita con reloj avisa al salir de que queda apuntado", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />)).toContain("Salir queda apuntado");
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaLibreHaciendo()} />)).not.toContain("Salir queda apuntado");
+  });
+
+  // Mutación que la mata: dejar el <Reloj> también en el cuerpo de la escrita.
+  it("la escrita con reloj tiene uno solo", () => {
+    expect(renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />).match(/data-reloj=/g) ?? []).toHaveLength(1);
+  });
+
+  // Mutación que la mata: dar por corregida la escrita con solo la firma (o con
+  // solo la nota). Con la firma sola y sin `aciertos` la cabecera pinta «null de
+  // 24»; sin `total`, «18 de null»; y con la nota puesta pero sin firmar, las
+  // bandas ni siquiera han salido de `pruebaParaHacer` y saldrían cuatro ceros.
+  // Es pura y se prueba sola: la cara de la pantalla no distingue los tres casos.
+  it("corregida es la firma Y la nota entera, no una de las dos", () => {
+    expect(estaCorregida(escritaCorregida())).toBe(true);
+    expect(estaCorregida(escritaCorregida({ estado: { estado: "ENTREGADA", aciertos: null, total: 24, porTiempo: false } }))).toBe(false);
+    expect(estaCorregida(escritaCorregida({ estado: { estado: "ENTREGADA", aciertos: 18, total: null, porTiempo: false } }))).toBe(false);
+    expect(estaCorregida(escritaCorregida({ corregidaEn: null }))).toBe(false);
+    expect(estaCorregida(escritaEsperando())).toBe(false);
+  });
+
+  // Mutación que la mata: mirar solo la tarea abierta al decidir el cartelito.
+  // Quien escribe en la tarea 1, cambia a la 2 y ve «Guardado» mientras lo de la
+  // 1 sigue sin mandarse, cierra la pestaña tranquilo y lo pierde.
+  it("sabe si queda algo sin mandar en CUALQUIER tarea", () => {
+    const enServidor = { 1: { texto: "Hola", opcion: null }, 2: { texto: "", opcion: 2 } };
+    expect(hayAlgoSinGuardar(enServidor, enServidor)).toBe(false);
+    expect(hayAlgoSinGuardar(enServidor, { ...enServidor, 1: { texto: "Hola Juan", opcion: null } })).toBe(true);
+    expect(hayAlgoSinGuardar(enServidor, { ...enServidor, 2: { texto: "", opcion: 1 } })).toBe(true);
+    // Una tarea que el servidor todavía no conoce y ya tiene texto: sin mandar.
+    expect(hayAlgoSinGuardar({}, { 1: { texto: "Algo", opcion: null } })).toBe(true);
+  });
+
+  // Mutación que la mata: volver a «Te falta {falta.join(" y ")}», o pintar la
+  // lista sin el «Ojo:». Lo lee un chaval de catorce años justo antes de entregar.
+  // Cambiada por el vestido: la escrita ya no tiene pregunta propia; usa la
+  // pieza común (<dialog>), que pinta lo que falta como lista y no como frase.
+  it("la pregunta de entrega de la escrita dice lo que falta, en castellano", () => {
+    const html = renderToStaticMarkup(
+      <PreguntaDeEntrega abierta falta={["la tarea 1 está en blanco", "no has elegido opción en la tarea 2"]}
+        enviando={false} textoSeguir="Seguir escribiendo" alSi={() => {}} alNo={() => {}} />,
+    );
+    expect(html).toContain("Ojo:");
+    expect(html).toContain("<li>la tarea 1 está en blanco</li>");
+    expect(html).toContain("<li>no has elegido opción en la tarea 2</li>");
+    expect(html).toContain("¿Entregar de todas formas?");
+    expect(html).toContain("Seguir escribiendo");
+  });
+
+  // El aviso del registro. Se dice ANTES de «Empezar» porque la disuasión ES
+  // saberlo: un registro que nadie sabe que existe no disuade, solo delata.
+  //
+  // Mutación que la mata: quitar el párrafo, o dejarlo sin decir que el profesor
+  // lo ve. El chaval se sale a mirar una palabra sin saber que queda apuntado, y
+  // entonces el registro no está disuadiendo de nada.
+  it("el aviso previo dice que las salidas quedan apuntadas y que el profesor las ve", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("No te salgas de esta pantalla mientras escribes.");
+    expect(html).toContain("queda apuntado");
+    expect(html).toContain("Tu profesor ve cuántas veces saliste y cuánto tiempo estuviste fuera.");
+    expect(html).toContain("el reloj sigue corriendo mientras estás fuera");
+  });
+
+  // Mutación que la mata: quitar del aviso la frase de que no se borra nada. Es
+  // la mitad que lo convierte en una regla en vez de en una amenaza, y sin ella
+  // un chaval de catorce años se pasa el examen con miedo a bloquear el móvil.
+  it("el aviso previo deja claro que no se borra nada", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("No se borra nada de lo que hayas escrito, pero el reloj sigue corriendo");
+  });
+
+  // La puerta que un chaval prueba primero. El aviso nombraba cambiar de
+  // aplicación, bloquear el móvil y «Volver a Inicio», pero no la salida más
+  // obvia de todas: cerrar la pestaña. Un aviso que se calla la puerta más a
+  // mano no es un aviso completo.
+  //
+  // Mutación que la mata: quitar «cierras esta pestaña» de la frase (o
+  // cualquiera de las otras tres) sin tocar el resto del párrafo.
+  it("el aviso previo nombra cerrar la pestaña, y no solo las otras tres puertas", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaSinEmpezar()} />);
+    expect(html).toContain("cierras esta pestaña");
+    expect(html).toContain("otra aplicación o a otra pestaña");
+    expect(html).toContain("bloqueas el móvil");
+    expect(html).toContain("vuelves a Inicio");
+  });
+
+  // Mutación que la mata: pintar el aviso también en práctica libre (quitarle el
+  // `!sinReloj`). En libre no se registra nada: decirle que queda apuntado sería
+  // mentirle, y encima le corta la práctica.
+  it("en práctica libre no habla de ningún registro", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaLibre()} />);
+    expect(html).not.toContain("No te salgas de esta pantalla mientras escribes.");
+    expect(html).not.toContain("queda apuntado");
+  });
+
+  // El encadenado de «me voy» y «he vuelto», que es lo que impide que el registro
+  // mienta. Se prueba la pieza, no el oyente: enganchar un `visibilitychange` de
+  // verdad necesita navegador y va a la aceptación.
+  //
+  // Mutación que la mata: lanzar las dos peticiones sueltas (`void peticion()`
+  // en vez de encadenar sobre la cola). Es exactamente lo que había: «he vuelto»
+  // adelanta a «me voy», la marca queda puesta con el chaval delante, y la
+  // siguiente carga de página le apunta al profesor una ausencia de veinte
+  // minutos que nunca ocurrió.
+  it("la vuelta espera a la salida, aunque la salida vaya lenta", async () => {
+    const orden: string[] = [];
+    const cola = { current: Promise.resolve() as Promise<unknown> };
+    const lenta = () => new Promise<void>((listo) => setTimeout(() => { orden.push("me voy"); listo(); }, 20));
+    const rapida = async () => { orden.push("he vuelto"); };
+
+    encadenar(cola, lenta);
+    encadenar(cola, rapida);
+    await cola.current;
+
+    expect(orden).toEqual(["me voy", "he vuelto"]);
+  });
+
+  // Mutación que la mata: quitar el `.catch`. La cadena quedaría rechazada y
+  // TODAS las peticiones siguientes se saltarían su `.then`: la pantalla dejaría
+  // de registrar nada en el resto de la prueba, y el profesor leería un cero de
+  // alguien que salió seis veces. (Y de paso, un fallo de red apuntando una
+  // salida no puede tumbar el examen de nadie.)
+  it("una petición que falla no rompe la cadena ni revienta", async () => {
+    const orden: string[] = [];
+    const cola = { current: Promise.resolve() as Promise<unknown> };
+
+    encadenar(cola, () => Promise.reject(new Error("se cayó la red")));
+    encadenar(cola, async () => { orden.push("la siguiente sí corre"); });
+    await expect(cola.current).resolves.toBeUndefined();
+
+    expect(orden).toEqual(["la siguiente sí corre"]);
+  });
+
+  // Al volver, el estudiante NO ve ningún cartel: no ha perdido nada y no hay
+  // nada que anunciarle. La pantalla a medias no puede tener ningún aviso de
+  // salidas, ni al nacer ni nunca.
+  //
+  // Mutación que la mata: devolverle al estudiante la cuenta de salidas y
+  // pintarla en su pantalla. El registro es para el profesor; enseñárselo a él
+  // lo convierte en un marcador y en una discusión a media redacción.
+  it("la pantalla del estudiante no le enseña sus salidas", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).not.toContain("data-salidas");
+    expect(html).not.toContain("Salió de la pantalla");
+  });
+
+  // Mutación que la mata: enseñar la lista de lo que falta aunque esté vacía
+  // («Ojo: . ¿Entregar de todas formas?»), o callarse el «no se puede deshacer»
+  // cuando está todo hecho, que es cuando más de verdad va la entrega.
+  // Cambiada por el vestido: ahora es la pieza común, que dice «Entregar no se
+  // puede deshacer.» siempre (su pregunta va en el título «¿Entregar ya?»), así
+  // que se deja de esperar el «¿Entregar?» de la frase vieja.
+  it("con todo hecho, la pregunta avisa de que no se puede deshacer", () => {
+    const html = renderToStaticMarkup(
+      <PreguntaDeEntrega abierta falta={[]} enviando={false} textoSeguir="Seguir escribiendo" alSi={() => {}} alNo={() => {}} />,
+    );
+    expect(html).toContain("Entregar no se puede deshacer.");
+    expect(html).not.toContain("Ojo:");
+  });
+
+  // Mutación que la mata: dibujar un botón «Guardar» (se guarda sola: A §6).
+  it("escribiendo no hay botón Guardar, y Entregar abre la pregunta común", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaParaHacer()} />);
+    expect(html).not.toMatch(/<button[^>]*>Guardar/);
+    expect(html).toContain('aria-labelledby="titulo-de-entregar"');
+    expect(html).toContain("Seguir escribiendo");
+  });
+
+  // Mutación que la mata: el comentario del profesor otra vez en bg-hp-50 a
+  // mano (o como texto suelto).
+  // La ventana va hasta 300 letras porque el Aviso con título pone antes su
+  // <p> «Tu profesor dice» y el <div> del cuerpo; pero entre el borde del aviso
+  // informativo y el comentario no puede cerrarse ningún </div>: el comentario
+  // tiene que estar DENTRO de la caja.
+  it("corregida: el comentario va en un aviso informativo y los criterios son los de CRITERIOS_EE", () => {
+    const corregida = escritaCorregida();
+    const html = renderToStaticMarkup(
+      <HacerPrueba
+        prueba={{
+          ...corregida,
+          escritos: [
+            escritoDe(1, CARTA, null, { bandas: [3, 2, 2, 1], comentario: "Bien hecho." }),
+            escritoDe(2, FIN_DE_SEMANA, 2, { bandas: [3, 3, 2, 2], comentario: "Cuida los acentos" }),
+          ],
+        }}
+      />,
+    );
+    expect(html).toMatch(/border-hp-200[^>]*>(?:(?!<\/div>)[\s\S]){0,300}Bien hecho\./);
+    for (const c of CRITERIOS_EE) expect(html).toContain(c.nombre);
+    expect(html).not.toContain("Cohesión");
+  });
+
+  // Mutación que la mata: no pintar `entregadaEn` en la cara de espera. Un chico
+  // que lleva días viendo «esperando corrección» sin fecha no sabe si su
+  // redacción llegó o se perdió por el camino.
+  it("la que espera dice cuándo la mandó", () => {
+    const html = renderToStaticMarkup(<HacerPrueba prueba={escritaEsperando()} />);
+    expect(html).toContain("La mandaste el 15 de septiembre de 2026");
+  });
+});
+
+// ── Las pantallas del profesor: /corregir ──────────────────────────────────
+// Mismas dos personas de siempre: ana (ESTUDIANTE, definida arriba) y un
+// profesor nuevo, porque hasta ahora ninguna prueba de este fichero
+// necesitaba uno.
+const PROFESOR: Persona = { id: "p1", correo: "pablo@hispaprofe.com", nombre: "Pablo", papel: "PROFESOR", activa: true, createdAt: new Date("2026-01-01") };
+const ana = ESTUDIANTE;
+const profe = PROFESOR;
+
+function tareaParaCorregir(
+  numero: 1 | 2,
+  texto: string,
+  opcion: number | null,
+  bandas: number[] = [],
+  comentario = "",
+): TareaParaCorregir {
+  return {
+    numero,
+    formulario: numero === 1 ? escritaUna() : escritaDos(),
+    opcion,
+    texto,
+    palabras: palabras(texto),
+    bandas,
+    comentario,
+  };
+}
+
+// Dos tareas, como el examen de verdad: la 1 (REDACCION_UNA, el correo) con
+// lo que escribió Ana, y la 2 (REDACCION_DOS) con su opción elegida.
+function paraCorregirDePrueba(extra: Partial<ParaCorregir> = {}): ParaCorregir {
+  return {
+    intentoId: "i1",
+    examen: { id: "ex1", titulo: "Libro, examen 1", nivel: "A2_B1_ESCOLAR" },
+    persona: { id: "e1", nombre: "Ana" },
+    entregadaEn: new Date("2026-09-15T09:30:00.000Z"),
+    porTiempo: false,
+    corregidaEn: null,
+    puntos: 24,
+    salidas: {
+      salidas: 0,
+      segundosFuera: 0,
+      ultimaSalidaEn: null,
+      ultimaSalidaDeTarea: null,
+      ultimaSalidaSinVuelta: false,
+    },
+    tareas: [
+      tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null),
+      tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2),
+    ],
+    siguiente: null,
+    ...extra,
+  };
+}
+
+// La misma redacción, ya corregida: las ocho notas puestas (3+2+2+1 y
+// 3+3+2+1 = 17) y la fecha de la firma.
+function yaCorregidaDePrueba(): ParaCorregir {
+  return paraCorregirDePrueba({
+    corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+    tareas: [
+      tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null, [3, 2, 2, 1], "Muy bien el saludo"),
+      tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2, [3, 3, 2, 1], "Cuida los acentos"),
+    ],
+  });
+}
+
+/** Los radios de las notas (`name="nota-{tarea}-{criterio}"`), etiqueta entera. */
+const radiosDeNota = (html: string) => html.match(/<input[^>]*name="nota-[^"]*"[^>]*>/g) ?? [];
+const atributo = (etiqueta: string, nombre: string) => etiqueta.match(new RegExp(`\\s${nombre}="([^"]*)"`))?.[1];
+
+describe("Por corregir: la cola del profesor", () => {
+  beforeEach(() => {
+    dobles.escritosPorCorregir.mockResolvedValue([]);
+  });
+
+  // Mutación que la mata: quitar exigirProfesor de la página. Un estudiante
+  // vería los textos y las notas de todos sus compañeros con solo escribir la
+  // dirección.
+  it("la cola no se le enseña a un estudiante", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana); // ESTUDIANTE
+    const { default: Cola } = await import("@/app/(sitio)/pendientes/page");
+    await expect(Cola()).rejects.toThrow();
+    expect(dobles.escritosPorCorregir).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: pintar la cola sin los días de espera. Es el único dato
+  // que dice por dónde empezar.
+  it("la cola dice quién, qué examen y cuántos días lleva", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i1", examenId: "ex1", titulo: "Libro, examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: true, diasEsperando: 3 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("Ana");
+    expect(html).toContain("Libro, examen 1");
+    expect(html).toContain("3 días");
+    expect(html).toContain("por tiempo");
+  });
+
+  // Mutación que la mata: pintar la cola vacía sin decir nada (una lista
+  // vacía y ya está), que deja al profesor sin saber si es que no hay nada o
+  // si es que la pantalla se rompió a medias; o volver a mencionar citas,
+  // que no existen hasta la 3e.
+  it("con la cola vacía lo dice en una línea", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("No hay redacciones por corregir");
+    expect(html.toLowerCase()).not.toContain("cita");
+  });
+
+  // Mutación que la mata: dejar el título «Por corregir». El menú dice
+  // «Pendientes»: la pantalla tiene que llamarse igual que su enlace.
+  it("se titula Pendientes", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toMatch(/<h1[^>]*>Pendientes<\/h1>/);
+  });
+
+  // Mutación que la mata: copiar del dibujo «Grabación», «Cita oral» o «Ver
+  // grabación». Nada de eso existe hasta la 3e.
+  it("solo hay redacciones: ni grabaciones ni citas", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i1", examenId: "ex1", titulo: "Examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("Redacción");
+    expect(html).not.toMatch(/Grabación|Cita|Ver grabación/);
+  });
+
+  // Mutación que la mata: reordenar la lista (por nombre, o la más nueva arriba).
+  // Lo más viejo es lo primero que hay que corregir.
+  it("respeta el orden de la cola: la más antigua arriba", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "vieja", examenId: "ex1", titulo: "E", persona: { id: "p2", nombre: "Zoe" }, entregadaEn: new Date("2026-09-10T09:00:00Z"), porTiempo: false, diasEsperando: 8 },
+      { intentoId: "nueva", examenId: "ex1", titulo: "E", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-17T09:00:00Z"), porTiempo: false, diasEsperando: 1 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html.indexOf("/pendientes/vieja")).toBeLessThan(html.indexOf("/pendientes/nueva"));
+  });
+
+  // Mutación que la mata: enlazar todas las filas al mismo sitio, o a
+  // `/pendientes` sin el id.
+  it("cada fila enlaza a su propia corrección", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritosPorCorregir.mockResolvedValue([
+      { intentoId: "i7", examenId: "ex1", titulo: "Examen 1", persona: { id: "p1", nombre: "Ana" }, entregadaEn: new Date("2026-09-20T09:00:00Z"), porTiempo: false, diasEsperando: 0 },
+    ]);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain('href="/pendientes/i7"');
+  });
+
+  // Mutación que la mata: quitar <RefrescarAlEntrar /> de la página. El
+  // layout de app/(sitio)/ no se repinta al navegar, y la cola crece por
+  // caminos que no pasan por firmar (un estudiante entrega): sin el refresco,
+  // el número de la cabecera y la lista no coincidirían al llegar aquí.
+  it("al entrar pide un refresco, para que el número de la cabecera cuadre", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const html = renderToStaticMarkup(await Cola());
+    expect(html).toContain("data-refrescar");
+  });
+
+  // Mutación que la mata: cerrar las que se pasaron de hora desde esta
+  // pantalla. Decidido en el brief: la cola solo lee, y el cierre es de quien
+  // tiene ámbito (el Inicio del estudiante y la lista del examen).
+  it("no cierra las que se pasaron de hora: solo lee", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    await Cola();
+    expect(dobles.cerrarLasQueSePasaron).not.toHaveBeenCalled();
+  });
+});
+
+describe("La pantalla de corregir una redacción: /pendientes/[intentoId]", () => {
+  // Mutación que la mata: quitar exigirProfesor de esta página también. Es la
+  // segunda mitad de la misma puerta que la cola: sin ella, un estudiante que
+  // adivine el id de un compañero vería su texto entero y podría firmarle
+  // una nota.
+  it("tampoco se le enseña a un estudiante", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana);
+    await expect(PantallaDeCorregir({ params: Promise.resolve({ intentoId: "i1" }) })).rejects.toThrow();
+    expect(dobles.escritoParaCorregir).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el `if (!para) notFound();`. Un id que no
+  // existe (o de un intento que ya no es de escrita) pintaría la pantalla con
+  // datos a medias en vez de contestar 404.
+  it("un intento que no existe contesta 404", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritoParaCorregir.mockResolvedValue(null);
+    await expect(PantallaDeCorregir({ params: Promise.resolve({ intentoId: "i1" }) })).rejects.toThrow("NOT_FOUND");
+  });
+
+  // Mutación que la mata: no pasarle `para` a <CorregirEscrita>, o pasarle
+  // otra cosa distinta de lo que devolvió escritoParaCorregir.
+  it("con datos, pinta la corrección de esa redacción", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.escritoParaCorregir.mockResolvedValue(paraCorregirDePrueba());
+    const elemento = await PantallaDeCorregir({ params: Promise.resolve({ intentoId: "i1" }) });
+    const html = renderToStaticMarkup(elemento);
+    expect(html).toContain("Ana");
+    expect(html).toContain("Hola, qué tal");
+    expect(dobles.escritoParaCorregir).toHaveBeenCalledWith("i1", expect.any(Date));
+  });
+});
+
+describe("CorregirEscrita: la pantalla de las ocho bandas", () => {
+  const conSalidas = (extra: Partial<ParaCorregir["salidas"]> = {}) =>
+    paraCorregirDePrueba({
+      salidas: {
+        salidas: 3,
+        segundosFuera: 240,
+        ultimaSalidaEn: new Date("2026-09-15T08:42:00.000Z"),
+        ultimaSalidaDeTarea: 2,
+        ultimaSalidaSinVuelta: false,
+        ...extra,
+      },
+    });
+
+  // El registro de salidas, DENTRO de la pantalla entera y no solo en su pieza
+  // suelta: es lo que cazó el revisor la vez anterior, cuando borró el aviso de
+  // la pantalla y las 648 pruebas siguieron verdes. Se monta `CorregirEscrita`
+  // completo, que es donde el profesor lo lee de verdad.
+  //
+  // Mutación que la mata: quitar `<SalidasDelEstudiante>` de la cabecera de
+  // `CorregirEscrita`. La pieza seguiría existiendo y sus pruebas sueltas
+  // seguirían verdes, pero el profesor no vería nunca una salida.
+  it("la pantalla de corregir pinta el registro de salidas", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={conSalidas()} />);
+    expect(html).toContain("data-salidas");
+    expect(html).toContain("Salió de la pantalla 3 veces, 4 minutos en total");
+    expect(html).toContain("desde la tarea 2");
+  });
+
+  // Mutación que la mata: pintar la línea siempre (quitar el `huboSalidas`).
+  // A quien no se movió de la silla le saldría «Salió de la pantalla 0 veces, 0
+  // segundos», que es ruido en la pantalla donde lo que importa es la redacción.
+  it("quien no salió no ensucia la pantalla con ceros", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).not.toContain("data-salidas");
+    expect(html).not.toContain("Salió de la pantalla");
+  });
+
+  // Mutación que la mata: dar la cuenta o el tiempo cambiados de sitio («3
+  // minutos, 240 veces»). El profesor va a hablar con un alumno con esta línea
+  // delante. Se afirma el `role`, que es un atributo, y no la palabra suelta.
+  it("el registro es un aviso suave, no una acusación, y dice las tres cosas", () => {
+    const html = renderToStaticMarkup(<SalidasDelEstudiante resumen={conSalidas().salidas} />);
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Salió de la pantalla 3 veces");
+    expect(html).toContain("4 minutos en total");
+    expect(html).toContain("la última, el 15 de septiembre de 2026");
+  });
+
+  // El caso más sospechoso de todos: se fue, no volvió, y la prueba la cerró el
+  // reloj por él. Antes ese chico le llegaba al profesor con CERO salidas, que
+  // era un agujero justo en el sitio donde el registro hace falta.
+  //
+  // Mutación que la mata: no pintar la frase de la última sin vuelta (quitar el
+  // `resumen.ultimaSalidaSinVuelta &&`). El profesor vería «salió 1 vez, 12
+  // minutos» y no sabría que esos doce minutos acaban en que no volvió, que es
+  // lo que separa una consulta larga de un abandono.
+  it("la línea dice cuándo de la última salida ya no volvió", () => {
+    const html = renderToStaticMarkup(<SalidasDelEstudiante resumen={conSalidas({ ultimaSalidaSinVuelta: true }).salidas} />);
+    expect(html).toContain("De esa última no volvió: la prueba se cerró con él fuera.");
+  });
+
+  // Mutación que la mata: pintar la frase siempre. A quien se fue y volvió —que
+  // es lo normal— se le diría que abandonó la prueba, y el profesor hablaría con
+  // él de algo que no pasó.
+  it("quien volvió de su última salida no sale como que abandonó", () => {
+    const html = renderToStaticMarkup(<SalidasDelEstudiante resumen={conSalidas().salidas} />);
+    expect(html).not.toContain("no volvió");
+  });
+
+  // Mutación que la mata: pintar la hora y la tarea aunque vengan a null. Un
+  // registro que dijera «la última, el null» es exactamente el tipo de línea que
+  // hace que el profesor deje de fiarse del dato entero.
+  it("sin hora ni tarea de la última salida, no se las inventa", () => {
+    const html = renderToStaticMarkup(
+      <SalidasDelEstudiante
+        resumen={{
+          salidas: 1,
+          segundosFuera: 8,
+          ultimaSalidaEn: null,
+          ultimaSalidaDeTarea: null,
+          ultimaSalidaSinVuelta: false,
+        }}
+      />,
+    );
+    expect(html).toContain("Salió de la pantalla 1 vez, 8 segundos en total");
+    expect(html).not.toContain("la última");
+    expect(html).not.toContain("null");
+  });
+
+  // Mutación que la mata: pintar menos grupos (un criterio o una tarea sin
+  // nota), u ofrecer otras notas que 0, 1, 2 y 3 (p. ej. `length:
+  // BANDA_MAXIMA` en vez de `BANDA_MAXIMA + 1`, que se come el 3).
+  it("la pantalla de corregir trae las ocho notas en botones y los dos textos", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    const radios = radiosDeNota(html);
+    expect(radios).toHaveLength(32);
+    expect(radios.every((r) => r.includes('type="radio"'))).toBe(true);
+    const grupos = new Map<string, string[]>();
+    for (const r of radios) {
+      const nombre = atributo(r, "name")!;
+      grupos.set(nombre, [...(grupos.get(nombre) ?? []), atributo(r, "value")!]);
+    }
+    expect([...grupos.keys()].sort()).toEqual(
+      [1, 2].flatMap((t) => CRITERIOS_EE.map((_, i) => `nota-${t}-${i}`)).sort(),
+    );
+    for (const valores of grupos.values()) expect(valores).toEqual(["0", "1", "2", "3"]);
+    expect(html).toContain("Hola, qué tal");
+  });
+
+  // Mutación que la mata: sacar las opciones de otro sitio que 0..BANDA_MAXIMA
+  // (p. ej. `length: BANDA_MAXIMA + 2`). Se podría firmar un 4 en un criterio
+  // que llega hasta 3.
+  it("ninguna nota se sale de 0 a BANDA_MAXIMA", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    const permitidas = Array.from({ length: BANDA_MAXIMA + 1 }, (_, v) => String(v));
+    const valores = radiosDeNota(html).map((r) => atributo(r, "value"));
+    expect(valores.length).toBeGreaterThan(0);
+    expect(valores.every((v) => v !== undefined && permitidas.includes(v))).toBe(true);
+  });
+
+  // Mutación que la mata: pintar la `ayuda` esté vacía o no (o quitarle el
+  // `data-ayuda`, que es la marca que una prueba hermana usa para lo mismo en
+  // hacer-escrita.tsx). Hoy los cuatro criterios llegan con `ayuda` vacía a
+  // propósito, así que ningún `data-ayuda` puede aparecer todavía.
+  it("hoy, sin ayuda dictada, no se pinta ningún renglón de ayuda", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).not.toContain("data-ayuda");
+  });
+
+  // Mutación que la mata: enseñar el enunciado editable (sin `bloqueado`), o
+  // no enseñarlo. El profesor tiene que ver a qué contestaba el chico, pero
+  // de solo lectura: no es él quien la responde.
+  it("el enunciado de cada tarea sale de solo lectura, para ver a qué contestaba", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toContain("Un amigo te escribe"); // tarea 1
+    expect(html).toContain("Opción 1"); // tarea 2
+    const radiosDeLaOpcion = html.match(/<input[^>]*name="opcion-de-la-escrita"[^>]*>/g) ?? [];
+    expect(radiosDeLaOpcion.length).toBeGreaterThan(0);
+    expect(radiosDeLaOpcion.every((r) => r.includes('disabled=""'))).toBe(true);
+  });
+
+  // Mutación que la mata: quitar el aviso de que ya se corrigió, o pintarlo
+  // aunque `corregidaEn` sea null. Firmar es un acto con fecha: si el
+  // profesor ya la corrigió, la pantalla tiene que decírselo y avisar de que
+  // volver a guardar la cambia.
+  it("si ya se corrigió, avisa de la fecha y de que guardar la cambia", () => {
+    const sinCorregir = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(sinCorregir).not.toContain("Ya la corregiste");
+
+    const yaCorregida = renderToStaticMarkup(<CorregirEscrita para={yaCorregidaDePrueba()} />);
+    expect(yaCorregida).toContain("Ya la corregiste");
+    expect(yaCorregida).toContain("se cambia");
+  });
+
+  // Mutación que la mata: marcar el 0 cuando no hay nota (pasar
+  // `valor={valorDeBanda(…) ?? "0"}`), o sembrar a 0 en vez de a null
+  // (`bandasIniciales` devolviendo ceros, como estaba antes del arreglo). Un
+  // profesor que solo pusiera la tarea 1 firmaría la tarea 2 con cuatro ceros
+  // que nadie puso.
+  it("sin corrección previa, las ocho notas nacen sin marcar, no en cero", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    const radios = radiosDeNota(html);
+    expect(radios).toHaveLength(32);
+    expect(radios.filter((r) => /\schecked=""/.test(r))).toHaveLength(0);
+  });
+
+  // Mutación que la mata: no sembrar las notas con las bandas que ya trajera
+  // `para` (dejarlas sin marcar siempre), o tratar un 0 guardado como hueco.
+  // El profesor que reabre una redacción ya firmada vería sus notas borradas.
+  it("con corrección previa, las ocho notas traen sus valores", () => {
+    const html = renderToStaticMarkup(
+      <CorregirEscrita
+        para={paraCorregirDePrueba({
+          corregidaEn: new Date("2026-09-16T10:00:00.000Z"),
+          tareas: [
+            tareaParaCorregir(1, "Hola, qué tal, el sábado no puedo.", null, [3, 2, 2, 1], "Muy bien el saludo"),
+            tareaParaCorregir(2, "Mi fin de semana ideal es un sábado en el río.", 2, [3, 3, 2, 0], "Cuida los acentos"),
+          ],
+        })}
+      />,
+    );
+    const marcados = radiosDeNota(html).filter((r) => /\schecked=""/.test(r));
+    expect(marcados).toHaveLength(8);
+    // El 0 del cuarto criterio de la tarea 2 es un 0 de verdad, no «sin nota».
+    const delUltimo = marcados.filter((r) => atributo(r, "name") === "nota-2-3");
+    expect(delUltimo).toHaveLength(1);
+    expect(atributo(delUltimo[0], "value")).toBe("0");
+    // Y el primero de la tarea 1 es su 3, no otro.
+    expect(atributo(marcados.find((r) => atributo(r, "name") === "nota-1-0")!, "value")).toBe("3");
+  });
+
+  // Mutación que la mata: sacar los criterios de otra lista (p. ej. copiar los
+  // del dibujo, que ponía «Cohesión»).
+  it("los criterios son exactamente los de CRITERIOS_EE, en su orden", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    const leyendas = [...html.matchAll(/<legend[^>]*>([^<]+)<\/legend>/g)].map((m) => m[1]);
+    const deNotas = leyendas.filter((l) => CRITERIOS_EE.some((c) => c.nombre === l));
+    expect(deNotas).toEqual([...CRITERIOS_EE, ...CRITERIOS_EE].map((c) => c.nombre));
+    expect(html).not.toContain("Cohesión");
+  });
+
+  // Mutación que la mata: dejar los botones encendidos con notas vacías, o
+  // apagarlos sin escribir el motivo al lado.
+  it("sin todas las notas, los dos botones apagados y el motivo escrito", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar y seguir<\/button>/);
+    expect(html).toContain("Te faltan 8 notas en las tareas 1 y 2.");
+  });
+
+  // Mutación que la mata: apagarlos siempre.
+  it("con todas las notas, los dos botones encendidos y sin motivo", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={yaCorregidaDePrueba()} />);
+    expect(html).toMatch(/<button[^>]*>Guardar<\/button>/); // que se pintaron de verdad
+    expect(html).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar/);
+    expect(html).not.toContain("Te falta");
+  });
+
+  // Mutación que la mata: quitar la suma, o traducirla a apto/no apto.
+  it("la suma, arriba, y sin veredicto", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={yaCorregidaDePrueba()} />);
+    expect(html).toContain("17 de 24"); // 3+2+2+1 + 3+3+2+1
+    expect(html.toLowerCase()).not.toContain("apto");
+  });
+
+  // Mutación que la mata: pintar el texto del estudiante sin su cuenta de
+  // palabras. El profesor corrige alcance, y sin el número a la vista tiene
+  // que contarlas él mismo.
+  it("el texto del estudiante trae su cuenta de palabras", () => {
+    const html = renderToStaticMarkup(<CorregirEscrita para={paraCorregirDePrueba()} />);
+    expect(html).toContain(`${palabras("Hola, qué tal, el sábado no puedo.")} palabras`);
+  });
+});
+
+describe("BotonesDeGuardar", () => {
+  // Mutación que la mata: quitar `enviando={procesando}` del primero o el
+  // `|| procesando` del segundo. Sin ellos, un doble clic manda dos firmas a
+  // la vez. Se cuentan los atributos `disabled=""`, no la palabra suelta (la
+  // clase `disabled:` del kit daría un falso verde).
+  it("con procesando, los dos botones se apagan y solo el primero dice Guardando…", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando motivo={null} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardando…<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar y seguir<\/button>/);
+    expect((html.match(/\sdisabled=""/g) ?? []).length).toBe(2);
+  });
+
+  // Mutación que la mata: pintar el motivo sin apagar el segundo botón (quitar
+  // `motivo !== null ||`). Se podría saltar a la siguiente con huecos.
+  it("con motivo, los dos apagados y el motivo al lado", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando={false} motivo="Te falta 1 nota en la tarea 1." alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar<\/button>/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Guardar y seguir<\/button>/);
+    expect(html).toContain("Te falta 1 nota en la tarea 1.");
+  });
+
+  // Mutación que la mata: apagarlos siempre (`disabled` fijo), o invertir
+  // `procesando`. Sin guardado en marcha, el profesor tiene que poder pulsar.
+  it("sin procesando ni motivo, los dos botones están vivos", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando={false} motivo={null} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    expect(html).toContain("Guardar y seguir");
+    expect(html).not.toMatch(/\sdisabled=""/);
+  });
+
+  // Mutación que la mata: no ofrecer «Guardar y seguir», o pintar los dos
+  // botones como enlaces en vez de `<button type="button">`.
+  it("son los dos <button type=\"button\">, no enlaces ni un submit", () => {
+    const html = renderToStaticMarkup(
+      <BotonesDeGuardar procesando={false} motivo={null} alGuardar={() => {}} alGuardarYSeguir={() => {}} />,
+    );
+    const botones = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)];
+    const deGuardar = botones.filter((b) => b[1] === "Guardar" || b[1] === "Guardar y seguir");
+    expect(deGuardar).toHaveLength(2);
+    expect(deGuardar.every((b) => b[0].includes('type="button"'))).toBe(true);
+  });
+});
+
+describe("La ficha pregunta a pregunta: /examenes/[id]/hoja/[personaId]/[prueba]", () => {
+  function hojaDePrueba(extra: Partial<HojaDeRespuestas> = {}): HojaDeRespuestas {
+    return {
+      persona: { nombre: "Ana" },
+      titulo: "Examen 1",
+      prueba: "CE",
+      aciertos: 19,
+      total: 25,
+      filas: [
+        { numero: 7, marcada: "A", correcta: "A" },
+        { numero: 8, marcada: "C", correcta: "B" },
+        { numero: 9, marcada: null, correcta: "C" },
+      ],
+      ...extra,
+    };
+  }
+
+  // Mutación que la mata: quitar exigirProfesor de la página de la ficha. Sería
+  // la puerta por la que la clave del examen sale hacia un estudiante.
+  it("la ficha no se le enseña a un estudiante", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(ana);
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    // El `rejects.toThrow()` de aquí abajo NO basta solo: sin `exigirProfesor`,
+    // `hojaDeRespuestas` (doblada, sin mockResolvedValue) da `undefined`, y
+    // `if (!hoja) notFound()` también tira — la pantalla seguiría rechazando
+    // por el motivo EQUIVOCADO. La aserción que de verdad mata «quitar
+    // exigirProfesor» es la siguiente: sin la puerta, sí se llegaría a llamar
+    // a hojaDeRespuestas. Que nadie la borre por parecer redundante.
+    await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow();
+    expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el `esPrueba(prueba) || notFound()`. Una
+  // dirección con una prueba inventada («XX») tendría que dar 404, no colarse
+  // hasta llamar a hojaDeRespuestas con un valor que no es una Prueba.
+  it("una prueba que no existe contesta 404 sin llegar a mirar la base", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "XX" }) })).rejects.toThrow("NOT_FOUND");
+    expect(dobles.hojaDeRespuestas).not.toHaveBeenCalled();
+  });
+
+  // Mutación que la mata: quitar el `if (!hoja) notFound()`. Una prueba sin
+  // entregar (hojaDeRespuestas da null) tiene que dar 404, no una pantalla
+  // rota a medio pintar.
+  it("sin ficha todavía (no entregada) contesta 404", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(null);
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    await expect(Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) })).rejects.toThrow("NOT_FOUND");
+  });
+
+  // Mutación que la mata: no pintar el nombre, el examen, el nombre de la
+  // prueba o la nota congelada arriba de la ficha.
+  it("arriba: el nombre, el examen, la prueba y la nota congelada", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const html = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(html).toContain("Ana");
+    expect(html).toContain("Examen 1");
+    expect(html).toContain("Lectura");
+    expect(html).toContain("19");
+    expect(html).toContain("25");
+    expect(dobles.hojaDeRespuestas).toHaveBeenCalledWith("ex1", "p1", "CE");
+  });
+
+  // Mutación que la mata: pintar `marcada` tal cual cuando es null (una
+  // celda vacía) en vez de decir «sin contestar». Dejarla en blanco tiene que
+  // seguir siendo visible como una fila más, no desaparecer entre las demás.
+  it("lo que dejó en blanco sale dicho como «sin contestar»", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const html = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(html).toContain("sin contestar");
+  });
+
+  // Mutación que la mata: volver al rojo de error: fallar una pregunta no es un fallo del sistema.
+  it("la fila donde falló sale marcada en coral; la que acertó, no", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+
+    dobles.hojaDeRespuestas.mockResolvedValue(
+      hojaDePrueba({ filas: [{ numero: 7, marcada: "A", correcta: "A" }] }),
+    );
+    const sinFallos = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(sinFallos).not.toContain("bg-coral-100");
+    expect(sinFallos).not.toContain("bg-error-100");
+
+    dobles.hojaDeRespuestas.mockResolvedValue(
+      hojaDePrueba({ filas: [{ numero: 8, marcada: "C", correcta: "B" }] }),
+    );
+    const conUnFallo = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(conUnFallo).toContain("bg-coral-100");
+    expect(conUnFallo).not.toContain("bg-error-100");
+  });
+
+  // Mutación que la mata: dejar el «← Volver al examen» de abajo, con lo que habría dos enlaces al examen.
+  it("un solo enlace al examen", async () => {
+    dobles.personaDeLaCookie.mockResolvedValue(profe);
+    dobles.hojaDeRespuestas.mockResolvedValue(hojaDePrueba());
+    const { default: Hoja } = await import("@/app/(sitio)/examenes/[id]/hoja/[personaId]/[prueba]/page");
+    const html = renderToStaticMarkup(
+      await Hoja({ params: Promise.resolve({ id: "ex1", personaId: "p1", prueba: "CE" }) }),
+    );
+    expect(html.match(/href="\/examenes\/ex1"/g) ?? []).toHaveLength(1);
   });
 });

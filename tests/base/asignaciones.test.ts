@@ -204,6 +204,10 @@ describe("quitar y listar", () => {
 
   // Mutación que la mata: devolver la fila entera de la base en asignacionesDe.
   // Lo que viaja al navegador del estudiante se construye campo a campo.
+  //
+  // Tres pruebas, no dos: desde la Task 5 de la 3d, PRUEBAS_QUE_SE_HACEN trae
+  // también la escrita, y pruebasDeLaAsignacion (lib/examen/asignar.ts) recorre
+  // esa misma lista.
   it("lo del estudiante trae lo justo para pintar", async () => {
     await asignarExamen(examen.id, [ana.id], "2026-10-20", "COMPLETO", profesor.id, async () => {}, "https://sitio", ANTES);
     const sinEmpezar = { estado: "SIN_EMPEZAR", aciertos: null, total: null, porTiempo: false };
@@ -218,6 +222,7 @@ describe("quitar y listar", () => {
         pruebas: [
           { prueba: "CE", estado: sinEmpezar, texto: "Sin empezar" },
           { prueba: "CO", estado: sinEmpezar, texto: "Sin empezar" },
+          { prueba: "EE", estado: sinEmpezar, texto: "Sin empezar" },
         ],
       },
     ]);
@@ -229,19 +234,36 @@ describe("quitar y listar", () => {
         pruebas: [
           { prueba: "CE", estado: sinEmpezar, texto: "Sin empezar" },
           { prueba: "CO", estado: sinEmpezar, texto: "Sin empezar" },
+          { prueba: "EE", estado: sinEmpezar, texto: "Sin empezar" },
         ],
       },
     ]);
   });
 
-  // Mutación que la mata: seguir devolviendo un estado (SIN_EMPEZAR u otro)
-  // cuando el modo es LIBRE. Ahí no hay intento nunca (corregirEnLibre
-  // corrige al vuelo y no deja rastro): un estado sería mentira.
-  it("en modo libre no hay pruebas: las dos funciones lo dicen con la lista vacía", async () => {
-    await prisma.asignacion.create({ data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE, modo: "LIBRE" } });
+  // Esta prueba decía lo contrario —que en libre las dos listas salen VACÍAS—
+  // y defendía un fallo: la escrita SÍ crea intento en práctica libre, se
+  // entrega y entra en la cola del profesor (spec §9), así que esconderla
+  // dejaba al estudiante con «Practicar» en el Inicio sobre una redacción ya
+  // corregida, y al profesor sin ver nada en «Quién lo hace».
+  //
+  // Dos mutaciones, una por mitad:
+  // 1) devolver `[]` en libre (lo de antes): se cae la fila de la escrita;
+  // 2) devolver las TRES pruebas en libre: aparecerían la lectura y la
+  //    auditiva, que se corrigen al vuelo y no dejan rastro, con un
+  //    «Sin empezar» inventado.
+  it("en modo libre solo la escrita tiene estado, y es el suyo de verdad", async () => {
+    const asignacion = await prisma.asignacion.create({
+      data: { examenId: examen.id, personaId: ana.id, fechaTope: TOPE, modo: "LIBRE" },
+    });
+    await prisma.intento.create({
+      data: { asignacionId: asignacion.id, prueba: "EE", entregadaEn: new Date("2026-10-19T10:00:00Z"), aciertos: 18, total: 24 },
+    });
 
-    expect((await asignacionesDe(ana.id))[0]!.pruebas).toEqual([]);
-    expect((await asignacionesDelExamen(examen.id))[0]!.pruebas).toEqual([]);
+    const esperado = [
+      { prueba: "EE", estado: { estado: "ENTREGADA", aciertos: 18, total: 24, porTiempo: false }, texto: "Entregada, 18 de 24" },
+    ];
+    expect((await asignacionesDe(ana.id))[0]!.pruebas).toEqual(esperado);
+    expect((await asignacionesDelExamen(examen.id))[0]!.pruebas).toEqual(esperado);
   });
 
   // Mutación que la mata: no leer la nota del intento (dejarla en null), o no

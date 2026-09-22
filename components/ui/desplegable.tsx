@@ -1,0 +1,41 @@
+import type { SelectHTMLAttributes } from "react";
+
+export function Desplegable({
+  id,
+  etiqueta,
+  opciones,
+  marcador,
+  className = "",
+  ...resto
+}: {
+  id: string;
+  etiqueta: string;
+  opciones: { valor: string; texto: string }[];
+  /** Texto de la primera opción, vacía y desactivada: se ve mientras no hay
+   *  nada elegido, pero no se puede elegir (mandaría "" como respuesta). */
+  marcador?: string;
+} & SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-sm font-bold">
+        {etiqueta}
+      </label>
+      <select
+        {...resto}
+        id={id}
+        className={`rounded-2xl border border-tinta-suave/30 bg-white px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-hp-600 ${className}`.trim()}
+      >
+        {marcador !== undefined && (
+          <option value="" disabled>
+            {marcador}
+          </option>
+        )}
+        {opciones.map((o) => (
+          <option key={o.valor} value={o.valor}>
+            {o.texto}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}

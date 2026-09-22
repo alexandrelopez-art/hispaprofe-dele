@@ -1,4 +1,4 @@
-import type { Nivel, Prueba } from "@/lib/generated/prisma";
+import type { ModoDeExamen, Nivel, Prueba } from "@/lib/generated/prisma";
 
 /** Cómo es el formulario de una tarea. Una por formato del DELE. */
 export type Forma =
@@ -137,10 +137,9 @@ export function nombreDeEtiqueta(etiqueta: string): string {
  * Minutos de cada prueba. null = no lleva reloj. La auditiva no lo lleva a
  * propósito: la marca el audio, y las pistas del libro traen dentro las dos
  * audiciones, así que juntas pasan de los 30 minutos del papel oficial.
- * La escrita llega con la 3d.
  */
 export const MINUTOS_DE_PRUEBA: Readonly<Record<Nivel, Readonly<Record<Prueba, number | null>>>> = {
-  A2_B1_ESCOLAR: { CE: 50, CO: null, EE: null, EO: null },
+  A2_B1_ESCOLAR: { CE: 50, CO: null, EE: 50, EO: null },
   A1: { CE: null, CO: null, EE: null, EO: null },
   A2: { CE: null, CO: null, EE: null, EO: null },
   B1: { CE: null, CO: null, EE: null, EO: null },
@@ -149,4 +148,48 @@ export const MINUTOS_DE_PRUEBA: Readonly<Record<Nivel, Readonly<Record<Prueba, n
 
 export function minutosDePrueba(nivel: Nivel, prueba: Prueba): number | null {
   return MINUTOS_DE_PRUEBA[nivel][prueba];
+}
+
+/**
+ * Los minutos que CORREN de verdad, ya contando el modo: en práctica libre no
+ * hay reloj ninguno (se practica sin cronómetro), así que null.
+ *
+ * Existe para que «aquí no hay reloj» se escriba una sola vez. Antes la misma
+ * idea estaba repartida en cinco sitios y con tres formas distintas —`modo ===
+ * "LIBRE" ? null : …`, `modo === "COMPLETO" && minutos !== null`, `modo !==
+ * "LIBRE" && …`—, y era cuestión de tiempo que una se quedara atrás. Con esto,
+ * quien quiera saber si hay reloj pregunta `minutos !== null` y ya está.
+ */
+export function minutosConReloj(modo: ModoDeExamen, nivel: Nivel, prueba: Prueba): number | null {
+  return modo === "LIBRE" ? null : minutosDePrueba(nivel, prueba);
+}
+
+
+/**
+ * Los cuatro criterios con que se corrige la expresión escrita, en el orden en
+ * que se guardan en `EscritoDeIntento.bandas`. Cambiar el orden cambiaría el
+ * significado de las correcciones ya firmadas: no se toca.
+ *
+ * `ayuda` es la línea que el profesor ve al lado de la casilla para no dudar
+ * entre un 2 y un 3. La dicta él; hasta entonces va vacía y la pantalla
+ * simplemente no la pinta.
+ */
+export const CRITERIOS_EE = [
+  { clave: "adecuacion", nombre: "Adecuación al género discursivo", ayuda: "" },
+  { clave: "coherencia", nombre: "Coherencia textual", ayuda: "" },
+  { clave: "correccion", nombre: "Corrección", ayuda: "" },
+  { clave: "alcance", nombre: "Alcance", ayuda: "" },
+] as const;
+
+/** La banda va de 0 a BANDA_MAXIMA. */
+export const BANDA_MAXIMA = 3;
+
+/**
+ * Sobre cuántos puntos se corrige la escrita de un nivel: sus tareas por sus
+ * cuatro criterios por la banda máxima. NO es un 24 escrito a mano — un nivel
+ * con tres tareas de escrita daría 36 sin tocar nada.
+ */
+export function puntosDeEscrita(nivel: Nivel): number {
+  const tareas = ESTRUCTURAS[nivel]?.EE.length ?? 0;
+  return tareas * CRITERIOS_EE.length * BANDA_MAXIMA;
 }

@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
+  CRITERIOS_EE,
   ESTRUCTURAS,
   PRUEBAS,
   esPrueba,
   etiquetasDeNivel,
   letrasHasta,
+  minutosDePrueba,
   nivelesConReglas,
   nombreDeEtiqueta,
+  puntosDeEscrita,
   reglaDe,
 } from "@/lib/dele/estructura";
 
@@ -131,4 +134,20 @@ describe("nombres y etiquetas", () => {
     expect(esPrueba("CO")).toBe(true);
     expect(esPrueba("XX")).toBe(false);
   });
+});
+
+// Mutación que la mata: escribir `return 24` en puntosDeEscrita. El 24 tiene
+// que salir de la estructura, o el día que un nivel tenga otra escrita mentirá.
+it("la escrita se corrige sobre las tareas que tiene el nivel", () => {
+  expect(puntosDeEscrita("A2_B1_ESCOLAR")).toBe(24);
+  expect(puntosDeEscrita("B2")).toBe(0); // sin reglas todavía
+  expect(CRITERIOS_EE).toHaveLength(4);
+  expect(CRITERIOS_EE.map((c) => c.clave)).toEqual(["adecuacion", "coherencia", "correccion", "alcance"]);
+});
+
+// Mutación que la mata: dejar EE en null. El reloj de la escrita es de 50
+// minutos, y sin esto la prueba saldría sin reloj y no se entregaría sola.
+it("la escrita lleva 50 minutos y la auditiva sigue sin reloj", () => {
+  expect(minutosDePrueba("A2_B1_ESCOLAR", "EE")).toBe(50);
+  expect(minutosDePrueba("A2_B1_ESCOLAR", "CO")).toBeNull();
 });

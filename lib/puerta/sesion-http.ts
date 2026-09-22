@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import type { NextResponse } from "next/server";
@@ -16,14 +17,25 @@ async function personaActual(ahora: Date): Promise<Persona | null> {
 }
 
 /**
+ * La persona de ESTA petición, leída una sola vez: el layout de (sitio) y la
+ * página la piden los dos, y sin esto cada pantalla consultaba la sesión dos
+ * veces. La fecha se toma dentro: una función que recibe `ahora` no se puede
+ * cachear (cada llamada trae una fecha distinta).
+ */
+const personaDeEstaPeticion = cache(async (): Promise<Persona | null> => personaActual(new Date()));
+
+/**
  * La persona de la sesión, o null si no hay ninguna. Es la envoltura para
  * app/api/...: nunca redirige ni da 404, para que quien llama pueda responder
  * con el código HTTP que toque (401 sin sesión, 403 con sesión pero sin
  * permiso). Reutiliza la misma comprobación de cookie que exigirPersona, sin
  * duplicarla.
+ *
+ * También la usa el layout de app/(sitio)/ para pintar la cabecera: tampoco
+ * puede redirigir, porque `/` sin sesión es pública y el layout la envuelve.
  */
 export async function personaDeLaPeticion(): Promise<Persona | null> {
-  return personaActual(new Date());
+  return personaDeEstaPeticion();
 }
 
 /**
@@ -32,7 +44,7 @@ export async function personaDeLaPeticion(): Promise<Persona | null> {
  * empieza por aquí.
  */
 export async function exigirPersona(): Promise<Persona> {
-  const persona = await personaActual(new Date());
+  const persona = await personaDeEstaPeticion();
   if (!persona) redirect("/entrar");
   return persona;
 }
