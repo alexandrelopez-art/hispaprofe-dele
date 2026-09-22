@@ -71,6 +71,58 @@ describe("crearLectorLocal", () => {
     expect(resultado.formulario.actividad.preguntas).toHaveLength(6);
   });
 
+  it("no confunde un trozo del rotulo gris de la pagina con la consigna", async () => {
+    const regla = CE(4);
+    // Tal cual sale del OCR de la cara derecha del pliego 3 del examen 2: el
+    // rótulo de la página cae partido entre "Instrucciones" y la consigna.
+    const hoja = [
+      "TAREA 4 pe LEC",
+      "",
+      "Instrucciones",
+      "",
+      "E LECTURA",
+      "",
+      "Lee el texto y rellena los huecos (19-25) con la opción correcta (A, B o C).",
+      "",
+      textoDeAyuda("ce4-huecos-vocacion.txt"),
+    ].join("\n");
+    const { abrir } = sesionFalsa([hoja]);
+
+    const resultado = interpretar(regla, await crearLectorLocal(abrir)(encargoDeTarea("A2_B1_ESCOLAR", "CE", regla, [HOJA])));
+
+    expect(resultado).not.toHaveProperty("error");
+    if ("error" in resultado) return;
+    expect(resultado.formulario.consigna).toContain("rellena los huecos");
+    expect(resultado.formulario.consigna).not.toContain("LECTURA");
+  });
+
+  it("deja fuera lo que es de la tarea de al lado cuando la hoja trae las dos", async () => {
+    const regla = CE(4);
+    const hoja = [
+      "TAREA 3 pe LEC",
+      "",
+      "Instrucciones",
+      "",
+      "Vas a leer un texto sobre alguien. Después contesta a las preguntas (13-18).",
+      "",
+      "TAREA 4 pe LEC",
+      "",
+      "Instrucciones",
+      "",
+      "Lee el texto y rellena los huecos (19-25) con la opción correcta (A, B o C).",
+      "",
+      textoDeAyuda("ce4-huecos-vocacion.txt"),
+    ].join("\n");
+    const { abrir } = sesionFalsa([hoja]);
+
+    const resultado = interpretar(regla, await crearLectorLocal(abrir)(encargoDeTarea("A2_B1_ESCOLAR", "CE", regla, [HOJA])));
+
+    expect(resultado).not.toHaveProperty("error");
+    if ("error" in resultado) return;
+    expect(resultado.formulario.consigna).toContain("rellena los huecos");
+    expect(resultado.formulario.consigna).not.toContain("13-18");
+  });
+
   it("cierra el worker aunque el lector de forma reviente, para no dejarlo vivo", async () => {
     const regla = CE(4);
     const { abrir, cerradas } = sesionFalsa([]);
