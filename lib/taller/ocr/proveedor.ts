@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+
 import type { Formulario } from "@/lib/taller/formas";
 import { NOMBRE_DE_PRUEBA, type ReglaTarea } from "@/lib/dele/estructura";
 import { SIN_USO } from "@/lib/taller/ia/coste";
@@ -34,7 +36,10 @@ export type SesionDeLectura = { reconocer: ReconocerHoja; cerrar: () => Promise<
 
 export async function crearSesionDeLectura(): Promise<SesionDeLectura> {
   const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker(IDIOMA);
+  // Sin `cachePath` tesseract.js deja los 3,3 MB del idioma en el directorio
+  // de trabajo: basura en el repo al probar y, en un servidor de solo
+  // lectura, un fallo al arrancar.
+  const worker = await createWorker(IDIOMA, undefined, { cachePath: tmpdir() });
   await worker.setParameters({ tessedit_pageseg_mode: SEGMENTACION_AUTOMATICA as never });
   return {
     // tesseract.js decodifica el JPEG él solo, así que la hoja va tal cual
