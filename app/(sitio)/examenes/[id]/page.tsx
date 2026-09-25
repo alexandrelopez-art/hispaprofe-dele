@@ -15,6 +15,7 @@ import {
 } from "@/app/(sitio)/examenes/acciones";
 import { MENSAJE_PUBLICADO } from "@/lib/taller/publicado";
 import { ElegirCuadernillo } from "@/components/taller/elegir-cuadernillo";
+import { EtiquetarAutomaticamente } from "@/components/taller/etiquetar-automaticamente";
 import { EtiquetasDePagina } from "@/components/taller/etiquetas-de-pagina";
 import { InsigniaDeEstado } from "@/components/taller/estado-de-la-tarea";
 import { QuienLoHace } from "@/components/taller/quien-lo-hace";
@@ -26,6 +27,11 @@ import { EncabezadoPagina } from "@/components/ui/encabezado-pagina";
 import { Enlace } from "@/components/ui/enlace";
 import { EtiquetaEstado } from "@/components/ui/etiqueta-estado";
 import { Tarjeta } from "@/components/ui/tarjeta";
+
+// El lector OCR de un examen entero (una hoja por página) tarda unos 20 s,
+// igual de por encima del límite por defecto que "Rellenar con IA" en la
+// pantalla de la tarea.
+export const maxDuration = 300;
 
 export default async function PantallaDelExamen({
   params,
@@ -41,6 +47,7 @@ export default async function PantallaDelExamen({
   const cuadernillos = await listarCuadernillos();
   const todas = etiquetasDeNivel(examen.nivel);
   const sinEtiqueta = examen.paginas.filter((p) => p.etiquetas.length === 0).length;
+  const algunaEtiquetada = examen.paginas.some((p) => p.etiquetas.length > 0);
   const elegido = examen.cuadernillo;
   const resumenDelNumero = elegido?.resumen.find((r) => r.examen === String(examen.numeroEnCuadernillo));
   const publicado = examen.estado === "PUBLICADO";
@@ -158,6 +165,9 @@ export default async function PantallaDelExamen({
 
           <Tarjeta as="section" className="flex min-w-0 flex-col gap-4">
             <h2 className="text-xl font-bold">Páginas</h2>
+            {editable && examen.paginas.length > 0 && (
+              <EtiquetarAutomaticamente examenId={examen.id} algunaEtiquetada={algunaEtiquetada} />
+            )}
             {examen.paginas.length > 0 && sinEtiqueta > 0 && (
               <Aviso tono="aviso">{sinEtiqueta === 1 ? "Hay 1 hoja sin etiquetar." : `Hay ${sinEtiqueta} hojas sin etiquetar.`}</Aviso>
             )}
@@ -171,7 +181,12 @@ export default async function PantallaDelExamen({
                       <figcaption className="font-bold">Hoja {p.orden} · {p.etiquetas.map(nombreDeEtiqueta).join(", ") || "sin etiquetar"}</figcaption>
                     </figure>
                   ) : (
-                    <EtiquetasDePagina key={p.id} examenId={examen.id} pagina={p} todas={todas} />
+                    // La clave lleva las etiquetas: el etiquetado automático cambia
+                    // `p.etiquetas` desde fuera de esta tarjeta (no con su propio
+                    // botón), y sin esto React reutilizaría la instancia con su
+                    // estado local (`marcadas`) desactualizado en vez de arrancar
+                    // de las etiquetas nuevas que ya trae el examen.
+                    <EtiquetasDePagina key={`${p.id}:${p.etiquetas.join(",")}`} examenId={examen.id} pagina={p} todas={todas} />
                   ),
                 )}
               </div>

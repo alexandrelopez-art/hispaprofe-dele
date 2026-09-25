@@ -11,6 +11,7 @@ import { elegirCuadernillo, guardarCuadernillo } from "@/lib/taller/cuadernillos
 import type { EstadoDeTarea } from "@/lib/taller/estado";
 import type { ModoDeExamen } from "@/lib/generated/prisma";
 import { rellenarTarea, type ResultadoDeRelleno } from "@/lib/taller/ia/rellenar";
+import { etiquetarPaginasAutomaticamente, type ResultadoDeEtiquetadoAutomatico } from "@/lib/taller/ocr/etiquetar-solo";
 import { asignarExamen, quitarAsignacion } from "@/lib/examen/asignar";
 import { listaDeNombres } from "@/lib/examen/nombres";
 import { mandarPorSmtp } from "@/lib/correo/transporte";
@@ -55,6 +56,14 @@ export async function sustituirPaginasAccion(examenId: string, ficheroIds: strin
 export async function etiquetarPaginaAccion(examenId: string, paginaId: string, etiquetas: string[]): Promise<{ error?: string }> {
   await exigirProfesor();
   const r = await etiquetarPagina(examenId, paginaId, etiquetas);
+  revalidatePath(pantallaDelExamen(examenId));
+  return r;
+}
+
+/** Etiqueta con el lector OCR todas las páginas del examen de una vez: el atajo que sustituye el clic manual, tarea por tarea. Sustituye sin preguntar lo que ya hubiera — es la pantalla quien avisa antes de llamar si había etiquetas puestas a mano. */
+export async function etiquetarPaginasAutomaticamenteAccion(examenId: string): Promise<ResultadoDeEtiquetadoAutomatico> {
+  await exigirProfesor();
+  const r = await etiquetarPaginasAutomaticamente(examenId);
   revalidatePath(pantallaDelExamen(examenId));
   return r;
 }
