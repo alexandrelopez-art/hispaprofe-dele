@@ -12,6 +12,12 @@ describe("qué rutas exigen sesión", () => {
     expect(exigeSesion("/entrar/enviado")).toBe(false);
   });
 
+  // Mutación que mata esta prueba: quitar "/actividades" de ABIERTAS.
+  it("deja pasar las actividades abiertas (sin cuenta)", () => {
+    expect(exigeSesion("/actividades/ver-la-entonacion.html")).toBe(false);
+    expect(exigeSesion("/actividadesx")).toBe(true);
+  });
+
   // Mutación que mata esta prueba: quitar la `!` que niega el
   // `ABIERTAS.some(...)`. Ninguna de estas rutas está en ABIERTAS, así que sin
   // la negación las tres pasarían a devolver false (abiertas) en vez de true.
