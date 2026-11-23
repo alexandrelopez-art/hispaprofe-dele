@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/personas", destination: "/estudiantes", permanent: false },
+      // LEXICON del TFM (Nebrija): página fija en public/actividades, abierta sin cuenta.
+      { source: "/lexicon", destination: "/actividades/lexicon-mestizaje.html", permanent: false },
       { source: "/corregir", destination: "/pendientes", permanent: false },
       { source: "/corregir/:intentoId", destination: "/pendientes/:intentoId", permanent: false },
     ];
